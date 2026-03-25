@@ -1,0 +1,4 @@
+# --- Python Specific ---
+__pycache__/
+.venv/
+.env
