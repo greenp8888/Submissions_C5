@@ -4,6 +4,7 @@ from transformers import pipeline
 # 1. Initialize the pipeline outside the function so it only loads once
 sentiment_model = pipeline("sentiment-analysis")
 
+
 # 2. Define the function that Gradio will execute
 def analyze_sentiment(text):
     # Basic validation
@@ -13,17 +14,40 @@ def analyze_sentiment(text):
     # Get the prediction
     result = sentiment_model(text)[0]
 
-    label = result["label"]
+    raw_label = result["label"].upper()
     score = round(result["score"] * 100, 2)
 
-    # Friendly explanation
-    if label.upper() == "POSITIVE":
-        explanation = "The text sounds positive in tone."
+    # Cleaner label for display
+    if raw_label == "POSITIVE":
+        label = "🟢 Positive"
     else:
-        explanation = "The text sounds negative in tone."
+        label = "🔴 Negative"
+
+    # Confidence-based explanation
+    if score >= 90:
+        confidence_band = "Very High"
+    elif score >= 75:
+        confidence_band = "High"
+    elif score >= 60:
+        confidence_band = "Moderate"
+    else:
+        confidence_band = "Low"
+
+    # Friendly explanation
+    if raw_label == "POSITIVE":
+        explanation = (
+            f"The text sounds positive in tone. "
+            f"The model is {confidence_band.lower()} in its prediction."
+        )
+    else:
+        explanation = (
+            f"The text sounds negative in tone. "
+            f"The model is {confidence_band.lower()} in its prediction."
+        )
 
     # Return values for multiple UI components
-    return label, f"{score}%", explanation
+    return label, f"{score}% ({confidence_band})", explanation
+
 
 # 3. Create the interface
 with gr.Blocks(theme=gr.themes.Soft(), title="Sentiment Analyzer") as demo:
@@ -63,7 +87,8 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Sentiment Analyzer") as demo:
     analyze_btn.click(
         fn=analyze_sentiment,
         inputs=text_input,
-        outputs=[sentiment_output, confidence_output, explanation_output]
+        outputs=[sentiment_output, confidence_output, explanation_output],
+        show_progress=True
     )
 
     clear_btn.click(
@@ -71,6 +96,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Sentiment Analyzer") as demo:
         inputs=[],
         outputs=[text_input, sentiment_output, confidence_output, explanation_output]
     )
+
 
 # 4. Launch
 if __name__ == "__main__":
