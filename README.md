@@ -19,6 +19,14 @@ A chat application built with Streamlit, using OpenRouter for responses and conv
 - python-dotenv
 - OpenRouter API
 
+## Repository Mapping
+
+- Main repository: `https://github.com/mumehta/build_chatapp`
+- Submission mirror repository: `https://github.com/eng-accelerator/Submissions_C5`
+- Submission branch in mirror repo: `mumehta-ai-patch-1`
+
+This project is maintained in the main repository and also pushed to the submission repository branch listed above.
+
 ## Project Structure
 
 ```text
