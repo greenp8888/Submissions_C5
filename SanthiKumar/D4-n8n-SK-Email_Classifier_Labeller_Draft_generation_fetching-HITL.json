@@ -413,7 +413,7 @@
     {
       "parameters": {
         "operation": "sendAndWait",
-        "sendTo": "santhikumardasi@gmail.com",
+        "sendTo": "xyz@gmail.com",
         "subject": "=Approval Required: Delete Email - {{ $('Gmail Trigger').item.json.subject }}",
         "message": "=An email requires deletion approval:\n\nFrom: {{ $('Gmail Trigger').item.json.from.text }}\nSubject: {{ $('Gmail Trigger').item.json.subject }}\n\nPreview:\n{{ $('Gmail Trigger').item.json.text }}\n\nPlease approve or reject this deletion request.",
         "options": {}
@@ -479,7 +479,7 @@
     },
     {
       "parameters": {
-        "sendTo": "santhikumardasi@gmail.com",
+        "sendTo": "xyz@gmail.com",
         "subject": "=Deletion Rejected - {{ $('Prepare Approval Request').item.json.subject }}",
         "message": "=The deletion request for the following email was rejected:\n\nFrom: {{ $('Prepare Approval Request').item.json.from }}\nSubject: {{ $('Prepare Approval Request').item.json.subject }}\n\nNo action was taken.",
         "options": {}
