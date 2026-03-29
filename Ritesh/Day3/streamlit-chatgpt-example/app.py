@@ -9,8 +9,6 @@ from datetime import datetime
 # CONFIG
 # ==============================
 st.set_page_config(page_title="ChatGPT Clone", layout="wide")
-
-#OPENROUTER_API_KEY = "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"
 OPENROUTER_API_KEY = st.secrets["OPENROUTER_API_KEY"]
 MODEL = "openai/gpt-4o-mini"
 

@@ -1,6 +1,8 @@
 from transformers import pipeline
 
-# Load the sentiment analysis pipeline
+# RAG Day 2 - 4 assignments 
+https://drive.google.com/file/d/1Bpgw4qipyteyRGgeFd2SRKUc1wgyl4yn/view?usp=sharing
+
 sentiment_analyzer = pipeline('sentiment-analysis', model='distilbert-base-uncased-finetuned-sst-2-english')
 def get_sentiment(text):
   """Analyzes the sentiment of the given text."""
