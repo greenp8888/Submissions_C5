@@ -5,8 +5,8 @@ google-auth
 google-auth-httplib2 
 gradio
 gradio_client
-huggingface-hub>=0.34.0,<1.0
-websockets>=15.0
+huggingface-hub==0.34.0
+websockets==15.0.1
 ipykernel
 ipython
 lancedb
