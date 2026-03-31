@@ -25,10 +25,3 @@ Submit your assignments here.
 ```
 
 ---
-* Advanced Gradio RAG
-
-**Skills:** Embeddings, vector search, retrieval pipelines, RAG UX design.
-
----
-
-If you want, I can convert this into a markdown file, polish it for a portfolio, or add screenshots.
