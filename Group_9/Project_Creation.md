@@ -1,14 +1,14 @@
 # Project Creation
 
 ## Current Phase
-Post-MVP bug fixing and runtime usability improvements
+Full implementation upgrade toward research-grade workflow
 
 ## Active Objective
-Build `Group_9/ai-hackathon` with:
-- backend and UI inside a single app root
-- local-first RAG and public enrichment flow
-- FastAPI, Gradio, and LangGraph integration
-- submission tracking updates during implementation
+Upgrade `Group_9/ai-hackathon` with:
+- source-selectable, date-bounded research flows
+- richer credibility and citation fidelity
+- user-entered single and batch research modes
+- production-like Gradio UX and improved export quality
 
 ## Key Decisions
 - Use `Execution_Plan.md` for pre-action planning
@@ -22,6 +22,8 @@ Build `Group_9/ai-hackathon` with:
 - Target Python 3.10 compatibility instead of 3.11-only syntax
 - Add provider-key configuration to the UI and persist it to `.env`
 - Treat arXiv as a no-key provider and surface that clearly in the UI
+- All research topics remain user-driven; no starter pack defaults will be added
+- Date filtering uses explicit `start_date` and `end_date`, with presets as a convenience layer
 
 ## Files Touched
 - `Group_9/Execution_Plan.md`
@@ -52,6 +54,7 @@ Build `Group_9/ai-hackathon` with:
 | Runtime bug fixes and provider config | Fix arXiv redirect, improve dig-deeper UX, add key settings panel | 1800 | 900 | 48210 |
 | Validate arXiv and dig-deeper fixes | Re-run compile, import, dig-deeper, and direct academic retrieval checks | 900 | 320 | 49430 |
 | Upgrade report depth and citation quality | Add linked references, richer progress, and comprehensive report sections | 2100 | 900 | 52430 |
+| Full implementation uplift | Add source toggles, date-range controls, batch input, credibility methodology, and production-style UX | 2600 | 1100 | 56130 |
 
 ## Notes
 - Token counts are estimated for project management only.
@@ -69,3 +72,7 @@ Build `Group_9/ai-hackathon` with:
   - dig-deeper merge smoke test via coordinator
   - direct arXiv retrieval smoke test after switching to `https://export.arxiv.org`
   - comprehensive report smoke test with expanded sections and references
+  - provider-settings API route presence smoke test via `create_app()`
+  - PDF ingestion smoke test confirming filename and page-number carry-through into RAG references
+  - humanized PDF export smoke test
+  - request and coordinator smoke test for batch mode plus quick date preset expansion

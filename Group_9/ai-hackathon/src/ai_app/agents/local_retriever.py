@@ -20,18 +20,25 @@ class LocalRetriever(AgentBase):
         if not session.selected_collection_ids:
             return [], []
         chunks = self.local_index.search(session.selected_collection_ids, sub_question, self.top_k)
+        document_lookup = self.ingestion_service.document_lookup(session.selected_collection_ids)
         session.retrieved_chunks.extend(chunks)
         sources: list[Source] = []
         findings: list[Finding] = []
         for chunk in chunks:
+            document = document_lookup.get(chunk.document_id)
+            filename = document.filename if document else None
             source = Source(
-                title=f"Local chunk {chunk.chunk_index}",
-                source_type=SourceType.LOCAL_UPLOAD,
+                title=filename or f"Local chunk {chunk.chunk_index}",
+                source_type=SourceType.PDF if document and document.document_type == "pdf" else SourceType.LOCAL_UPLOAD,
                 provider="local_rag",
                 snippet=chunk.text[:240],
-                collection_id=session.selected_collection_ids[0],
+                filename=filename,
+                collection_id=document.collection_id if document else session.selected_collection_ids[0],
                 page_refs=chunk.page_span,
                 relevance_score=0.9,
+                matched_time_window=True,
+                retrieval_reason=f"Retrieved from local RAG for sub-question: {sub_question}",
+                metadata={"chunk_id": chunk.id, "document_id": chunk.document_id},
             )
             source.credibility_score = credibility_for_source(source)
             sources.append(source)
@@ -39,10 +46,13 @@ class LocalRetriever(AgentBase):
                 Finding(
                     sub_question=sub_question,
                     content=chunk.text[:400],
+                    snippet=chunk.text[:240],
+                    quote_excerpt=chunk.text[:180],
+                    filename=filename,
+                    page_refs=chunk.page_span,
                     source_ids=[source.id],
                     agent=self.name,
                     raw={"chunk_id": chunk.id},
                 )
             )
         return sources, findings
-

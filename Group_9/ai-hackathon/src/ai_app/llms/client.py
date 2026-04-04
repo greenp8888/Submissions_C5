@@ -30,10 +30,13 @@ class OpenRouterClient:
                 {"role": "user", "content": user_prompt},
             ],
         }
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(f"{self.settings.openrouter_base_url}/chat/completions", headers=headers, json=payload)
-            response.raise_for_status()
-            data = response.json()
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(f"{self.settings.openrouter_base_url}/chat/completions", headers=headers, json=payload)
+                response.raise_for_status()
+                data = response.json()
+        except httpx.HTTPError:
+            return ""
         return data["choices"][0]["message"]["content"]
 
     async def complete_json(self, system_prompt: str, user_prompt: str) -> dict[str, Any]:
@@ -44,4 +47,3 @@ class OpenRouterClient:
             return json.loads(text)
         except json.JSONDecodeError:
             return {}
-

@@ -1,31 +1,37 @@
-# AI Hackathon Deep Researcher MVP
+# AI Hackathon Deep Researcher
 
-`ai-hackathon` is the Group 9 implementation of the Multi-Agent AI Deep Researcher described in the submission HLD. It combines a FastAPI backend, a mounted Gradio UI, LangGraph orchestration, local-first document retrieval, and public-provider enrichment into a single runnable app.
+`ai-hackathon` is the Group 9 implementation of the Multi-Agent AI Deep Researcher described in the submission HLD. It combines a FastAPI backend, a mounted Gradio UI, LangGraph orchestration, local-first document retrieval, public-provider enrichment, transparent credibility scoring, and humanized export into a single runnable app.
 
 ## What This Project Does
 
-The application accepts a research question, optionally accepts uploaded files, creates a local knowledge collection, searches that local corpus first, then enriches with public sources when needed. It produces:
+The application accepts a research question, optional multi-topic batch input, and optional uploaded files. It creates a local knowledge collection, searches that local corpus first, then enriches with public sources when needed. It produces:
 
-- a structured markdown report
-- confidence and trust signals
+- a structured long-form research report
+- confidence and trust signals with credibility rationale
 - contradiction summaries
 - follow-up questions
 - graph-ready entities and relationships
 - an agent trace of major orchestration steps
+- a formatted PDF export with readable narrative structure
 
-The MVP is designed to keep working even when external API keys are missing by falling back to local-only and heuristic behavior.
+The app is designed to keep working even when external API keys are missing or invalid by falling back to local-only and heuristic behavior.
 
 ## Core Features
 
 - FastAPI backend with research, report, graph, trace, export, and knowledge endpoints
+- provider settings API for OpenRouter and Tavily
 - Gradio UI mounted at the app root
 - LangGraph pipeline with planner -> retrieval -> analysis -> insights -> report
 - Local-first retrieval with PDF/TXT/Markdown ingestion
+- source toggles for Local RAG, Web/Tavily, and arXiv
+- date-range inputs with quick presets for external research windows
+- single-question and user-entered batch research modes
 - Public-provider clients for OpenRouter, Tavily, and arXiv
 - Secondary adapter placeholders for Semantic Scholar, PubMed, NewsAPI, and GDELT
 - SSE-style progress event model stored in-memory
 - Dig-deeper flow from findings, claims, and insights
-- Markdown and PDF export
+- comprehensive references with local filenames and PDF page numbers where available
+- Markdown and humanized PDF export
 
 ## Architecture Summary
 
@@ -35,10 +41,12 @@ The MVP is designed to keep working even when external API keys are missing by f
 2. Files are parsed, chunked, embedded, and stored in a local collection.
 3. Planner decomposes the query into sub-questions.
 4. Local retrieval runs first for each sub-question.
-5. Public retrieval runs only when local evidence is not enough.
-6. Analysis converts findings into claims, contradictions, and trust/confidence signals.
-7. Insight generation builds follow-up questions, entities, and relationships.
-8. Report builder creates the final structured report.
+5. Public retrieval runs only when local evidence is not enough and only from the user-enabled source channels.
+6. External retrieval respects the requested date range or quick preset where provider metadata allows.
+7. Analysis converts findings into claims, contradictions, and trust/confidence signals.
+8. Credibility scoring explains why each source was trusted or discounted.
+9. Report builder creates the final structured report and export-ready narrative.
+10. Insight generation builds follow-up questions, entities, and relationships.
 
 ### Local-first behavior
 
@@ -46,6 +54,7 @@ The MVP is designed to keep working even when external API keys are missing by f
 - If uploaded PDFs exist but indexing is incomplete, PDF fallback retrieval is used before public retrieval.
 - Citations prefer local evidence before external evidence.
 - Public retrieval is enrichment, not the first step.
+- PDF-based RAG citations preserve the original filename and page number in both report output and the reference appendix.
 
 ## Project Structure
 
@@ -212,6 +221,11 @@ Notes:
 - `GET /api/research/{id}/export/markdown`
 - `GET /api/research/{id}/export/pdf`
 
+### Settings
+
+- `GET /api/settings/providers`
+- `POST /api/settings/providers`
+
 ### Knowledge
 
 - `POST /api/knowledge/upload`
@@ -223,14 +237,16 @@ Notes:
 ### From the UI
 
 1. Open the app root URL in the browser.
-2. Enter a research question.
-3. Select `quick`, `standard`, or `deep`.
-4. Upload local files if you want local-first evidence.
-5. Refresh collections if you want to reuse a prior indexed set.
-6. Start research.
-7. Inspect the Timeline, Report, Confidence, Sources, Graph, and Trace tabs.
-8. Use Dig Deeper with a finding/claim/insight ID when needed.
-9. Export markdown or PDF from the UI.
+2. Configure OpenRouter and Tavily keys from the provider settings panel if you want live LLM or web retrieval.
+3. Enter a research question, or switch to batch mode and enter one topic per line.
+4. Choose which sources to use: Local RAG, Web/Tavily, and/or arXiv.
+5. Apply a quick date preset or set an explicit `start_date` and `end_date`.
+6. Select `quick`, `standard`, or `deep`.
+7. Upload local files if you want local-first evidence, and optionally refresh collections to reuse an indexed set.
+8. Start research.
+9. Inspect the progress timeline, long-form report, references, confidence table, graph, and trace tabs.
+10. Use Dig Deeper with a finding, claim, or insight target when needed.
+11. Export markdown or PDF from the UI.
 
 ### From the API
 
@@ -241,7 +257,13 @@ Minimal JSON request:
   "query": "What are the most promising approaches to treating Alzheimer's?",
   "depth": "standard",
   "collection_ids": [],
-  "use_local_corpus": true
+  "use_local_corpus": true,
+  "enabled_sources": ["local_rag", "web", "arxiv"],
+  "date_preset": "last_1_year",
+  "start_date": "2025-04-04",
+  "end_date": "2026-04-04",
+  "run_mode": "single",
+  "batch_topics": []
 }
 ```
 
@@ -265,21 +287,26 @@ Created by `start.ps1`. Stores:
 
 ## Validation Already Performed
 
-The current MVP has been validated with:
+The current implementation has been validated with:
 
 - `python -m compileall Group_9\ai-hackathon\src Group_9\ai-hackathon\ui`
 - editable install via `pip install -e Group_9\ai-hackathon`
 - app import smoke test
 - fallback research run without provider keys
 - local-first ingestion and retrieval smoke test
+- PDF ingestion smoke test confirming filename and page-number carry-through
+- provider-settings API route presence smoke test
+- humanized PDF export smoke test
+- batch-mode and quick-date-preset contract smoke test
 
-## Known MVP Limits
+## Known Limits
 
 - Semantic Scholar, PubMed, NewsAPI, and GDELT are adapter stubs in this pass
 - Graph rendering currently uses a simple HTML/JSON fallback rather than a rich interactive visualization
 - Confidence and analysis logic are heuristic when LLM credentials are not configured
 - Session state is in-memory only
 - There is no persistent database in this MVP
+- Some web results may not expose reliable publication dates, so date filtering is strongest for arXiv and weaker for generic web results
 
 ## Troubleshooting
 

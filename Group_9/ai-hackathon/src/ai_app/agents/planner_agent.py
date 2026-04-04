@@ -13,6 +13,9 @@ class PlannerAgent(AgentBase):
         self.llm_client = llm_client
 
     async def run(self, session: ResearchSession) -> ResearchSession:
+        if session.run_mode.value == "batch" and session.batch_topics:
+            session.sub_questions = [topic for topic in session.batch_topics if topic][: self._max_questions(session.depth)]
+            return session
         if self.llm_client.enabled:
             prompt = (
                 f"Break this research question into concise sub-questions.\n"
@@ -57,4 +60,3 @@ class PlannerAgent(AgentBase):
                 ]
             )
         return base[: self._max_questions(depth)]
-

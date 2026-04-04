@@ -38,3 +38,21 @@ class InsightType(str, Enum):
     HYPOTHESIS = "hypothesis"
     GAP = "gap"
 
+
+class SourceChannel(str, Enum):
+    LOCAL_RAG = "local_rag"
+    WEB = "web"
+    ARXIV = "arxiv"
+
+
+class DatePreset(str, Enum):
+    LAST_30_DAYS = "last_30_days"
+    LAST_90_DAYS = "last_90_days"
+    LAST_1_YEAR = "last_1_year"
+    LAST_5_YEARS = "last_5_years"
+    ALL_TIME = "all_time"
+
+
+class RunMode(str, Enum):
+    SINGLE = "single"
+    BATCH = "batch"

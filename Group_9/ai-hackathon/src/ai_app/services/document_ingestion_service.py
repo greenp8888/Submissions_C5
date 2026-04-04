@@ -5,7 +5,7 @@ from pathlib import Path
 
 from ai_app.config import Settings
 from ai_app.retrieval.chunking import chunk_text
-from ai_app.retrieval.document_parser import checksum_bytes, parse_document
+from ai_app.retrieval.document_parser import checksum_bytes, parse_document_pages
 from ai_app.retrieval.local_index import LocalIndex
 from ai_app.schemas.research import DocumentChunk, KnowledgeDocument, LocalCollection
 
@@ -37,11 +37,26 @@ class DocumentIngestionService:
         documents = [KnowledgeDocument.model_validate(item) for item in payload]
         return collection, documents
 
+    def document_lookup(self, collection_ids: list[str]) -> dict[str, KnowledgeDocument]:
+        lookup: dict[str, KnowledgeDocument] = {}
+        for collection_id in collection_ids:
+            try:
+                _, documents = self.collection_details(collection_id)
+            except FileNotFoundError:
+                continue
+            for document in documents:
+                lookup[document.id] = document
+        return lookup
+
     def ingest_files(self, collection: LocalCollection, files: list[tuple[str, bytes]], tags: list[str] | None = None) -> tuple[list[KnowledgeDocument], list[DocumentChunk]]:
         documents: list[KnowledgeDocument] = []
         chunks: list[DocumentChunk] = []
+        collection_dir = self._collection_dir(collection.id)
+        existing_documents_path = collection_dir / "documents.json"
+        existing_documents_payload = json.loads(existing_documents_path.read_text(encoding="utf-8")) if existing_documents_path.exists() else []
+        existing_documents = [KnowledgeDocument.model_validate(item) for item in existing_documents_payload]
         for filename, content in files:
-            text, page_count = parse_document(filename, content)
+            text, parsed_pages, page_count = parse_document_pages(filename, content)
             document = KnowledgeDocument(
                 collection_id=collection.id,
                 filename=filename,
@@ -52,15 +67,22 @@ class DocumentIngestionService:
                 status="indexed",
                 summary=" ".join(text.split())[:280],
             )
-            doc_chunks = chunk_text(document.id, text, page_span=list(range(1, (page_count or 1) + 1))[:2] if page_count else [])
+            doc_chunks: list[DocumentChunk] = []
+            if parsed_pages:
+                for page_number, page_text in parsed_pages:
+                    doc_chunks.extend(chunk_text(document.id, page_text, page_span=[page_number]))
+            else:
+                doc_chunks = chunk_text(document.id, text, page_span=[])
+            for chunk_index, chunk in enumerate(doc_chunks):
+                chunk.chunk_index = chunk_index
             documents.append(document)
             chunks.extend(doc_chunks)
             collection.document_ids.append(document.id)
         self.save_collection(collection)
-        (self._collection_dir(collection.id) / "documents.json").write_text(
-            json.dumps([document.model_dump(mode="json") for document in documents], indent=2),
+        existing_documents.extend(documents)
+        existing_documents_path.write_text(
+            json.dumps([document.model_dump(mode="json") for document in existing_documents], indent=2),
             encoding="utf-8",
         )
         self.local_index.save_chunks(collection.id, chunks)
         return documents, chunks
-

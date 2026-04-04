@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
-from ai_app.domain.enums import ConfidenceLabel, Depth, InsightType, ResearchStatus, SourceType
+from ai_app.domain.enums import ConfidenceLabel, DatePreset, Depth, InsightType, ResearchStatus, RunMode, SourceChannel, SourceType
 
 
 def utc_now() -> datetime:
@@ -26,8 +26,12 @@ class Source(BaseModel):
     rank: int = 0
     duplicate_of_source_id: str | None = None
     snippet: str
+    filename: str | None = None
     collection_id: str | None = None
     page_refs: list[int] = Field(default_factory=list)
+    credibility_explanation: str = ""
+    retrieval_reason: str = ""
+    matched_time_window: bool | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -35,6 +39,10 @@ class Finding(BaseModel):
     id: str = Field(default_factory=lambda: f"fnd_{uuid4().hex}")
     sub_question: str
     content: str
+    snippet: str = ""
+    quote_excerpt: str = ""
+    filename: str | None = None
+    page_refs: list[int] = Field(default_factory=list)
     source_ids: list[str] = Field(default_factory=list)
     agent: str
     raw: dict[str, Any] = Field(default_factory=dict)
@@ -48,6 +56,8 @@ class Claim(BaseModel):
     confidence: ConfidenceLabel = ConfidenceLabel.LOW
     confidence_pct: int = 0
     reasoning: str
+    credibility_summary: str = ""
+    evidence_summary: str = ""
     contested: bool = False
     weak_evidence: bool = False
     trust_score: int = 0
@@ -153,6 +163,12 @@ class LocalCollection(BaseModel):
 class ResearchSession(BaseModel):
     session_id: str = Field(default_factory=lambda: f"ses_{uuid4().hex}")
     query: str
+    run_mode: RunMode = RunMode.SINGLE
+    batch_topics: list[str] = Field(default_factory=list)
+    enabled_sources: list[SourceChannel] = Field(default_factory=lambda: [SourceChannel.LOCAL_RAG, SourceChannel.WEB, SourceChannel.ARXIV])
+    start_date: date | None = None
+    end_date: date | None = None
+    date_preset: DatePreset = DatePreset.ALL_TIME
     depth: Depth = Depth.STANDARD
     status: ResearchStatus = ResearchStatus.PENDING
     sub_questions: list[str] = Field(default_factory=list)
@@ -178,10 +194,32 @@ class ResearchSession(BaseModel):
 
 
 class ResearchRequest(BaseModel):
-    query: str
+    query: str = ""
     depth: Depth = Depth.STANDARD
     collection_ids: list[str] = Field(default_factory=list)
     use_local_corpus: bool = True
+    enabled_sources: list[SourceChannel] = Field(default_factory=lambda: [SourceChannel.LOCAL_RAG, SourceChannel.WEB, SourceChannel.ARXIV])
+    start_date: date | None = None
+    end_date: date | None = None
+    date_preset: DatePreset = DatePreset.ALL_TIME
+    batch_topics: list[str] = Field(default_factory=list)
+    run_mode: RunMode = RunMode.SINGLE
+
+    @model_validator(mode="after")
+    def validate_request(self) -> "ResearchRequest":
+        if not self.enabled_sources:
+            raise ValueError("At least one source must be enabled.")
+        if self.start_date and self.end_date and self.start_date > self.end_date:
+            raise ValueError("start_date must be on or before end_date.")
+        cleaned_topics = [topic.strip() for topic in self.batch_topics if topic and topic.strip()]
+        self.batch_topics = cleaned_topics
+        if self.run_mode == RunMode.BATCH and not cleaned_topics:
+            raise ValueError("batch_topics are required when run_mode=batch.")
+        if self.run_mode == RunMode.SINGLE and not self.query.strip():
+            raise ValueError("query is required when run_mode=single.")
+        if self.run_mode == RunMode.BATCH and not self.query.strip():
+            self.query = cleaned_topics[0]
+        return self
 
 
 class KnowledgeUploadResponse(BaseModel):
@@ -197,4 +235,3 @@ class GraphResponse(BaseModel):
 
 class TraceResponse(BaseModel):
     trace: list[AgentTraceEntry]
-

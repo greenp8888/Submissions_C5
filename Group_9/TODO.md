@@ -6,4 +6,5 @@
 - Improve graph visualization from JSON/HTML fallback to a richer interactive canvas
 - Polish export UX and evidence-table interactions
 - Add Unix shell equivalents if Linux/macOS startup scripts are needed later
-- Add automated coverage for provider-config persistence and dig-deeper refresh behavior
+- Add automated coverage for provider-config persistence, date-presets, source-toggle routing, and dig-deeper refresh behavior
+- Add richer publication-date extraction for web results when providers omit explicit timestamps

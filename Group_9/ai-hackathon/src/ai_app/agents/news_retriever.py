@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date
+
 from ai_app.domain.enums import SourceType
 from ai_app.agents.web_retriever import WebRetriever
 
@@ -7,12 +9,12 @@ from ai_app.agents.web_retriever import WebRetriever
 class NewsRetriever(WebRetriever):
     name = "news_retriever"
 
-    async def run(self, sub_question: str):
+    async def run(self, sub_question: str, start_date: date | None = None, end_date: date | None = None):
         if not self.settings.tavily_api_key:
             return [], []
         payload = {
             "api_key": self.settings.tavily_api_key,
-            "query": sub_question,
+            "query": sub_question if not start_date and not end_date else f"{sub_question} (news within {start_date or 'any'} to {end_date or 'today'})",
             "search_depth": "advanced",
             "topic": "news",
             "max_results": self.settings.top_k,
@@ -26,4 +28,4 @@ class NewsRetriever(WebRetriever):
                 data = response.json()
         except httpx.HTTPError:
             return [], []
-        return self._convert(data.get("results", []), sub_question, SourceType.NEWS)
+        return self._convert(data.get("results", []), sub_question, SourceType.NEWS, start_date, end_date)

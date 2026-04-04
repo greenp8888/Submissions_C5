@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from datetime import date, timedelta
 from pathlib import Path
 
 from ai_app.agents.academic_expansion_retriever import AcademicExpansionRetriever
@@ -22,7 +23,7 @@ from ai_app.agents.report_builder_agent import ReportBuilderAgent
 from ai_app.agents.source_verifier_agent import SourceVerifierAgent
 from ai_app.agents.web_retriever import WebRetriever
 from ai_app.config import Settings
-from ai_app.domain.enums import ResearchStatus
+from ai_app.domain.enums import DatePreset, ResearchStatus, RunMode, SourceChannel
 from ai_app.llms.client import OpenRouterClient
 from ai_app.memory.session_store import SessionStore
 from ai_app.orchestration.graph import build_graph
@@ -110,6 +111,9 @@ class ResearchCoordinator:
                                 "provider": source.provider,
                                 "title": source.title,
                                 "url": source.url,
+                                "filename": source.filename,
+                                "credibility_score": source.credibility_score,
+                                "credibility_explanation": source.credibility_explanation,
                             },
                         ),
                     )
@@ -139,8 +143,44 @@ class ResearchCoordinator:
 
         return wrapped
 
+    def _resolve_date_range(self, request: ResearchRequest) -> tuple[date | None, date | None]:
+        if request.date_preset == DatePreset.ALL_TIME:
+            return request.start_date, request.end_date
+        end_date = request.end_date or date.today()
+        if request.date_preset == DatePreset.LAST_30_DAYS:
+            return end_date - timedelta(days=30), end_date
+        if request.date_preset == DatePreset.LAST_90_DAYS:
+            return end_date - timedelta(days=90), end_date
+        if request.date_preset == DatePreset.LAST_1_YEAR:
+            return end_date - timedelta(days=365), end_date
+        if request.date_preset == DatePreset.LAST_5_YEARS:
+            return end_date - timedelta(days=365 * 5), end_date
+        return request.start_date, request.end_date
+
     def create_session(self, request: ResearchRequest) -> ResearchSession:
-        session = ResearchSession(query=request.query, depth=request.depth, selected_collection_ids=request.collection_ids)
+        start_date, end_date = self._resolve_date_range(request)
+        batch_topics = [topic.strip() for topic in request.batch_topics if topic.strip()]
+        query = request.query.strip()
+        if request.run_mode == RunMode.BATCH and batch_topics:
+            query = f"Batch research covering: {', '.join(batch_topics)}"
+        enabled_sources = list(request.enabled_sources)
+        if not request.use_local_corpus:
+            enabled_sources = [source for source in enabled_sources if source != SourceChannel.LOCAL_RAG]
+        session = ResearchSession(
+            query=query,
+            run_mode=request.run_mode,
+            batch_topics=batch_topics,
+            enabled_sources=enabled_sources,
+            start_date=start_date,
+            end_date=end_date,
+            date_preset=request.date_preset,
+            depth=request.depth,
+            selected_collection_ids=request.collection_ids,
+        )
+        session.metadata["source_labels"] = [source.value for source in enabled_sources]
+        session.metadata["date_range_label"] = (
+            f"{start_date.isoformat()} to {end_date.isoformat()}" if start_date and end_date else request.date_preset.value
+        )
         return self.session_store.create(session)
 
     async def emit(self, session_id: str, event: ResearchEvent) -> None:
@@ -150,13 +190,34 @@ class ResearchCoordinator:
         self.session_store.trace(session_id, trace)
 
     def provider_status(self) -> str:
-        openrouter = "configured" if self.settings.openrouter_api_key else "not configured"
-        tavily = "configured" if self.settings.tavily_api_key else "not configured"
+        payload = self.provider_settings_payload(include_values=False)
         return (
-            f"OpenRouter: {openrouter}\n"
-            f"Tavily: {tavily}\n"
+            f"OpenRouter: {payload['openrouter']['status']}\n"
+            f"Tavily: {payload['tavily']['status']}\n"
             "arXiv: enabled (no API key required)"
         )
+
+    def provider_settings_payload(self, include_values: bool = False) -> dict[str, object]:
+        payload = {
+            "openrouter": {
+                "status": "configured" if self.settings.openrouter_api_key else "not configured",
+                "configured": bool(self.settings.openrouter_api_key),
+                "model": self.settings.openrouter_model,
+            },
+            "tavily": {
+                "status": "configured" if self.settings.tavily_api_key else "not configured",
+                "configured": bool(self.settings.tavily_api_key),
+            },
+            "arxiv": {
+                "status": "enabled",
+                "configured": True,
+                "note": "No API key required.",
+            },
+        }
+        if include_values:
+            payload["openrouter"]["api_key"] = self.settings.openrouter_api_key or ""
+            payload["tavily"]["api_key"] = self.settings.tavily_api_key or ""
+        return payload
 
     def update_provider_keys(self, openrouter_api_key: str | None, tavily_api_key: str | None, persist: bool = True) -> str:
         self.settings.openrouter_api_key = openrouter_api_key.strip() if openrouter_api_key else None
@@ -236,6 +297,12 @@ class ResearchCoordinator:
         await self.emit(session.session_id, ResearchEvent(event_type="status", message=f"Dig deeper started for {target_id}", agent="dig_deeper"))
         follow_up = ResearchSession(
             query=focus_query,
+            run_mode=RunMode.SINGLE,
+            batch_topics=[],
+            enabled_sources=session.enabled_sources,
+            start_date=session.start_date,
+            end_date=session.end_date,
+            date_preset=session.date_preset,
             depth=session.depth,
             selected_collection_ids=session.selected_collection_ids,
             uploaded_documents=session.uploaded_documents,

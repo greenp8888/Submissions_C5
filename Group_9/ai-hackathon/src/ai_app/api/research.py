@@ -2,14 +2,41 @@ from __future__ import annotations
 
 import asyncio
 import json
+from datetime import date
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile
 from fastapi.responses import Response, StreamingResponse
 
+from ai_app.domain.enums import DatePreset, RunMode, SourceChannel
 from ai_app.schemas.report import ReportResponse
 from ai_app.schemas.research import GraphResponse, ResearchRequest, TraceResponse
 
 router = APIRouter(prefix="/api/research", tags=["research"])
+
+
+def _parse_json_list(value: object, default: list[str] | None = None) -> list[str]:
+    if value is None:
+        return list(default or [])
+    if isinstance(value, list):
+        return [str(item) for item in value]
+    text = str(value).strip()
+    if not text:
+        return list(default or [])
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, list):
+            return [str(item) for item in parsed]
+    except json.JSONDecodeError:
+        pass
+    return [item.strip() for item in text.split(",") if item.strip()]
+
+
+def _parse_date(value: object) -> date | None:
+    if value in {None, "", "null"}:
+        return None
+    if isinstance(value, date):
+        return value
+    return date.fromisoformat(str(value))
 
 
 async def _parse_request(request: Request) -> tuple[ResearchRequest, list[tuple[str, bytes]]]:
@@ -18,14 +45,40 @@ async def _parse_request(request: Request) -> tuple[ResearchRequest, list[tuple[
         form = await request.form()
         query = str(form.get("query", ""))
         depth = str(form.get("depth", "standard"))
-        collection_ids = json.loads(str(form.get("collection_ids", "[]")))
+        collection_ids = _parse_json_list(form.get("collection_ids"), [])
         use_local_corpus = str(form.get("use_local_corpus", "true")).lower() == "true"
+        enabled_sources = _parse_json_list(form.get("enabled_sources"), [])
+        start_date = _parse_date(form.get("start_date"))
+        end_date = _parse_date(form.get("end_date"))
+        date_preset = str(form.get("date_preset", DatePreset.ALL_TIME.value))
+        batch_topics = _parse_json_list(form.get("batch_topics"), [])
+        run_mode = str(form.get("run_mode", RunMode.SINGLE.value))
         files: list[tuple[str, bytes]] = []
         for value in form.getlist("files"):
             if isinstance(value, UploadFile):
                 files.append((value.filename or "upload.txt", await value.read()))
-        return ResearchRequest(query=query, depth=depth, collection_ids=collection_ids, use_local_corpus=use_local_corpus), files
+        if not enabled_sources:
+            enabled_sources = [SourceChannel.LOCAL_RAG.value, SourceChannel.WEB.value, SourceChannel.ARXIV.value]
+        if not use_local_corpus:
+            enabled_sources = [source for source in enabled_sources if source != SourceChannel.LOCAL_RAG.value]
+        return (
+            ResearchRequest(
+                query=query,
+                depth=depth,
+                collection_ids=collection_ids,
+                use_local_corpus=use_local_corpus,
+                enabled_sources=enabled_sources,
+                start_date=start_date,
+                end_date=end_date,
+                date_preset=date_preset,
+                batch_topics=batch_topics,
+                run_mode=run_mode,
+            ),
+            files,
+        )
     payload = await request.json()
+    if not payload.get("enabled_sources"):
+        payload["enabled_sources"] = [SourceChannel.LOCAL_RAG.value, SourceChannel.WEB.value, SourceChannel.ARXIV.value]
     return ResearchRequest.model_validate(payload), []
 
 
@@ -104,4 +157,3 @@ async def export_report(request: Request, session_id: str, fmt: str):
     if fmt == "pdf":
         return Response(content=coordinator.export_service.pdf_bytes(markdown), media_type="application/pdf")
     raise HTTPException(status_code=400, detail="Unsupported format")
-

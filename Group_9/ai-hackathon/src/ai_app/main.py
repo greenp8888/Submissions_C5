@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from ai_app.api.health import router as health_router
 from ai_app.api.knowledge import router as knowledge_router
 from ai_app.api.research import router as research_router
+from ai_app.api.settings import router as settings_router
 from ai_app.config import get_settings
 from ai_app.memory.session_store import SessionStore
 from ai_app.orchestration.coordinator import ResearchCoordinator
@@ -21,6 +22,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(knowledge_router)
     app.include_router(research_router)
+    app.include_router(settings_router)
     demo = build_app(app.state.coordinator)
     app = gr.mount_gradio_app(app, demo, path="/")
     return app

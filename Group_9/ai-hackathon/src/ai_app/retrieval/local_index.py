@@ -18,7 +18,8 @@ class LocalIndex:
         return path
 
     def save_chunks(self, collection_id: str, chunks: list[DocumentChunk]) -> None:
-        payload = []
+        existing = self.load_chunks(collection_id)
+        payload = [chunk.model_dump(mode="json") for chunk in existing]
         for chunk in chunks:
             if not chunk.embedding:
                 chunk.embedding = embed_text(chunk.text, dim=self.settings.embed_dim)
@@ -44,4 +45,3 @@ class LocalIndex:
                 scored.append((score, chunk))
         scored.sort(key=lambda item: item[0], reverse=True)
         return [chunk for _, chunk in scored[:top_k]]
-

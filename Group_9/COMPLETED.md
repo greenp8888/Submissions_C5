@@ -33,3 +33,16 @@
 - Improved timeline progress so retrieved sources and report-building steps surface provider names and links
 - Added source/citation rendering with direct URLs where available
 - Hardened Tavily failures so invalid credentials do not abort the entire research run
+- Started the full implementation pass for source selection, date filtering, batch input, credibility methodology, and production-style UX
+- Added source-selection controls for Local RAG, Web/Tavily, and arXiv in the backend contract and Gradio UI
+- Added date-range fields plus quick presets and propagated them through session creation and external retrieval
+- Added user-entered batch research mode without any starter-pack defaults
+- Added provider settings API routes for OpenRouter and Tavily
+- Hardened OpenRouter failures so invalid credentials degrade gracefully to heuristic planning behavior
+- Improved document ingestion so PDF page numbers and filenames survive into retrieved local citations and report references
+- Redesigned source credibility scoring into a transparent weighted heuristic with rationale text
+- Expanded claim outputs with credibility summaries and evidence summaries
+- Rebuilt the report into a longer-form research document with methodology, source strategy, credibility evaluation, limitations, RAG references, and bibliography sections
+- Reworked PDF export into a formatted narrative document instead of a plain markdown line dump
+- Simplified the Gradio UI into a more production-style research console with setup, progress, report, references, confidence, graph, trace, dig-deeper, and export panels
+- Validated compile, app creation, local-only run, PDF page-reference carry-through, provider-settings routing, humanized PDF export, and batch/date contract behavior
