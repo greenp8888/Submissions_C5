@@ -27,9 +27,30 @@ if (Test-Path $pidFile) {
     Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
 }
 
-$pythonExe = Join-Path $root ".venv\Scripts\python.exe"
-if (-not (Test-Path $pythonExe)) {
-    $pythonExe = (Get-Command python -ErrorAction Stop).Source
+function Test-PythonModule {
+    param(
+        [string]$PythonPath,
+        [string]$ModuleName
+    )
+
+    if (-not (Test-Path $PythonPath)) {
+        return $false
+    }
+
+    & $PythonPath -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('$ModuleName') else 1)" *> $null
+    return $LASTEXITCODE -eq 0
+}
+
+$venvPython = Join-Path $root ".venv\Scripts\python.exe"
+$systemPython = (Get-Command python -ErrorAction Stop).Source
+
+if (Test-PythonModule -PythonPath $venvPython -ModuleName "uvicorn") {
+    $pythonExe = $venvPython
+} elseif (Test-PythonModule -PythonPath $systemPython -ModuleName "uvicorn") {
+    $pythonExe = $systemPython
+    Write-Host "Virtual environment Python is missing 'uvicorn'. Falling back to system Python: $pythonExe"
+} else {
+    throw "Could not find a Python interpreter with 'uvicorn' installed. Run 'pip install -e .' in the app root first."
 }
 
 $arguments = @(
@@ -54,7 +75,36 @@ $process = Start-Process `
 
 Set-Content -Path $pidFile -Value $process.Id -Encoding ascii
 
+Start-Sleep -Seconds 2
+$startedProcess = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
+if (-not $startedProcess) {
+    $errorOutput = ""
+    if (Test-Path $errLog) {
+        $errorOutput = Get-Content -Raw $errLog
+    }
+    Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
+    throw "Server process exited during startup.`n$errorOutput"
+}
+
+$healthReady = $false
+for ($attempt = 0; $attempt -lt 10; $attempt++) {
+    Start-Sleep -Seconds 1
+    try {
+        $response = Invoke-WebRequest -Uri "http://$BindHost`:$Port/health" -UseBasicParsing -TimeoutSec 3
+        if ($response.StatusCode -eq 200) {
+            $healthReady = $true
+            break
+        }
+    } catch {
+    }
+}
+
 Write-Host "Server started."
 Write-Host "PID: $($process.Id)"
 Write-Host "URL: http://$BindHost`:$Port/"
 Write-Host "Logs: $outLog"
+if ($healthReady) {
+    Write-Host "Health check passed. UI is ready."
+} else {
+    Write-Host "Server process is running, but the health endpoint is not ready yet. Wait a few more seconds and refresh."
+}

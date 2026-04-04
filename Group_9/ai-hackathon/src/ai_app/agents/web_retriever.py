@@ -25,10 +25,13 @@ class WebRetriever(AgentBase):
             "topic": "general",
             "max_results": self.settings.top_k,
         }
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            response = await client.post("https://api.tavily.com/search", json=payload)
-            response.raise_for_status()
-            data = response.json()
+        try:
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                response = await client.post("https://api.tavily.com/search", json=payload)
+                response.raise_for_status()
+                data = response.json()
+        except httpx.HTTPError:
+            return [], []
         return self._convert(data.get("results", []), sub_question, SourceType.WEB)
 
     def _convert(self, results: list[dict], sub_question: str, source_type: SourceType) -> tuple[list[Source], list[Finding]]:
@@ -56,4 +59,3 @@ class WebRetriever(AgentBase):
                 )
             )
         return sources, findings
-

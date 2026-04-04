@@ -15,8 +15,9 @@ class AcademicRetriever(AgentBase):
     name = "academic_retriever"
 
     async def run(self, sub_question: str) -> tuple[list[Source], list[Finding]]:
-        url = f"http://export.arxiv.org/api/query?search_query=all:{quote_plus(sub_question)}&start=0&max_results=5"
-        async with httpx.AsyncClient(timeout=20.0) as client:
+        url = f"https://export.arxiv.org/api/query?search_query=all:{quote_plus(sub_question)}&start=0&max_results=5"
+        headers = {"User-Agent": "ai-hackathon-deep-researcher/0.1"}
+        async with httpx.AsyncClient(timeout=20.0, follow_redirects=True, headers=headers) as client:
             response = await client.get(url)
             response.raise_for_status()
         root = ET.fromstring(response.text)
@@ -40,4 +41,3 @@ class AcademicRetriever(AgentBase):
             sources.append(source)
             findings.append(Finding(sub_question=sub_question, content=summary[:400], source_ids=[source.id], agent=self.name, raw={}))
         return sources, findings
-

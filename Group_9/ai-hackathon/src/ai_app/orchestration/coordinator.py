@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 
 from ai_app.agents.academic_expansion_retriever import AcademicExpansionRetriever
 from ai_app.agents.academic_retriever import AcademicRetriever
@@ -79,9 +80,16 @@ class ResearchCoordinator:
             self._wrap_node("reporter", reporter.run),
         )
 
+    @property
+    def env_file_path(self) -> Path:
+        return Path(__file__).resolve().parents[3] / ".env"
+
     def _wrap_node(self, label: str, node_fn: Callable[[ResearchSession], Awaitable[ResearchSession]]):
         async def wrapped(state):
             session = state["session"]
+            previous_sources = len(session.sources)
+            previous_claims = len(session.claims)
+            previous_sections = len(session.report_sections)
             await self.emit(session.session_id, ResearchEvent(event_type="status", agent=label, message=f"Running {label}"))
             self.trace(session.session_id, AgentTraceEntry(agent=label, step=f"{label}_start", input_summary=session.query, token_estimate=50))
             updated = await node_fn(session)
@@ -89,6 +97,44 @@ class ResearchCoordinator:
                 updated.session_id,
                 AgentTraceEntry(agent=label, step=f"{label}_complete", output_summary=f"sources={len(updated.sources)} claims={len(updated.claims)}", token_estimate=80),
             )
+            if label == "retriever":
+                new_sources = updated.sources[previous_sources:]
+                for source in new_sources[:20]:
+                    await self.emit(
+                        updated.session_id,
+                        ResearchEvent(
+                            event_type="finding",
+                            agent=label,
+                            message=f"Retrieved source: {source.title}",
+                            data={
+                                "provider": source.provider,
+                                "title": source.title,
+                                "url": source.url,
+                            },
+                        ),
+                    )
+            if label == "analysis":
+                for claim in updated.claims[previous_claims:previous_claims + 10]:
+                    await self.emit(
+                        updated.session_id,
+                        ResearchEvent(
+                            event_type="claim",
+                            agent=label,
+                            message=f"Generated claim: {claim.statement}",
+                            data={"confidence": claim.confidence.value, "trust_score": claim.trust_score},
+                        ),
+                    )
+            if label == "reporter":
+                for section in updated.report_sections[previous_sections:]:
+                    await self.emit(
+                        updated.session_id,
+                        ResearchEvent(
+                            event_type="report_section",
+                            agent=label,
+                            message=f"Built report section: {section.title}",
+                            data={"section_type": section.section_type},
+                        ),
+                    )
             return {"session": updated}
 
         return wrapped
@@ -102,6 +148,42 @@ class ResearchCoordinator:
 
     def trace(self, session_id: str, trace: AgentTraceEntry) -> None:
         self.session_store.trace(session_id, trace)
+
+    def provider_status(self) -> str:
+        openrouter = "configured" if self.settings.openrouter_api_key else "not configured"
+        tavily = "configured" if self.settings.tavily_api_key else "not configured"
+        return (
+            f"OpenRouter: {openrouter}\n"
+            f"Tavily: {tavily}\n"
+            "arXiv: enabled (no API key required)"
+        )
+
+    def update_provider_keys(self, openrouter_api_key: str | None, tavily_api_key: str | None, persist: bool = True) -> str:
+        self.settings.openrouter_api_key = openrouter_api_key.strip() if openrouter_api_key else None
+        self.settings.tavily_api_key = tavily_api_key.strip() if tavily_api_key else None
+        if persist:
+            self._persist_provider_keys()
+        return self.provider_status()
+
+    def _persist_provider_keys(self) -> None:
+        lines: dict[str, str] = {}
+        if self.env_file_path.exists():
+            for raw_line in self.env_file_path.read_text(encoding="utf-8").splitlines():
+                if "=" in raw_line and not raw_line.strip().startswith("#"):
+                    key, value = raw_line.split("=", 1)
+                    lines[key] = value
+        lines["OPENROUTER_API_KEY"] = self.settings.openrouter_api_key or ""
+        lines["TAVILY_API_KEY"] = self.settings.tavily_api_key or ""
+        if "OPENROUTER_MODEL" not in lines:
+            lines["OPENROUTER_MODEL"] = self.settings.openrouter_model
+        if "AI_HACKATHON_DATA_DIR" not in lines:
+            lines["AI_HACKATHON_DATA_DIR"] = str(self.settings.data_dir)
+        if "AI_HACKATHON_TOP_K" not in lines:
+            lines["AI_HACKATHON_TOP_K"] = str(self.settings.top_k)
+        if "AI_HACKATHON_EMBED_DIM" not in lines:
+            lines["AI_HACKATHON_EMBED_DIM"] = str(self.settings.embed_dim)
+        payload = "\n".join(f"{key}={value}" for key, value in lines.items()) + "\n"
+        self.env_file_path.write_text(payload, encoding="utf-8")
 
     async def run_research(self, session: ResearchSession) -> ResearchSession:
         session.status = ResearchStatus.RUNNING
@@ -151,6 +233,7 @@ class ResearchCoordinator:
                 focus_query = insight.content
         if not focus_query:
             raise KeyError(f"Unknown target: {target_id}")
+        await self.emit(session.session_id, ResearchEvent(event_type="status", message=f"Dig deeper started for {target_id}", agent="dig_deeper"))
         follow_up = ResearchSession(
             query=focus_query,
             depth=session.depth,
@@ -167,7 +250,9 @@ class ResearchCoordinator:
         session.entities.extend(result.entities)
         session.relationships.extend(result.relationships)
         session.follow_up_questions.extend(result.follow_up_questions)
+        session.events.extend(result.events)
+        session.agent_trace.extend(result.agent_trace)
         session.report_sections = result.report_sections
         self.session_store.save(session)
+        await self.emit(session.session_id, ResearchEvent(event_type="complete", message=f"Dig deeper completed for {target_id}", agent="dig_deeper"))
         return session
-

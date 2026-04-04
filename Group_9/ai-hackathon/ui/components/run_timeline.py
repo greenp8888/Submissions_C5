@@ -2,5 +2,20 @@ from __future__ import annotations
 
 
 def render_events(events: list[dict]) -> str:
-    return "\n".join(f"[{event['event_type']}] {event['message']}" for event in events)
-
+    lines = []
+    for event in events:
+        prefix = f"[{event['event_type']}]"
+        if event.get("agent"):
+            prefix += f" [{event['agent']}]"
+        message = event["message"]
+        data = event.get("data") or {}
+        if data.get("provider"):
+            message += f" | provider={data['provider']}"
+        if data.get("title"):
+            message += f" | title={data['title']}"
+        if data.get("url"):
+            message += f" | url={data['url']}"
+        if data.get("sub_question"):
+            message += f" | sub_question={data['sub_question']}"
+        lines.append(f"{prefix} {message}")
+    return "\n".join(lines)

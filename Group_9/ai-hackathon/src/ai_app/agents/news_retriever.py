@@ -19,9 +19,11 @@ class NewsRetriever(WebRetriever):
         }
         import httpx
 
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            response = await client.post("https://api.tavily.com/search", json=payload)
-            response.raise_for_status()
-            data = response.json()
+        try:
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                response = await client.post("https://api.tavily.com/search", json=payload)
+                response.raise_for_status()
+                data = response.json()
+        except httpx.HTTPError:
+            return [], []
         return self._convert(data.get("results", []), sub_question, SourceType.NEWS)
-

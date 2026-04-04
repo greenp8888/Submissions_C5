@@ -25,9 +25,23 @@ def order_sources_for_citation(sources: list[Source]) -> list[Source]:
 def format_inline_citations(sources: list[Source]) -> str:
     labels = []
     for source in order_sources_for_citation(sources):
-        ref = source.title
+        ref = f"{source.title} [{source.provider}]"
         if source.page_refs:
             ref += f" p.{','.join(str(page) for page in source.page_refs)}"
+        if source.url:
+            ref += f" <{source.url}>"
         labels.append(ref)
     return "; ".join(labels)
 
+
+def format_reference_entry(source: Source) -> str:
+    parts = [f"{source.title}"]
+    parts.append(f"provider={source.provider}")
+    parts.append(f"type={source.source_type.value}")
+    parts.append(f"credibility={source.credibility_score:.2f}")
+    parts.append(f"relevance={source.relevance_score:.2f}")
+    if source.url:
+        parts.append(f"url={source.url}")
+    if source.page_refs:
+        parts.append(f"pages={','.join(str(page) for page in source.page_refs)}")
+    return " | ".join(parts)

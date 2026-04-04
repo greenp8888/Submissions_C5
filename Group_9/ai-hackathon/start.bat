@@ -1,3 +1,3 @@
 @echo off
-powershell -ExecutionPolicy Bypass -File "%~dp0start.ps1" %*
-
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0start.ps1" %*
+exit /b %errorlevel%
