@@ -16,7 +16,7 @@ Any more agents you want to add
 
 ---
 
-## 📌 What This Is 
+## 📌 What This Is
 
 A fully autonomous, multi-agent research assistant that takes a complex question and runs it through a 5-agent LangGraph pipeline — planning, retrieving from 3 sources in parallel, analyzing, generating insights, and compiling a structured cited Markdown report.
 
@@ -48,37 +48,42 @@ The Planner acts as a triage nurse. "Virat Kohli IPL stats?" → web only. "Hawk
 
 ```
 Shreya_Gupta/
-│
-├── app.py                        # Streamlit entry point (run this)
-├── requirements.txt              # All Python dependencies (pinned versions)
-├── .env.example                  # Template for environment variables
-├── README.md                     # This file
-│
-├── core/
-│   ├── __init__.py
-│   ├── state.py                  # LangGraph TypedDict state schema
-│   └── graph.py                  # DAG compilation (nodes + edges)
-│
-├── agents/
-│   ├── __init__.py
-│   ├── planner.py                # Query Planner + Tool Router node
-│   ├── retriever.py              # Dynamic Retriever (parallel tool execution)
-│   ├── analyst.py                # Critical Analyst node
-│   ├── insight.py                # Insight Generator node
-│   └── reporter.py               # Report Builder node
-│
-├── tools/
-│   ├── __init__.py
-│   ├── web_search.py             # Tavily web search tool
-│   ├── arxiv_search.py           # ArXiv academic paper search tool
-│   └── vector_store.py           # ChromaDB local vector store + PDF ingestion
-│
-├── llm/
-│   ├── __init__.py
-│   └── openrouter.py             # LLM factory via OpenRouter API
-│
-└── chroma_db/                    # Auto-created on first PDF upload (gitignored)
+└── Hackathon/                        # ← Project root. cd here before EVERYTHING.
+    │
+    ├── app.py                        # Streamlit entry point (run this)
+    ├── requirements.txt              # All Python dependencies (pinned versions)
+    ├── check_env.py                  # Sanity check — run before app.py
+    ├── .env.example                  # Template for environment variables
+    ├── .env                          # Your actual keys — gitignored, never committed
+    ├── README.md                     # This file
+    │
+    ├── core/
+    │   ├── __init__.py
+    │   ├── state.py                  # LangGraph TypedDict state schema
+    │   └── graph.py                  # DAG compilation (nodes + edges)
+    │
+    ├── agents/
+    │   ├── __init__.py
+    │   ├── planner.py                # Query Planner + Tool Router node
+    │   ├── retriever.py              # Dynamic Retriever (parallel tool execution)
+    │   ├── analyst.py                # Critical Analyst node
+    │   ├── insight.py                # Insight Generator node
+    │   └── reporter.py               # Report Builder node
+    │
+    ├── tools/
+    │   ├── __init__.py
+    │   ├── web_search.py             # Tavily web search tool
+    │   ├── arxiv_search.py           # ArXiv academic paper search tool
+    │   └── vector_store.py           # ChromaDB local vector store + PDF ingestion
+    │
+    ├── llm/
+    │   ├── __init__.py
+    │   └── openrouter.py             # LLM factory via OpenRouter API
+    │
+    └── chroma_db/                    # Auto-created on first PDF upload (gitignored)
 ```
+
+> ⚠️ **The single most common mistake:** running commands from `Shreya_Gupta/` instead of `Shreya_Gupta/Hackathon/`. Python won't find the `core/`, `agents/`, `tools/` packages unless you're inside `Hackathon/`. Always `cd Hackathon` first.
 
 ---
 
@@ -113,7 +118,7 @@ You need two API keys. Both have free tiers — no credit card required for basi
 - Looks like: `tvly-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
 - Free tier: **1,000 searches/month** — more than enough for development.
 
-> 💡 ChromaDB and FastEmbed (local embeddings) are **completely free** — they run locally on your machine with no API key.
+> 💡 ChromaDB and FastEmbed (local embeddings) are **completely free** — they run locally on your machine with no API key needed.
 
 ---
 
@@ -130,7 +135,7 @@ git checkout Group_2
 ### Step 2 — Navigate to the project folder
 
 ```bash
-cd Shreya_Gupta
+cd Shreya_Gupta/Hackathon
 ```
 
 Verify you are in the right place:
@@ -143,11 +148,11 @@ dir
 ls -la
 ```
 
-You should see `app.py`, `requirements.txt`, and the `core/`, `agents/`, `tools/`, `llm/` folders.
+You should see `app.py`, `requirements.txt`, `check_env.py`, and the `core/`, `agents/`, `tools/`, `llm/` folders directly inside `Hackathon/`.
 
 ### Step 3 — Create a Python virtual environment
 
-A virtual environment keeps this project's dependencies isolated from your system Python. Think of it as a dedicated toolbox for this project.
+A virtual environment keeps this project's dependencies isolated from your system Python. Think of it as a dedicated toolbox for this project — what gets installed here stays here.
 
 ```bash
 # Windows
@@ -157,9 +162,19 @@ python -m venv venv
 python3 -m venv venv
 ```
 
+This creates a `venv/` folder inside `Hackathon/`. Your structure now looks like:
+
+```
+Hackathon/
+├── venv/          ← created by this step
+├── app.py
+├── requirements.txt
+└── ...
+```
+
 ### Step 4 — Activate the virtual environment
 
-> ⚠️ **Critical step.** You must activate the venv EVERY TIME you open a new terminal for this project. If you skip this, pip installs go to the wrong place and you'll get `ModuleNotFoundError`.
+> ⚠️ **Critical step.** You must activate the venv EVERY TIME you open a new terminal for this project. If you skip this, pip installs go to the wrong Python and you'll get `ModuleNotFoundError`.
 
 ```bash
 # Windows (Command Prompt)
@@ -173,9 +188,15 @@ source venv/bin/activate
 ```
 
 ✅ You'll know it worked when you see `(venv)` prefix in your terminal:
+
 ```
-(venv) C:\Users\SHREYA\GitHub\...\Shreya_Gupta>
+(venv) C:\Users\SHREYA\GitHub\Submissions_C5\Shreya_Gupta\Hackathon>
 ```
+
+> 💡 **PowerShell tip:** If `Activate.ps1` is blocked, run this once to allow it:
+> ```powershell
+> Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+> ```
 
 ### Step 5 — Upgrade pip
 
@@ -191,7 +212,7 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-This will take **2-5 minutes** on first run — it's downloading LangChain, LangGraph, ChromaDB, FastEmbed (which downloads the embedding model), and all dependencies.
+This takes **2-5 minutes** on first run — it downloads LangChain, LangGraph, ChromaDB, FastEmbed (including the ~130MB embedding model), and all transitive dependencies.
 
 > ☕ Good time for a coffee break.
 
@@ -202,7 +223,7 @@ Successfully installed langchain-0.3.25 langgraph-0.3.5 chromadb-0.6.3 ...
 
 ### Step 7 — Verify all packages installed correctly
 
-Run the sanity check script:
+Run the sanity check script **before** launching the app:
 
 ```bash
 python check_env.py
@@ -210,7 +231,7 @@ python check_env.py
 
 Expected output:
 ```
-Python: C:\...\Shreya_Gupta\venv\Scripts\python.exe
+Python executable: C:\...\Shreya_Gupta\Hackathon\venv\Scripts\python.exe
 
   ✅ langgraph                 0.3.5
   ✅ langchain                 0.3.25
@@ -229,11 +250,17 @@ Python: C:\...\Shreya_Gupta\venv\Scripts\python.exe
 🟢 All packages found. Safe to run: streamlit run app.py
 ```
 
-If any package shows ❌ — run `pip install <package-name>` individually.
+> ⚠️ Confirm the Python path shows `Hackathon\venv\Scripts\python.exe` — NOT your system Python. If it points elsewhere, your venv is not activated.
 
-### Step 8 — (Optional) Set up environment variables
+If any package shows ❌:
+```bash
+pip install <package-name>
+python check_env.py   # re-run to confirm
+```
 
-Instead of typing your API keys in the UI every session, you can store them in a `.env` file.
+### Step 8 — (Optional but recommended) Set up environment variables
+
+Instead of typing API keys in the UI every session, store them in a `.env` file. The app auto-loads this on startup.
 
 ```bash
 # Windows
@@ -250,15 +277,29 @@ OPENROUTER_API_KEY=sk-or-v1-your-actual-key-here
 TAVILY_API_KEY=tvly-your-actual-key-here
 ```
 
-> 🔒 The `.env` file is gitignored — it will never be committed to GitHub. Safe to store keys here locally.
+Save the file. No quotes needed around the values.
+
+> 🔒 `.env` is listed in `.gitignore` — it will **never** be committed to GitHub. Safe to store real keys here locally.
 
 ---
 
 ## ▶️ Running the Application
 
-### Start the Streamlit app
+### Confirm you are in the correct directory
 
-Make sure your venv is activated (you see `(venv)` in terminal), then:
+```bash
+# Windows — full path for clarity
+cd C:\Users\SHREYA\GitHub\Submissions_C5\Shreya_Gupta\Hackathon
+
+# Mac/Linux
+cd ~/path/to/Submissions_C5/Shreya_Gupta/Hackathon
+```
+
+### Confirm venv is active
+
+You must see `(venv)` at the start of your terminal prompt before running the app.
+
+### Start the Streamlit app
 
 ```bash
 streamlit run app.py
@@ -291,30 +332,30 @@ Press `Ctrl + C` in the terminal.
 | **Tavily Search API Key** | Paste your `tvly-...` key |
 | **Save API Keys** | Click this button — keys persist for the session |
 | **Model Selection** | Choose your LLM (Claude 3.5 Haiku recommended for speed) |
-| **Upload PDF Documents** | Optional — upload research papers for local search |
-| **Ingest into ChromaDB** | Click after uploading PDFs to embed them locally |
+| **Upload PDF Documents** | Optional — upload research papers for local ChromaDB search |
+| **Ingest into ChromaDB** | Click after uploading PDFs to chunk + embed them locally |
 
-> 💡 If you set up `.env` in Step 8, your keys auto-load and you skip the manual entry.
+> 💡 If you set up `.env` in Step 8, your keys auto-load and you can skip manual entry entirely.
 
 ### Main Area
 
 1. Type your research question in the text box
 2. Click **🚀 Run Research**
 3. Watch the **progress expander** — each agent checks in as it completes
-4. The **Routing Plan** appears immediately after the Planner runs — shows which tools were assigned to each sub-query
-5. After ~30-90 seconds (depends on model + query complexity), the report appears
+4. The **Routing Plan** appears immediately after the Planner runs — shows which tools were assigned to each sub-query and why
+5. After ~30-90 seconds (depends on model and query complexity), the full report appears
 
 ### Results Tabs
 
 | Tab | Contents |
 |---|---|
 | **📄 Full Report** | Structured Markdown report with all 5 sections + download button |
-| **🔍 Raw Documents** | Every chunk retrieved, filterable by tool (Web/ArXiv/Local) |
+| **🔍 Raw Documents** | Every chunk retrieved, filterable by tool (Web / ArXiv / Local) |
 | **🗺️ Routing Details** | Exactly which tools the Planner assigned per sub-query and why |
 
 ### Timing Metrics Bar
 
-At the top of results, you'll see 5 KPI cards:
+At the top of every result you'll see 5 KPI cards:
 
 ```
 ⏱️ Total Time   📄 Doc Chunks   🌐 Web Results   📚 ArXiv Papers   🗃️ Local Chunks
@@ -325,7 +366,7 @@ At the top of results, you'll see 5 KPI cards:
 
 ## 🧪 Example Queries to Test Dynamic Routing
 
-These queries demonstrate how the Planner routes differently based on context:
+Run these and check the **🗺️ Routing Details** tab each time to see the Planner's decisions:
 
 ```
 # Routes to: tavily_web_search ONLY (real-time sports data)
@@ -344,38 +385,38 @@ What caused the CrowdStrike global IT outage and its cybersecurity implications?
 What are the latest breakthroughs in mRNA vaccine technology beyond COVID-19?
 ```
 
-After each run, check the **🗺️ Routing Details** tab to verify the Planner's decisions.
-
 ---
 
 ## 🐛 Troubleshooting
 
 ### `ModuleNotFoundError: No module named 'langgraph'`
 
-Your venv is not activated. Run:
+Either venv is not activated, or you're running from the wrong directory. Fix both:
 ```bash
-# Windows
-venv\Scripts\activate
-
-# Mac/Linux
-source venv/bin/activate
+cd Shreya_Gupta/Hackathon    # ← must be inside Hackathon/, not Shreya_Gupta/
+venv\Scripts\activate         # Windows
+source venv/bin/activate      # Mac/Linux
+streamlit run app.py
 ```
-Then re-run `streamlit run app.py`.
 
 ### `ModuleNotFoundError: No module named 'langchain.text_splitter'`
 
-LangChain v0.3 moved this module. Fix:
+LangChain v0.3 moved this to a separate package. Fix:
 ```bash
 pip install langchain-text-splitters
 ```
 
 ### `AttributeError: st.session_state has no attribute 'openrouter_key'`
 
-Hard-refresh your browser (`Ctrl+Shift+R`) and restart Streamlit (`Ctrl+C` then `streamlit run app.py`).
+Hard-refresh your browser (`Ctrl+Shift+R`) and restart Streamlit:
+```bash
+# Ctrl+C to stop, then:
+streamlit run app.py
+```
 
 ### `pip install` hangs or fails on `chromadb` or `fastembed`
 
-Try installing these two separately first:
+Install these two with extended timeout first, then re-run the full requirements:
 ```bash
 pip install chromadb --timeout 120
 pip install fastembed --timeout 120
@@ -386,19 +427,18 @@ pip install -r requirements.txt
 
 - OpenRouter key must start with `sk-or-v1-`
 - Tavily key must start with `tvly-`
-- Check your OpenRouter dashboard for remaining credits at [openrouter.ai/dashboard](https://openrouter.ai/dashboard)
+- Check remaining credits at [openrouter.ai/dashboard](https://openrouter.ai/dashboard)
 
 ### Streamlit opens but app crashes immediately
 
-Run the sanity check first:
 ```bash
 python check_env.py
 ```
-Fix any ❌ packages, then retry.
+Fix any ❌ packages shown, then retry.
 
 ### ArXiv search returns no results
 
-ArXiv rate-limits aggressive queries. The tool has a 1-second delay between requests built in. If you see empty ArXiv results, wait 10 seconds and retry.
+ArXiv rate-limits queries. The tool has a 1-second delay built in. Wait 10 seconds and retry with slightly different wording.
 
 ### Port 8501 already in use
 
@@ -415,10 +455,10 @@ streamlit run app.py --server.port 8502
 | **LangGraph** | Agent orchestration | Stateful DAG — each node reads/writes shared state cleanly |
 | **LangChain** | LLM + tool abstractions | `@tool` decorator, `ChatOpenAI`, message types |
 | **OpenRouter** | LLM API gateway | Access Claude, GPT-4, Gemini, Llama via one API key |
-| **Tavily** | Live web search | Purpose-built for LLM agents — cleaner than Google Scraping |
+| **Tavily** | Live web search | Purpose-built for LLM agents — cleaner than raw Google scraping |
 | **ArXiv** | Academic papers | 2M+ free preprints via official Python client |
 | **ChromaDB** | Local vector store | 100% free, local, persistent, no cloud required |
-| **FastEmbed** | Embeddings | Local, free, 33M param model — no OpenAI embedding cost |
+| **FastEmbed** | Embeddings | Local, free, 33M param model — zero OpenAI embedding cost |
 | **Streamlit** | Frontend | Python-native UI, `st.status` for real-time agent progress |
 | **Pydantic** | Data validation | TypedDict state schema enforcement |
 
@@ -428,15 +468,15 @@ streamlit run app.py --server.port 8502
 
 ### Why LangGraph over a simple chain?
 
-A basic LangChain chain is like an assembly line — each step runs blindly in sequence. LangGraph is a **stateful graph** — each node can read the entire accumulated state, write to specific fields, and the framework manages state transitions safely.
+A basic LangChain chain is like an assembly line — each step runs blindly in sequence. LangGraph is a **stateful graph** — each node reads the full accumulated state, writes to specific fields, and the framework manages transitions safely.
 
 ```python
-# The state is a TypedDict — shared whiteboard for all agents
+# The state is a TypedDict — shared whiteboard for all 5 agents
 class ResearchState(TypedDict):
     user_query:     str
     sub_queries:    List[str]
-    routing_plan:   List[SubQueryRoute]      # Planner's triage decisions
-    raw_documents:  Annotated[List[...], operator.add]  # accumulates across nodes
+    routing_plan:   List[SubQueryRoute]                # Planner's triage decisions
+    raw_documents:  Annotated[List[...], operator.add] # accumulates across nodes
     analyzed_facts: str
     insights:       str
     final_report:   str
@@ -446,36 +486,36 @@ class ResearchState(TypedDict):
 
 ### Why parallel tool execution?
 
-For a query like "Explain Hawking radiation", the Planner assigns 3 tools. Sequential execution would take 3× longer:
+For a query like "Explain Hawking radiation", the Planner assigns 3 tools. Sequential would take 3× longer:
 
 ```
 Sequential:  ArXiv(5s) → Tavily(3s) → ChromaDB(0.5s) = 8.5s total
-Parallel:    All three fire simultaneously              = 5s total (longest one)
+Parallel:    All three fire simultaneously              = 5.0s total (slowest wins)
 ```
 
 Implemented via `concurrent.futures.ThreadPoolExecutor` in `agents/retriever.py`.
 
 ### Why `operator.add` on `raw_documents`?
 
-LangGraph merges state between nodes. Without `operator.add`, each node overwrites the previous documents. With it, documents accumulate:
+Without it, each node overwrites the previous documents. With it, they accumulate:
 
 ```python
 raw_documents: Annotated[List[Dict], operator.add]
-# Node 1 adds 5 docs → [doc1..doc5]
-# Node 2 adds 3 docs → [doc1..doc5, doc6..doc8]  ← accumulates, not overwrites
+# Retriever adds 8 docs  → [doc1..doc8]
+# Future nodes add more  → [doc1..doc8, doc9..docN]  ← safe accumulation
 ```
 
 ---
 
 ## 📁 `check_env.py` — Sanity Check Script
 
-Create this file in your project root if it doesn't exist:
+This file should already exist in `Hackathon/`. If it's missing, create it:
 
 ```python
-# check_env.py
+# check_env.py — place in Shreya_Gupta/Hackathon/
 import sys
 print(f"Python executable: {sys.executable}")
-print(f"Python version: {sys.version}\n")
+print(f"Python version:    {sys.version}\n")
 
 packages = [
     "langgraph", "langchain", "langchain_openai",
@@ -487,7 +527,7 @@ packages = [
 all_ok = True
 for pkg in packages:
     try:
-        mod = __import__(pkg)
+        mod     = __import__(pkg)
         version = getattr(mod, "__version__", "installed")
         print(f"  ✅ {pkg:<28} {version}")
     except ImportError:
@@ -498,7 +538,7 @@ print()
 if all_ok:
     print("🟢 All packages found. Safe to run: streamlit run app.py")
 else:
-    print("🔴 Missing packages detected. Run: pip install -r requirements.txt")
+    print("🔴 Missing packages. Run: pip install -r requirements.txt")
     sys.exit(1)
 ```
 
@@ -506,10 +546,10 @@ else:
 
 ## 🔐 Security Notes
 
-- Never commit your `.env` file — it is in `.gitignore`
+- Never commit your `.env` file — it is listed in `.gitignore`
 - Never hardcode API keys directly in any `.py` file
-- The app stores keys in `st.session_state` only — they are never written to disk by the app
-- ChromaDB data is stored locally in `./chroma_db/` — never uploaded anywhere
+- The app stores keys in `st.session_state` only — never written to disk by the app
+- ChromaDB lives in `Hackathon/chroma_db/` — local only, never uploaded anywhere
 
 ---
 
@@ -523,7 +563,7 @@ MIT License — free to use, modify, and distribute with attribution.
 
 **Shreya Gupta (d_u_u_u_h_h)**  
 AI Accelerator Program — Cohort C5, Group 2  
-GitHub: [eng-accelerator/Submissions_C5](https://github.com/eng-accelerator/Submissions_C5/tree/Group_2/Shreya_Gupta)
+GitHub: [eng-accelerator/Submissions_C5](https://github.com/eng-accelerator/Submissions_C5/tree/Group_2/Shreya_Gupta/Hackathon)
 
 ---
 
