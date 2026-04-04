@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+:root {
+  --paper: #F9F8F6;
+  --ink: #0F0F0E;
+  --muted: #8A8882;
+  --border: #E8E6E1;
+  --green: #1A7A4A;
+  --amber: #B45309;
+  --red: #B91C1C;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-green: var(--green);
+  --color-amber: var(--amber);
+  --color-red: var(--red);
+  --font-serif: var(--font-serif);
+  --font-mono: var(--font-mono);
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, sans-serif;
+}

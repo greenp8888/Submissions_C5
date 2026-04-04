@@ -1,0 +1,35 @@
+import type { Metadata } from "next";
+import { Instrument_Serif, DM_Mono } from "next/font/google";
+import "./globals.css";
+
+const instrumentSerif = Instrument_Serif({
+  weight: ["400"],
+  variable: "--font-serif",
+  subsets: ["latin"],
+});
+
+const dmMono = DM_Mono({
+  weight: ["400", "500"],
+  variable: "--font-mono",
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "Ideascope — Product Idea Analyzer",
+  description: "Competitive intelligence from 6 sources in 30 seconds",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html
+      lang="en"
+      className={`${instrumentSerif.variable} ${dmMono.variable} h-full antialiased`}
+    >
+      <body className="min-h-full">{children}</body>
+    </html>
+  );
+}
