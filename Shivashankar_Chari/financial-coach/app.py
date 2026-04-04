@@ -2,6 +2,7 @@ import os
 from typing import Dict, Any, List
 
 from agents.debt_analyzer import analyze_debt, format_debt_output
+from agents.savings_strategist import analyze_savings, format_savings_output
 
 import pandas as pd
 import plotly.express as px
@@ -104,8 +105,6 @@ def run_basic_analysis(
 
     total_expenses = abs(expense_df["amount"].sum()) if not expense_df.empty else 0
     total_credits = income_df["amount"].sum() if not income_df.empty else 0
-    surplus = monthly_income - total_expenses
-    savings_rate = (surplus / monthly_income * 100) if monthly_income > 0 else 0
 
     biggest_category = get_biggest_category(working_df)
     category_summary = get_category_summary(working_df)
@@ -143,16 +142,16 @@ def run_basic_analysis(
     debt_result = analyze_debt(working_df, monthly_income)
     debt_analyzer_output = format_debt_output(debt_result)
 
-    savings_strategist_output = (
-        f"With monthly income ₹{monthly_income:,.0f} and estimated surplus ₹{surplus:,.0f}, "
-        f"focus on goal: {primary_goal}. "
-        "Recommended next step: cap discretionary spends, define monthly save target, "
-        "and allocate fixed amount toward debt or emergency corpus first."
+    savings_result = analyze_savings(
+        monthly_income=monthly_income,
+        total_expenses=total_expenses,
+        primary_goal=primary_goal,
     )
+    savings_strategist_output = format_savings_output(savings_result)
 
     report_builder_output = (
         f"Financial snapshot → expenses: ₹{total_expenses:,.0f}, income credits in file: ₹{total_credits:,.0f}, "
-        f"estimated surplus: ₹{surplus:,.0f}, savings rate: {savings_rate:.1f}%. "
+        f"estimated surplus: ₹{savings_result['surplus']:,.0f}, savings rate: {savings_result['savings_rate']:.1f}%. "
         f"AI setup: {ai_vendor} using model {model_name}. {orchestration_note}."
     )
 
@@ -160,8 +159,10 @@ def run_basic_analysis(
         "categorized_df": working_df,
         "total_expenses": round(total_expenses, 2),
         "total_credits": round(total_credits, 2),
-        "surplus": round(surplus, 2),
-        "savings_rate": round(savings_rate, 1),
+        "surplus": savings_result["surplus"],
+        "savings_rate": savings_result["savings_rate"],
+        "recommended_savings_target": savings_result["recommended_savings_target"],
+        "savings_strategy_level": savings_result["strategy_level"],
         "biggest_category": biggest_category,
         "debt_spend": debt_result["debt_spend"],
         "debt_ratio": debt_result["debt_ratio"],
@@ -189,6 +190,7 @@ def build_quick_summary(outputs: Dict[str, Any]) -> List[str]:
         f"Top spending category: {outputs.get('biggest_category', 'N/A')}",
         f"Savings rate: {outputs.get('savings_rate', 0):.1f}%",
         f"Debt status: {outputs.get('debt_status', 'N/A')}",
+        f"Savings strategy level: {outputs.get('savings_strategy_level', 'N/A')}",
     ]
 
     surplus = outputs.get("surplus", 0)
@@ -322,6 +324,7 @@ def render_sidebar() -> None:
         st.metric("Net Surplus", f"₹{outputs.get('surplus', 0):,.0f}")
         st.caption(f"Savings Rate: {outputs.get('savings_rate', 0):.1f}%")
         st.caption(f"Debt Status: {outputs.get('debt_status', 'N/A')}")
+        st.caption(f"Savings Strategy: {outputs.get('savings_strategy_level', 'N/A')}")
     else:
         st.caption("Run analysis to view summary metrics.")
 
@@ -635,6 +638,7 @@ def render_chat_view() -> None:
             response_parts.append(f"Current surplus is ₹{outputs.get('surplus', 0):,.0f}.")
             response_parts.append(f"Top spending category is {outputs.get('biggest_category', 'N/A')}.")
             response_parts.append(f"Debt status is {outputs.get('debt_status', 'N/A')}.")
+            response_parts.append(f"Savings strategy is {outputs.get('savings_strategy_level', 'N/A')}.")
             response_parts.append(outputs.get("savings_strategist", ""))
         else:
             response_parts.append(
