@@ -2,6 +2,7 @@ import os
 from typing import Dict, Any, List
 
 from agents.debt_analyzer import analyze_debt, format_debt_output
+from agents.llm_client import is_llm_available, safe_llm_response
 from agents.savings_strategist import analyze_savings, format_savings_output
 
 import pandas as pd
@@ -325,6 +326,7 @@ def render_sidebar() -> None:
         st.caption(f"Savings Rate: {outputs.get('savings_rate', 0):.1f}%")
         st.caption(f"Debt Status: {outputs.get('debt_status', 'N/A')}")
         st.caption(f"Savings Strategy: {outputs.get('savings_strategy_level', 'N/A')}")
+        st.caption(f"LLM Ready: {'Yes' if is_llm_available(st.session_state.ai_vendor) else 'No'}")
     else:
         st.caption("Run analysis to view summary metrics.")
 
@@ -342,6 +344,7 @@ def render_sidebar() -> None:
             - Debt Analyzer
             - Savings Strategist
             - Report Builder
+            - LLM Client
             """
         )
 
@@ -617,11 +620,16 @@ def render_deep_research_view() -> None:
 
 
 def render_chat_view() -> None:
-    """Render simple AI chat view."""
+    """Render chat view with live LLM support and fallback."""
     st.title("Chat with AI")
     st.caption("Ask questions about your spending, debt pressure, and savings potential.")
 
     outputs = st.session_state.agent_outputs
+
+    if is_llm_available(st.session_state.ai_vendor):
+        st.success("Live LLM chat is enabled.")
+    else:
+        st.info("Live LLM chat is not configured yet. The app will use a smart fallback response.")
 
     for message in st.session_state.chat_messages:
         with st.chat_message(message["role"]):
@@ -632,20 +640,17 @@ def render_chat_view() -> None:
     if prompt:
         st.session_state.chat_messages.append({"role": "user", "content": prompt})
 
-        response_parts = []
-
         if outputs:
-            response_parts.append(f"Current surplus is ₹{outputs.get('surplus', 0):,.0f}.")
-            response_parts.append(f"Top spending category is {outputs.get('biggest_category', 'N/A')}.")
-            response_parts.append(f"Debt status is {outputs.get('debt_status', 'N/A')}.")
-            response_parts.append(f"Savings strategy is {outputs.get('savings_strategy_level', 'N/A')}.")
-            response_parts.append(outputs.get("savings_strategist", ""))
+            assistant_response = safe_llm_response(
+                user_prompt=prompt,
+                agent_outputs=outputs,
+                ai_vendor=st.session_state.ai_vendor,
+                model_name=st.session_state.model_name,
+            )
         else:
-            response_parts.append(
+            assistant_response = (
                 "Upload and analyze a statement first so I can answer with specific financial context."
             )
-
-        assistant_response = " ".join([part for part in response_parts if part])
 
         st.session_state.chat_messages.append(
             {"role": "assistant", "content": assistant_response}
