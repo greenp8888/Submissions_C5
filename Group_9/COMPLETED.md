@@ -1,0 +1,26 @@
+# COMPLETED
+
+- Read `HLD.md` and the initial product creation prompt
+- Created `Execution_Plan.md` before further implementation changes
+- Updated `Product_Creation_Prompt.md` with local-first retrieval rules
+- Added local-first citation and reference ordering requirements
+- Added parallel post-local-grounding workflow requirements
+- Added markdown tracking requirements for planning, tokens, TODO, and completed work
+- Created `Project_Creation.md`, `TODO.md`, and `COMPLETED.md`
+- Performed a requirements coverage review against the pasted spec and linked Google Doc
+- Identified missing and partially covered items in the HLD and project plan
+- Updated `HLD.md` to cover missing features, providers, APIs, tests, and execution phases
+- Updated `Product_Creation_Prompt.md` so generated builds follow the expanded requirements
+- Started MVP implementation planning for `Group_9/ai-hackathon`
+- Confirmed runtime is Python 3.10 and that provider credentials are not currently set in the environment
+- Created `Group_9/ai-hackathon` with all backend and UI code inside that folder
+- Implemented core schemas, in-memory session store, settings, and report/export services
+- Implemented local-first retrieval, public provider clients, scoring, dedupe, and LangGraph orchestration
+- Implemented FastAPI endpoints for research, stream, state, report, graph, trace, dig-deeper, export, and knowledge upload
+- Implemented Gradio UI with query, uploads, collections, timeline, report, confidence, sources, graph, trace, dig-deeper, and export actions
+- Added prompt assets and project setup docs
+- Installed project dependencies with `pip install -e Group_9\\ai-hackathon`
+- Verified syntax, app import, fallback research execution, and local-first retrieval behavior
+- Replaced the app README with a more extensive project and operations guide
+- Added `start.ps1`, `stop.ps1`, `start.bat`, and `stop.bat`
+- Verified the start/stop scripts by launching the app, checking `/health`, and stopping the process cleanly

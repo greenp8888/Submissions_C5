@@ -1,0 +1,2 @@
+"""AI Hackathon application package."""
+

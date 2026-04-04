@@ -1,0 +1,3 @@
+Perform a grounded, multi-source research run.
+Local evidence must appear before public citations whenever it exists.
+
