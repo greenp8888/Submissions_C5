@@ -11,3 +11,5 @@
 
 
 **Application URL:**  https://ai.studio/apps/d66e9996-e187-46a8-94e5-66081d6dfcc0
+
+**Note:** Application URL also takes you to Application + Code.
