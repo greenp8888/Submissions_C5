@@ -1,7 +1,7 @@
 # Project Creation
 
 ## Current Phase
-MVP implementation completed for initial runnable pass
+Post-MVP bug fixing and runtime usability improvements
 
 ## Active Objective
 Build `Group_9/ai-hackathon` with:
@@ -20,6 +20,8 @@ Build `Group_9/ai-hackathon` with:
 - Keep agent trace view and richer graph UX in planned execution scope even if they land after the MVP slice
 - Use graceful provider fallback because no API credentials are currently present in the environment
 - Target Python 3.10 compatibility instead of 3.11-only syntax
+- Add provider-key configuration to the UI and persist it to `.env`
+- Treat arXiv as a no-key provider and surface that clearly in the UI
 
 ## Files Touched
 - `Group_9/Execution_Plan.md`
@@ -47,6 +49,9 @@ Build `Group_9/ai-hackathon` with:
 | Implement APIs and Gradio UI | Add backend routes, streaming, dig-deeper, export, and UI tabs | 4300 | 2200 | 40260 |
 | Validation and dependency setup | Compile code, install dependencies, smoke test app import and local-first behavior | 2100 | 950 | 43310 |
 | Add operations docs and scripts | Create extensive README plus start/stop scripts and verify lifecycle | 1500 | 700 | 45510 |
+| Runtime bug fixes and provider config | Fix arXiv redirect, improve dig-deeper UX, add key settings panel | 1800 | 900 | 48210 |
+| Validate arXiv and dig-deeper fixes | Re-run compile, import, dig-deeper, and direct academic retrieval checks | 900 | 320 | 49430 |
+| Upgrade report depth and citation quality | Add linked references, richer progress, and comprehensive report sections | 2100 | 900 | 52430 |
 
 ## Notes
 - Token counts are estimated for project management only.
@@ -60,3 +65,7 @@ Build `Group_9/ai-hackathon` with:
   - `powershell -ExecutionPolicy Bypass -File .\\start.ps1 -Port 8011`
   - `GET http://127.0.0.1:8011/health`
   - `powershell -ExecutionPolicy Bypass -File .\\stop.ps1`
+  - provider status smoke test via coordinator
+  - dig-deeper merge smoke test via coordinator
+  - direct arXiv retrieval smoke test after switching to `https://export.arxiv.org`
+  - comprehensive report smoke test with expanded sections and references

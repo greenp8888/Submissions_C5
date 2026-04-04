@@ -22,6 +22,12 @@ Implement the `Group_9/ai-hackathon` MVP described by the revised HLD and produc
 - Validation completed with compile, import, fallback-run, and local-first smoke checks
 - Remaining work is polish and deeper provider/test coverage rather than initial scaffolding
 
+## Active Fix Scope
+- fix arXiv retrieval redirect/runtime behavior
+- add provider-key configuration from the UI for OpenRouter and Tavily
+- make dig-deeper refresh the UI with updated session data
+- improve visibility into available dig-deeper targets and provider status
+
 ## Notes
 - Assumption: API credentials may be added later, so provider integrations must degrade gracefully when keys are missing.
 - Assumption: Python 3.10 is the available runtime in this environment.

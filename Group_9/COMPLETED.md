@@ -24,3 +24,12 @@
 - Replaced the app README with a more extensive project and operations guide
 - Added `start.ps1`, `stop.ps1`, `start.bat`, and `stop.bat`
 - Verified the start/stop scripts by launching the app, checking `/health`, and stopping the process cleanly
+- Collected runtime feedback for arXiv redirect failure, missing provider-key UI, and dig-deeper UX issues
+- Fixed arXiv retrieval to use HTTPS with redirects enabled
+- Added UI-based provider configuration for OpenRouter and Tavily, with arXiv shown as no-key
+- Improved dig-deeper to refresh session outputs and expose selectable targets in the UI
+- Re-validated app import, dig-deeper behavior, and direct arXiv retrieval
+- Expanded report generation to include methodology, sub-question evidence synthesis, linked web/arXiv sections, and comprehensive references
+- Improved timeline progress so retrieved sources and report-building steps surface provider names and links
+- Added source/citation rendering with direct URLs where available
+- Hardened Tavily failures so invalid credentials do not abort the entire research run
