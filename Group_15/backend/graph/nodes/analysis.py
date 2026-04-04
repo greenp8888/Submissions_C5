@@ -1,8 +1,7 @@
 import json
-import os
-from anthropic import Anthropic
 from graph.state import GraphState
 from prompts.analysis import analysis_prompt
+from utils.llm import call_llm
 
 
 def analysis(state: GraphState) -> dict:
@@ -27,16 +26,8 @@ def analysis(state: GraphState) -> dict:
 
     prompt = analysis_prompt(idea, audience, items_json)
 
-    client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-
     try:
-        response = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=2048,
-            messages=[{"role": "user", "content": prompt}]
-        )
-
-        content = response.content[0].text
+        content = call_llm(prompt, max_tokens=2048)
         analysis_result = json.loads(content)
 
         return {"analysis": analysis_result}

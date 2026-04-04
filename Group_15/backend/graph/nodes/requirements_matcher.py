@@ -95,6 +95,12 @@ def requirements_matcher(state: GraphState) -> dict:
             item["relevance_score"] = relevance_score
             all_items.append(item)
 
-    matched_items = [item for item in all_items if item["relevance_score"] >= 0.35]
+    # Keep any item with at least a minimal signal — stricter filtering happens in aggregator
+    matched_items = [item for item in all_items if item["relevance_score"] >= 0.05]
+
+    by_source: dict[str, int] = {}
+    for item in matched_items:
+        by_source[item["source"]] = by_source.get(item["source"], 0) + 1
+    print(f"[matcher] {len(matched_items)} items passed threshold: {by_source}")
 
     return {"matched_items": matched_items}

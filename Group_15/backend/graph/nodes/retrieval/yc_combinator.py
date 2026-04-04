@@ -1,52 +1,64 @@
-from bs4 import BeautifulSoup
+import json
 from utils.http import get_client
 from graph.state import RepoItem
 
 
 async def yc_combinator_retrieval(query: str) -> list[RepoItem]:
+    """
+    Uses YC's public Algolia search index (search-only key exposed in their JS bundle).
+    This is a read-only public key intentionally shipped for client-side search.
+    """
     client = get_client()
 
     try:
-        response = await client.get(
-            "https://www.ycombinator.com/companies",
-            params={"q": query}
+        response = await client.post(
+            "https://45bwzj1sgc-dsn.algolia.net/1/indexes/WEB_PRODUCTION_COMPANIES/query",
+            headers={
+                "x-algolia-application-id": "45bwzj1sgc",
+                "x-algolia-api-key": "Oa0057GFleOYa4uQUUCgR2GBjuEkdZXFOcnBHmqxHHI=",
+                "content-type": "application/json",
+            },
+            content=json.dumps({
+                "query": query,
+                "hitsPerPage": 8,
+                "attributesToRetrieve": [
+                    "name", "one_liner", "long_description",
+                    "url", "batch", "status", "slug", "tags"
+                ]
+            })
         )
         response.raise_for_status()
+        data = response.json()
 
-        soup = BeautifulSoup(response.text, "lxml")
+        hits = data.get("hits", [])
         items: list[RepoItem] = []
 
-        company_cards = soup.select('a[href*="/companies/"]')[:8]
+        for hit in hits:
+            name = hit.get("name", "")
+            one_liner = hit.get("one_liner", "")
+            long_desc = (hit.get("long_description") or "")[:200]
+            batch = hit.get("batch", "")
+            slug = hit.get("slug", "")
+            status = hit.get("status", "")
 
-        for card in company_cards:
-            company_name_elem = card.select_one('span, div, h3')
-            company_name = company_name_elem.get_text(strip=True) if company_name_elem else ""
+            url = f"https://www.ycombinator.com/companies/{slug}" if slug else ""
+            summary = one_liner or long_desc or name
 
-            tagline_elem = card.find_next('span', class_=lambda x: x and 'tagline' in x.lower()) if card else None
-            if not tagline_elem:
-                tagline_elem = card.select_one('.tagline, [class*="description"]')
-            tagline = tagline_elem.get_text(strip=True) if tagline_elem else ""
-
-            batch_elem = card.select_one('[class*="batch"]')
-            batch = batch_elem.get_text(strip=True) if batch_elem else ""
-
-            url = card['href'] if card.get('href') else ""
-            if url and not url.startswith('http'):
-                url = f"https://www.ycombinator.com{url}"
-
-            if not company_name:
+            if not name:
                 continue
 
             items.append(RepoItem(
                 source="yc",
-                title=company_name,
+                title=name,
                 url=url,
-                summary=tagline if tagline else company_name,
+                summary=summary[:200],
                 relevance_score=0.0,
-                metadata={"batch": batch, "status": "active"}
+                metadata={"batch": batch, "status": status, "one_liner": one_liner}
             ))
 
+        print(f"[YC] returned {len(items)} items for query: {query!r}")
         return items[:8]
 
     except Exception as e:
+        print(f"[YC retrieval error] {e}")
         return []

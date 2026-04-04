@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Instrument_Serif, DM_Mono } from "next/font/google";
+import { Instrument_Serif, DM_Mono, Inter } from "next/font/google";
 import "./globals.css";
 
 const instrumentSerif = Instrument_Serif({
@@ -11,6 +11,12 @@ const instrumentSerif = Instrument_Serif({
 const dmMono = DM_Mono({
   weight: ["400", "500"],
   variable: "--font-mono",
+  subsets: ["latin"],
+});
+
+const inter = Inter({
+  weight: ["400", "500", "700", "800", "900"],
+  variable: "--font-display",
   subsets: ["latin"],
 });
 
@@ -27,7 +33,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${instrumentSerif.variable} ${dmMono.variable} h-full antialiased`}
+      className={`${instrumentSerif.variable} ${dmMono.variable} ${inter.variable} h-full antialiased`}
     >
       <body className="min-h-full">{children}</body>
     </html>

@@ -21,14 +21,15 @@ async def parallel_retrieval_async(state: GraphState) -> dict:
         return_exceptions=True
     )
 
-    raw_results = {
-        "github": results[0] if not isinstance(results[0], Exception) else [],
-        "reddit": results[1] if not isinstance(results[1], Exception) else [],
-        "hn": results[2] if not isinstance(results[2], Exception) else [],
-        "ph": results[3] if not isinstance(results[3], Exception) else [],
-        "ai4that": results[4] if not isinstance(results[4], Exception) else [],
-        "yc": results[5] if not isinstance(results[5], Exception) else [],
-    }
+    source_keys = ["github", "reddit", "hn", "ph", "ai4that", "yc"]
+    raw_results = {}
+    for key, result in zip(source_keys, results):
+        if isinstance(result, Exception):
+            print(f"[retrieval] {key} FAILED: {result}")
+            raw_results[key] = []
+        else:
+            print(f"[retrieval] {key} → {len(result)} items")
+            raw_results[key] = result
 
     return {"raw_results": raw_results}
 
