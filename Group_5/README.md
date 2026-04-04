@@ -1,5 +1,6 @@
-**Project:
-Project Team:**
+**Project:** Multi-Agent AI Deep Researcher
+
+**Project Team:**
  1) Nagesh Jayanti
  2) Prashant Gajendra
  3) Ruchi Joshi
