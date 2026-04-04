@@ -1,1 +1,1 @@
-Submit your assignments here.
+All assignments have been submitted in day-wise folders.
