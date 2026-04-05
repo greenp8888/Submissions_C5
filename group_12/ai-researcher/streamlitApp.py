@@ -35,6 +35,7 @@ reload on save), run: ``STREAMLIT_SERVER_FILE_WATCHER_TYPE=none streamlit run st
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
 import uuid
@@ -65,6 +66,8 @@ from streamlit_workflow import (
     build_report_cover_markdown,
     derive_title,
     finalize_research_outputs,
+    is_report_heading_label,
+    stable_chat_title,
     markdown_to_pdf_bytes,
     run_preflight,
     run_research,
@@ -80,6 +83,7 @@ USER_DATA_ROOT = ROOT / "user-data"
 BRAND_MARK_SVG = ROOT / "assets" / "novamind_mark.svg"
 
 AUTH_FLASH_ERROR_KEY = "auth_flash_error"
+NM_PENDING_KEY = "_nm_pending"
 
 _LOGOUT_KEYS = frozenset(
     {
@@ -117,6 +121,7 @@ _LOGOUT_KEYS = frozenset(
         "openrouter_model",
         "anthropic_key",
         "anthropic_model",
+        NM_PENDING_KEY,
     }
 )
 UPLOAD_FILE_TYPES: list[str] = [
@@ -526,6 +531,75 @@ def _inject_layout_css() -> None:
     font-size: 1.15rem;
     font-weight: 500;
   }
+  /* Conversation scroll pane (work column, beside export buttons) */
+  section.main [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(2) [data-testid="stVerticalBlockBorderWrapper"]:has(span.nm-scroll-conv) {
+    max-height: calc(100vh - 340px) !important;
+    min-height: 160px;
+    overflow-y: auto !important;
+    overflow-x: hidden;
+    padding: 8px 10px 12px 4px;
+    margin-bottom: 4px;
+    border: 1px solid rgba(128, 128, 128, 0.22);
+    border-radius: 10px;
+    background: var(--background-color, #ffffff);
+    box-sizing: border-box;
+  }
+  /* Composer docked at top of work column */
+  section.main [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(2) [data-testid="stVerticalBlockBorderWrapper"]:has(span.nm-composer-top-bar) {
+    border: 1px solid rgba(128, 128, 128, 0.22);
+    border-radius: 12px;
+    padding: 10px 10px 12px 10px;
+    margin-bottom: 10px;
+    background: var(--background-color, #ffffff);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+  }
+  span.nm-scroll-conv,
+  span.nm-composer-top-bar {
+    display: none !important;
+  }
+  /* Left rail (mockup: gray panel, coral primary) */
+  section.main [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(1) {
+    background: #e8eaef;
+    border-radius: 16px;
+    padding: 14px 12px 16px 12px !important;
+    margin-top: 2px;
+  }
+  section.main [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(1) .nm-sidebar-h1 {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin: 0 0 8px 0;
+    letter-spacing: -0.01em;
+  }
+  section.main [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(1) .nm-sidebar-sub {
+    font-size: 0.72rem;
+    color: #6b7280;
+    margin: 6px 0 0 0;
+    line-height: 1.35;
+    word-break: break-word;
+  }
+  section.main [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(1) button[kind="primary"],
+  section.main [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(1) .stButton > button[data-testid="baseButton-primary"] {
+    background-color: #e85d4c !important;
+    border-color: #d64b3d !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    border-radius: 10px !important;
+  }
+  section.main [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(1) button[kind="primary"]:hover {
+    background-color: #d64b3d !important;
+    border-color: #c44333 !important;
+  }
+  section.main [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(1) .nm-file-row-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #111827;
+    line-height: 1.25;
+  }
+  section.main [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(1) .nm-file-row-meta {
+    font-size: 0.7rem;
+    color: #9ca3af;
+  }
 </style>
         """,
         unsafe_allow_html=True,
@@ -556,7 +630,7 @@ def save_chat(data: dict) -> None:
     if not _chat_should_persist(data):
         return
     if not (data.get("title") or "").strip():
-        data["title"] = derive_title(data.get("report_md") or "", data.get("question") or "")
+        data["title"] = stable_chat_title(data.get("question") or "")
     data["updated_utc"] = _utc_now()
     d = get_chats_dir()
     d.mkdir(parents=True, exist_ok=True)
@@ -603,17 +677,53 @@ def new_research_session() -> None:
 
 
 def persist_uploads(chat_id: str, files: list) -> list[str]:
-    """Save Streamlit uploaded files to disk; return absolute paths."""
+    """Save uploaded files under the chat ``uploads/`` folder; merge with existing paths (dedup)."""
+    existing = list(st.session_state.get("uploaded_paths") or [])
     if not files:
-        return list(st.session_state.get("uploaded_paths") or [])
+        return existing
     up_dir = get_chats_dir() / chat_id / "uploads"
     up_dir.mkdir(parents=True, exist_ok=True)
-    paths: list[str] = []
+    seen = {str(Path(p).resolve()) for p in existing}
     for uf in files:
         dest = up_dir / Path(uf.name).name
         dest.write_bytes(uf.getvalue())
-        paths.append(str(dest.resolve()))
-    return paths
+        rp = str(dest.resolve())
+        if rp not in seen:
+            existing.append(rp)
+            seen.add(rp)
+    return existing
+
+
+def _format_file_size(n: int) -> str:
+    if n < 1024:
+        return f"{n} B"
+    if n < 1024 * 1024:
+        return f"{n / 1024:.1f} KB"
+    return f"{n / (1024 * 1024):.1f} MB"
+
+
+def _safe_unlink_upload(path_str: str, chat_id: str) -> None:
+    try:
+        p = Path(path_str).resolve()
+        root = (get_chats_dir() / chat_id / "uploads").resolve()
+        p.relative_to(root)
+    except (OSError, ValueError):
+        return
+    try:
+        p.unlink(missing_ok=True)
+    except OSError:
+        return
+
+
+def _file_type_icon(path_str: str) -> str:
+    ext = Path(path_str).suffix.lower()
+    if ext in {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff"}:
+        return "🖼"
+    if ext == ".pdf":
+        return "📄"
+    if ext in {".mp3", ".wav", ".m4a", ".flac", ".ogg", ".webm"}:
+        return "🎵"
+    return "📎"
 
 
 def append_message(role: str, content: str) -> None:
@@ -621,7 +731,16 @@ def append_message(role: str, content: str) -> None:
 
 
 def render_chat_messages() -> None:
+    """Skip assistant bubbles that duplicate Human review / preflight tab content."""
+    skip_h = (st.session_state.get("human_preview_md") or "").strip()
+    skip_t = (st.session_state.get("preflight_trace_md") or "").strip()
     for m in st.session_state.get("messages") or []:
+        if m.get("role") == "assistant":
+            c = (m.get("content") or "").strip()
+            if skip_h and c == skip_h:
+                continue
+            if skip_t and c == skip_t:
+                continue
         with st.chat_message(m["role"]):
             st.markdown(m["content"])
 
@@ -652,7 +771,14 @@ def render_conversation_and_artifacts() -> None:
                 st.markdown(st.session_state.get("sources_detail_md") or "")
             with t4:
                 st.markdown(st.session_state.get("gaps_md") or "")
-                st.markdown(st.session_state.get("trace_md") or "")
+                full_tr = (st.session_state.get("trace_md") or "").strip()
+                pre_tr = (st.session_state.get("preflight_trace_md") or "").strip()
+                if full_tr:
+                    st.markdown(full_tr)
+                elif pre_tr:
+                    st.markdown("### Preflight trace (preview)\n\n" + pre_tr)
+                else:
+                    st.caption("_No trace yet._")
         if msgs:
             if has_artifacts:
                 st.divider()
@@ -660,6 +786,81 @@ def render_conversation_and_artifacts() -> None:
             render_chat_messages()
         elif not has_artifacts:
             st.caption("Preview and research replies will show here.")
+
+
+def render_report_download_buttons() -> None:
+    """MD/PDF export only — aligned beside Conversation (no inline report preview)."""
+    base = st.session_state.get("artifact_base_name") or "research"
+    full_md = ""
+    art_dir = Path(st.session_state.get("artifact_dir") or get_chats_dir())
+    md_path = art_dir / f"{base}.md" if base else None
+    if md_path and md_path.is_file():
+        full_md = md_path.read_text(encoding="utf-8")
+    elif st.session_state.get("report_md"):
+        detailed = st.session_state.get("sources_detail_md", "")
+        full_md = st.session_state["report_md"]
+        if detailed and detailed not in full_md:
+            full_md = f"{full_md}\n\n---\n\n## Detailed extracts\n\n{detailed}"
+
+    fn_base = slug_filename_base(st.session_state.get("title") or base or "research")
+
+    prov = st.session_state.get("llm_provider") or LLM_PROVIDER_OPENROUTER
+    model_lbl = (
+        st.session_state.get("openrouter_model", "")
+        if prov == LLM_PROVIDER_OPENROUTER
+        else st.session_state.get("anthropic_model", "")
+    )
+    _cover_kw = dict(
+        session_title=(st.session_state.get("title") or "").strip(),
+        question=st.session_state.get("question") or "",
+        uploaded_paths=list(st.session_state.get("uploaded_paths") or []),
+        user_email=st.session_state.get("user_email") or "",
+        user_display_name=st.session_state.get("user_display_name") or "",
+        llm_provider=_llm_backend_label(prov),
+        model_label=model_lbl,
+        web_search_enabled=bool(st.session_state.get("enable_web_search", True)),
+        generated_utc=_utc_now(),
+        planner_objective=_planner_objective_plain(st.session_state.get("objective_md") or ""),
+    )
+    cover_md = build_report_cover_markdown(**_cover_kw)
+    cover_html = build_report_cover_html(**_cover_kw)
+    pdf_body_md = build_pdf_body_markdown(
+        report_md=st.session_state.get("report_md") or "",
+        gaps_md=st.session_state.get("gaps_md") or "",
+        contradictions_md=st.session_state.get("contradictions_md") or "",
+        sources_detail_md=st.session_state.get("sources_detail_md") or "",
+    )
+    pdf_bytes = (
+        markdown_to_pdf_bytes(pdf_body_md, cover_html=cover_html)
+        if (st.session_state.get("report_md") or "").strip()
+        else None
+    )
+
+    md_download = ""
+    if full_md:
+        md_download = f"{cover_md}\n\n---\n\n{full_md}"
+
+    st.caption("Export")
+    st.download_button(
+        label="📄",
+        data=md_download.encode("utf-8") if md_download else b"",
+        file_name=f"{fn_base}.md",
+        mime="text/markdown",
+        use_container_width=True,
+        disabled=not md_download,
+        help=f"Download Markdown ({fn_base}.md) — includes cover sheet",
+    )
+    st.download_button(
+        label="📕",
+        data=pdf_bytes or b"",
+        file_name=f"{fn_base}.pdf",
+        mime="application/pdf",
+        use_container_width=True,
+        disabled=pdf_bytes is None,
+        help=f"Download PDF ({fn_base}.pdf)",
+    )
+    if (st.session_state.get("report_md") or "").strip() and pdf_bytes is None:
+        st.caption("PDF: `pip install markdown xhtml2pdf`")
 
 
 def main() -> None:
@@ -688,42 +889,104 @@ def main() -> None:
 
     _render_brand_header()
 
-    col_side, col_main, col_right = st.columns([0.22, 0.48, 0.30], gap="medium")
+    col_side, col_work = st.columns([0.28, 0.72], gap="medium")
 
     with col_side:
-        st.caption(st.session_state.get("user_email", ""))
-        if st.session_state.get("auth_anonymous"):
-            st.caption("Anonymous test user (OAuth disabled)")
-        if st.button("Sign out", use_container_width=True):
-            logout_user()
-            st.rerun()
+        st.markdown('<p class="nm-sidebar-h1">Files</p>', unsafe_allow_html=True)
+        with st.container(border=True):
+            ups_list = list(st.session_state.get("uploaded_paths") or [])
+            _cid = st.session_state["id"]
+            for pth in ups_list:
+                icn, mid, bx = st.columns([0.5, 4.0, 0.65], gap="small")
+                with icn:
+                    st.markdown(
+                        f"<div style='text-align:center;font-size:1.1rem'>{_file_type_icon(pth)}</div>",
+                        unsafe_allow_html=True,
+                    )
+                with mid:
+                    try:
+                        sz = _format_file_size(Path(pth).stat().st_size)
+                    except OSError:
+                        sz = "—"
+                    st.markdown(
+                        f'<p class="nm-file-row-name">{Path(pth).name}</p>'
+                        f'<p class="nm-file-row-meta">{sz}</p>',
+                        unsafe_allow_html=True,
+                    )
+                with bx:
+                    _rk = hashlib.sha256(f"{_cid}:{pth}".encode("utf-8", errors="replace")).hexdigest()[:16]
+                    if st.button("✕", key=f"nm_rm_{_rk}", help="Remove file"):
+                        ups2 = [p for p in list(st.session_state.get("uploaded_paths") or []) if p != pth]
+                        _safe_unlink_upload(pth, _cid)
+                        st.session_state["uploaded_paths"] = ups2
+                        save_chat(session_chat_dict())
+                        st.rerun()
+
+            fu = st.file_uploader(
+                "Add files",
+                type=UPLOAD_FILE_TYPES,
+                accept_multiple_files=True,
+                label_visibility="collapsed",
+                key=f"nm_sidebar_uploader_{st.session_state['id']}",
+            )
+            st.caption("＋ Add files — PDF, images, audio")
+
+        _merged_paths = persist_uploads(st.session_state["id"], list(fu or []))
+        if fu:
+            st.session_state["uploaded_paths"] = _merged_paths
+            save_chat(session_chat_dict())
+
+        _ups_show = st.session_state.get("uploaded_paths") or []
+        if _ups_show:
+            st.markdown(
+                '<p class="nm-sidebar-sub">'
+                + ", ".join(Path(p).name for p in _ups_show)
+                + "</p>",
+                unsafe_allow_html=True,
+            )
+
+        _preview_ready = st.session_state.get("status") == "preview_ready"
+        _start_lbl = "Run full research" if _preview_ready else "Start Research"
+        if st.button(_start_lbl, type="primary", use_container_width=True, key="nm_sidebar_start"):
+            st.session_state[NM_PENDING_KEY] = "run" if _preview_ready else "preview"
+        if _preview_ready:
+            if st.button("Cancel", use_container_width=True, key="nm_sidebar_cancel"):
+                st.session_state[NM_PENDING_KEY] = "cancel"
+            st.caption("Preview ready — check **Human review** in Conversation, then **Run full research**.")
+
         st.divider()
-        st.caption("Chats")
-        if st.button("➕ New research", use_container_width=True, type="primary"):
+        st.markdown('<p class="nm-sidebar-h1">Last research</p>', unsafe_allow_html=True)
+        with st.popover("Executive Summary", use_container_width=True):
+            _es = (st.session_state.get("report_md") or "").strip()
+            if _es:
+                st.markdown(_es)
+            else:
+                st.caption("No report yet — run full research after preview.")
+
+        with st.expander("More history ›", expanded=False):
+            for cid, title, _upd, qtext in list_chat_meta():
+                label = _sidebar_chat_label(title, cid, qtext)
+                if st.button(label, key=f"open_{cid}", use_container_width=True):
+                    cur = session_chat_dict()
+                    if cur.get("id") != cid and _chat_should_persist(cur):
+                        save_chat(cur)
+                    data = load_chat(cid)
+                    if data:
+                        merged = _empty_chat(data.get("id", cid))
+                        merged.update(data)
+                        _mt = (merged.get("title") or "").strip()
+                        if not _mt or is_report_heading_label(_mt):
+                            merged["title"] = stable_chat_title(merged.get("question") or "")
+                        apply_chat_to_session(merged)
+                        save_chat(session_chat_dict())
+                        st.rerun()
+
+        st.divider()
+        if st.button("New session", use_container_width=True, key="nm_new_session"):
             new_research_session()
             st.rerun()
 
-        for cid, title, _upd, qtext in list_chat_meta():
-            label = _sidebar_chat_label(title, cid, qtext)
-            if st.button(label, key=f"open_{cid}", use_container_width=True):
-                cur = session_chat_dict()
-                if cur.get("id") != cid and _chat_should_persist(cur):
-                    save_chat(cur)
-                data = load_chat(cid)
-                if data:
-                    merged = _empty_chat(data.get("id", cid))
-                    merged.update(data)
-                    if not (merged.get("title") or "").strip():
-                        merged["title"] = derive_title(
-                            merged.get("report_md") or "",
-                            merged.get("question") or "",
-                        )
-                    apply_chat_to_session(merged)
-                    save_chat(session_chat_dict())
-                    st.rerun()
-
-        st.divider()
-        with st.expander("Model & API keys", expanded=False):
+        with st.expander("Research options ›", expanded=False):
             _prov_opts = [LLM_PROVIDER_OPENROUTER, LLM_PROVIDER_ANTHROPIC]
             _prov_cur = st.session_state.get("llm_provider", LLM_PROVIDER_OPENROUTER)
             _prov_ix = _prov_opts.index(_prov_cur) if _prov_cur in _prov_opts else 0
@@ -765,54 +1028,7 @@ def main() -> None:
                     list(ANTHROPIC_BUDGET_MODELS),
                     index=_ami,
                 )
-
-        st.caption("Leave keys empty to use `.env` on the server.")
-
-    with col_main:
-        render_conversation_and_artifacts()
-
-        st.markdown('<p class="nm-composer-label">Composer</p>', unsafe_allow_html=True)
-        st.caption("Type below · **＋** uploads files (ChatGPT-style)")
-
-        fu: list | tuple | None = None
-        ac, ic = st.columns([1, 14], gap="small")
-        with ac:
-            with st.popover("＋", use_container_width=True):
-                st.caption("Upload photos & files")
-                fu = st.file_uploader(
-                    "Attachments",
-                    type=UPLOAD_FILE_TYPES,
-                    accept_multiple_files=True,
-                    label_visibility="collapsed",
-                )
-        with ic:
-            st.session_state["question"] = st.text_area(
-                "Research question",
-                value=st.session_state.get("question", ""),
-                height=90,
-                placeholder="Ask anything…",
-                label_visibility="collapsed",
-            )
-
-        paths = persist_uploads(st.session_state["id"], list(fu or []))
-        if fu:
-            st.session_state["uploaded_paths"] = paths
-            save_chat(session_chat_dict())
-
-        ups = st.session_state.get("uploaded_paths") or []
-        if ups:
-            chip = " · ".join(Path(p).name for p in ups)
-            st.caption(f"**Attached:** {chip}")
-            with st.expander("Uploaded file paths", expanded=False):
-                for p in ups:
-                    st.code(p, language=None)
-
-        c_prev, c_run, c_cancel = st.columns([1, 1, 1], gap="small")
-        preview_clicked = c_prev.button("Preview (human review)", use_container_width=True)
-        run_clicked = c_run.button("Run full research", use_container_width=True, disabled=st.session_state.get("status") != "preview_ready")
-        cancel_clicked = c_cancel.button("Cancel", use_container_width=True)
-
-        with st.expander("Search & retrieval", expanded=False):
+            st.caption("Leave keys empty to use `.env` on the server.")
             st.session_state["enable_web_search"] = st.checkbox(
                 "Tavily web search", value=st.session_state.get("enable_web_search", True)
             )
@@ -827,13 +1043,50 @@ def main() -> None:
                 "Analyst passes", 1, 2, int(st.session_state.get("max_research_rounds", 1))
             )
 
-        if cancel_clicked:
-            append_message("assistant", "_Cancelled. Adjust your question or files and run **Preview** again._")
+        st.divider()
+        st.caption(st.session_state.get("user_email", ""))
+        if st.session_state.get("auth_anonymous"):
+            st.caption("Anonymous test user (OAuth disabled)")
+        if st.button("Sign out", use_container_width=True, key="nm_sign_out"):
+            logout_user()
+            st.rerun()
+
+    with col_work:
+        with st.container():
+            st.markdown(
+                '<span class="nm-composer-top-bar" aria-hidden="true"></span>',
+                unsafe_allow_html=True,
+            )
+            st.markdown('<p class="nm-composer-label">Composer</p>', unsafe_allow_html=True)
+            st.caption("Write your question here — **Start Research** and files live in the left panel.")
+
+            st.session_state["question"] = st.text_area(
+                "Research question",
+                value=st.session_state.get("question", ""),
+                height=90,
+                placeholder="Ask anything…",
+                label_visibility="collapsed",
+            )
+
+        c_conv, c_export = st.columns([0.88, 0.12], gap="small")
+        with c_conv:
+            with st.container():
+                st.markdown(
+                    '<span class="nm-scroll-conv" aria-hidden="true"></span>',
+                    unsafe_allow_html=True,
+                )
+                render_conversation_and_artifacts()
+        with c_export:
+            render_report_download_buttons()
+
+        _pending = st.session_state.pop(NM_PENDING_KEY, None)
+        if _pending == "cancel":
+            append_message("assistant", "_Cancelled. Adjust your question or files and run **Start Research** again._")
             st.session_state["status"] = "empty"
             save_chat(session_chat_dict())
             st.rerun()
 
-        if preview_clicked:
+        if _pending == "preview":
             q = (st.session_state.get("question") or "").strip()
             if not q:
                 st.error("Enter a research question first.")
@@ -859,14 +1112,17 @@ def main() -> None:
                 st.session_state["human_preview_md"] = md
                 st.session_state["preflight_trace_md"] = trace
                 st.session_state["status"] = "preview_ready"
-                append_message("assistant", md)
-                append_message("assistant", trace)
-                st.session_state["title"] = derive_title("", q)
+                append_message(
+                    "assistant",
+                    "_Preview complete._ Open the **Human review** tab in **Conversation** for the full digest; "
+                    "**Trace & gaps** has preflight steps. Use **Run full research** in the left panel when ready.",
+                )
+                st.session_state["title"] = stable_chat_title(q)
                 save_chat(session_chat_dict())
-                st.success("Preview ready — use **Run full research** or **Cancel**.")
+                st.success("Preview ready — use **Run full research** or **Cancel** in the left panel.")
                 st.rerun()
 
-        if run_clicked:
+        if _pending == "run":
             q = (st.session_state.get("question") or "").strip()
             if not q:
                 st.error("Enter a research question first.")
@@ -921,8 +1177,8 @@ def main() -> None:
                     sources_detail,
                 ) = finalize_research_outputs(last)
 
-                title = derive_title(report_md, q)
-                base = slug_filename_base(title)
+                file_stem = derive_title(report_md, q)
+                base = slug_filename_base(file_stem)
                 art_dir = get_chats_dir() / st.session_state["id"] / "artifacts"
                 write_artifact_markdown(art_dir, base, full_md)
 
@@ -935,97 +1191,15 @@ def main() -> None:
                 st.session_state["evidence_records"] = evidence_df.to_dict(orient="records")
                 st.session_state["artifact_base_name"] = base
                 st.session_state["artifact_dir"] = str(art_dir)
-                st.session_state["title"] = title
+                if not (st.session_state.get("title") or "").strip():
+                    st.session_state["title"] = stable_chat_title(q)
                 st.session_state["status"] = "complete"
                 append_message(
                     "assistant",
-                    f"**Research complete:** {title}\n\n_See **Conversation** for tabs and the report panel on the right._",
+                    f"**Research complete:** {file_stem}\n\n_See **Conversation** (tabs) and **Export** (📄 📕) on the right._",
                 )
                 save_chat(session_chat_dict())
                 st.rerun()
-
-    with col_right:
-        base = st.session_state.get("artifact_base_name") or "research"
-        full_md = ""
-        art_dir = Path(st.session_state.get("artifact_dir") or get_chats_dir())
-        md_path = art_dir / f"{base}.md" if base else None
-        if md_path and md_path.is_file():
-            full_md = md_path.read_text(encoding="utf-8")
-        elif st.session_state.get("report_md"):
-            detailed = st.session_state.get("sources_detail_md", "")
-            full_md = st.session_state["report_md"]
-            if detailed and detailed not in full_md:
-                full_md = f"{full_md}\n\n---\n\n## Detailed extracts\n\n{detailed}"
-
-        fn_base = slug_filename_base(st.session_state.get("title") or base or "research")
-
-        prov = st.session_state.get("llm_provider") or LLM_PROVIDER_OPENROUTER
-        model_lbl = (
-            st.session_state.get("openrouter_model", "")
-            if prov == LLM_PROVIDER_OPENROUTER
-            else st.session_state.get("anthropic_model", "")
-        )
-        _cover_kw = dict(
-            session_title=(st.session_state.get("title") or "").strip(),
-            question=st.session_state.get("question") or "",
-            uploaded_paths=list(st.session_state.get("uploaded_paths") or []),
-            user_email=st.session_state.get("user_email") or "",
-            user_display_name=st.session_state.get("user_display_name") or "",
-            llm_provider=_llm_backend_label(prov),
-            model_label=model_lbl,
-            web_search_enabled=bool(st.session_state.get("enable_web_search", True)),
-            generated_utc=_utc_now(),
-            planner_objective=_planner_objective_plain(st.session_state.get("objective_md") or ""),
-        )
-        cover_md = build_report_cover_markdown(**_cover_kw)
-        cover_html = build_report_cover_html(**_cover_kw)
-        pdf_body_md = build_pdf_body_markdown(
-            report_md=st.session_state.get("report_md") or "",
-            gaps_md=st.session_state.get("gaps_md") or "",
-            contradictions_md=st.session_state.get("contradictions_md") or "",
-            sources_detail_md=st.session_state.get("sources_detail_md") or "",
-        )
-        pdf_bytes = (
-            markdown_to_pdf_bytes(pdf_body_md, cover_html=cover_html)
-            if (st.session_state.get("report_md") or "").strip()
-            else None
-        )
-
-        md_download = ""
-        if full_md:
-            md_download = f"{cover_md}\n\n---\n\n{full_md}"
-
-        h_left, h_dl = st.columns([3, 1])
-        with h_left:
-            st.subheader("Report artifact")
-        with h_dl:
-            d_md, d_pdf = st.columns(2)
-            with d_md:
-                st.download_button(
-                    label="📄",
-                    data=md_download.encode("utf-8") if md_download else b"",
-                    file_name=f"{fn_base}.md",
-                    mime="text/markdown",
-                    use_container_width=True,
-                    disabled=not md_download,
-                    help=f"Download Markdown ({fn_base}.md) — includes cover sheet",
-                )
-            with d_pdf:
-                st.download_button(
-                    label="📕",
-                    data=pdf_bytes or b"",
-                    file_name=f"{fn_base}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True,
-                    disabled=pdf_bytes is None,
-                    help=f"Download PDF ({fn_base}.pdf)",
-                )
-
-        st.markdown(st.session_state.get("objective_md", ""))
-        st.markdown(st.session_state.get("report_md") or "_Report appears here after a successful run._")
-
-        if (st.session_state.get("report_md") or "").strip() and pdf_bytes is None:
-            st.caption("Install optional PDF deps: `pip install markdown xhtml2pdf`")
 
 
 main()

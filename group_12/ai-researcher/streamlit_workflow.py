@@ -157,8 +157,30 @@ _GENERIC_REPORT_HEADINGS: frozenset[str] = frozenset(
         "report",
         "research report",
         "findings",
+        "detailed findings",
+        "detailed finding",
     }
 )
+
+
+def is_report_heading_label(text: str) -> bool:
+    """True if ``text`` looks like a report section heading, not a chat name."""
+    s = (text or "").strip().lower().rstrip(".")
+    return s in _GENERIC_REPORT_HEADINGS
+
+
+def stable_chat_title(question: str) -> str:
+    """
+    One-line chat label from the research question only.
+    Stays the same across preview → full run → complete (never swap to a report heading).
+    """
+    q = (question or "").strip()
+    if not q:
+        return "Untitled research"
+    line = q.split("\n")[0].strip()
+    if len(line) > 120:
+        return line[:117] + "…"
+    return line
 
 
 def derive_title(report_md: str, question: str) -> str:
