@@ -1,6 +1,3 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
 
 # AI Financial Coach
 
@@ -34,14 +31,11 @@ Create a `.env` file in the root of the project and add:
 
 ```env
 OPENROUTER_API_KEY=your_openrouter_api_key_here
-APP_URL=http://localhost:3000
-JWT_SECRET=your_secret_here
 ```
 
 Notes:
 - `OPENROUTER_API_KEY` is required for all LLM agent responses.
-- `APP_URL` is used in OpenRouter request headers.
-- `JWT_SECRET` is used for local authentication.
+
 
 ## 3. Sample Queries To Test In The UI
 
