@@ -119,6 +119,8 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saveToast, setSaveToast] = useState(false);
+  const [tagline, setTagline] = useState<string | null>(null);
+  const [summary, setSummary] = useState<string | null>(null);
 
   const handleDownload = () => {
     const prev = document.title;
@@ -138,6 +140,19 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
     const productUrl      = searchParams.get("url") || "";
 
     if (!ideaDescription) { setError("No idea description provided"); setLoading(false); return; }
+
+    // Fetch tagline in parallel — fire and forget alongside the main analysis
+    fetch("http://localhost:8000/tagline", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idea_description: ideaDescription }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.tagline) setTagline(data.tagline);
+        if (data.summary) setSummary(data.summary);
+      })
+      .catch(() => {});
 
     fetch("http://localhost:8000/analyze", {
       method: "POST",
@@ -318,11 +333,82 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
             <div style={{ background: "#161b22", border: "1px solid #30363d", borderRadius: 16, padding: 24 }}>
               {/* Title row */}
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 8 }}>
-                <div>
-                  <h1 style={{ fontSize: 26, fontWeight: 800, color: "#f0f6fc", letterSpacing: "-0.02em", margin: 0, lineHeight: 1.2 }}>
-                    Product Intelligence Report
-                  </h1>
-                  <p style={{ fontSize: 13, color: "#8b949e", margin: "4px 0 0 0" }}>
+                <div style={{ flex: 1 }}>
+                  {/* Tagline heading */}
+                  {tagline ? (
+                    <h1 style={{
+                      margin: "0 0 10px 0",
+                      animation: "fadeIn 0.4s ease both",
+                    }}>
+                      <span style={{
+                        display: "block",
+                        fontSize: 13,
+                        fontWeight: 500,
+                        letterSpacing: "0.06em",
+                        textTransform: "uppercase",
+                        color: "#8b949e",
+                        fontFamily: "var(--font-mono)",
+                        marginBottom: 4,
+                      }}>
+                        Product Intelligence Report
+                      </span>
+                      <span style={{
+                        display: "block",
+                        fontSize: 26,
+                        fontWeight: 800,
+                        letterSpacing: "-0.025em",
+                        lineHeight: 1.15,
+                        background: "linear-gradient(90deg, #22d3ee, #3b82f6)",
+                        WebkitBackgroundClip: "text",
+                        WebkitTextFillColor: "transparent",
+                        backgroundClip: "text",
+                      }}>
+                        {tagline}
+                      </span>
+                    </h1>
+                  ) : (
+                    <div style={{
+                      height: 32,
+                      width: 260,
+                      borderRadius: 6,
+                      backgroundImage: "linear-gradient(90deg,#21262d 0%,#30363d 50%,#21262d 100%)",
+                      backgroundSize: "200% 100%",
+                      animation: "shimmer 1.8s linear infinite",
+                      marginBottom: 10,
+                    }} />
+                  )}
+
+                  {/* 2-sentence summary */}
+                  {summary ? (
+                    <p style={{
+                      fontSize: 14,
+                      lineHeight: 1.7,
+                      color: "#8b949e",
+                      margin: 0,
+                      maxWidth: 560,
+                      animation: "fadeIn 0.5s ease both",
+                      animationDelay: "0.1s",
+                    }}>
+                      {summary}
+                    </p>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {[100, 90, 75].map((w, i) => (
+                        <div key={i} style={{
+                          height: 11,
+                          width: `${w}%`,
+                          maxWidth: 420,
+                          borderRadius: 4,
+                          backgroundImage: "linear-gradient(90deg,#21262d 0%,#30363d 50%,#21262d 100%)",
+                          backgroundSize: "200% 100%",
+                          animation: "shimmer 1.8s linear infinite",
+                          animationDelay: `${i * 0.1}s`,
+                        }} />
+                      ))}
+                    </div>
+                  )}
+
+                  <p style={{ fontSize: 11, color: "#484f58", margin: "10px 0 0 0", fontFamily: "var(--font-mono)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
                     Multi-Source Analysis · AI Layer · IdeaScope
                   </p>
                 </div>
@@ -362,6 +448,15 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
                 </p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {Object.entries(report.sources_count).map(([src, count]) => {
+                    const SOURCE_LABELS: Record<string, string> = {
+                      github:   "GitHub",
+                      reddit:   "Reddit",
+                      hn:       "Hacker News",
+                      ph:       "Product Hunt",
+                      yc:       "Y Combinator",
+                      ai4that:  "AI For That",
+                    };
+                    const label = SOURCE_LABELS[src.toLowerCase()] ?? src;
                     const maxCount = Math.max(...Object.values(report.sources_count), 1);
                     const pct = Math.max(5, (count / maxCount) * 100);
                     const avg = report.items_by_source[src]
@@ -369,8 +464,8 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
                       : 0;
                     const fill = avg >= 0.7 ? "linear-gradient(90deg,#2ea043,#3fb950)" : avg >= 0.4 ? "linear-gradient(90deg,#bb8009,#d29922)" : "linear-gradient(90deg,#da3633,#f85149)";
                     return (
-                      <div key={src} style={{ display: "grid", gridTemplateColumns: "120px 1fr 48px", gap: 10, alignItems: "center" }}>
-                        <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "#c9d1d9", fontWeight: 600 }}>{src}</span>
+                      <div key={src} style={{ display: "grid", gridTemplateColumns: "140px 1fr 48px", gap: 10, alignItems: "center" }}>
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "#c9d1d9", fontWeight: 600 }}>{label}</span>
                         <div style={{ height: 8, background: "#21262d", borderRadius: 999, overflow: "hidden", border: "1px solid #30363d" }}>
                           <div style={{ height: "100%", width: `${pct}%`, background: fill, borderRadius: 999 }} />
                         </div>

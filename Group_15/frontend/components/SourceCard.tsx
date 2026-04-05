@@ -122,60 +122,68 @@ export default function SourceCard({ source, items, sentiment }: SourceCardProps
           {(avgRelevance * 100).toFixed(0)}% avg
         </span>
 
-        {/* Chevron */}
-        <span style={{ color: "#8b949e", fontSize: 14, textAlign: "right", transition: "transform 0.2s ease", transform: expanded ? "rotate(90deg)" : "none", display: "block" }}>
+        {/* Chevron — colour matches the relevance bar */}
+        <span style={{
+          color: avgRelevance >= 0.7 ? "#3fb950" : avgRelevance >= 0.4 ? "#d29922" : "#f85149",
+          fontSize: 14,
+          textAlign: "right",
+          transition: "transform 0.2s ease",
+          transform: expanded ? "rotate(90deg)" : "none",
+          display: "block",
+        }}>
           ›
         </span>
       </button>
 
-      {/* Expanded items */}
-      {expanded && (
-        <div style={{ borderTop: "1px solid #21262d" }}>
-          {items.map((item, idx) => (
-            <div
-              key={idx}
-              style={{
-                padding: "12px 16px",
-                borderBottom: idx < items.length - 1 ? "1px solid #21262d" : "none",
-                background: "#0d1117",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
-                <a
-                  href={item.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    fontSize: 13, fontWeight: 600, color: "#58a6ff",
-                    textDecoration: "none", lineHeight: 1.4, flex: 1,
-                  }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.textDecoration = "underline"; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.textDecoration = "none"; }}
-                >
-                  {item.title} ↗
-                </a>
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#8b949e", flexShrink: 0 }}>
-                  {(item.relevance_score * 100).toFixed(0)}%
-                </span>
-              </div>
+      {/* Expanded items — always in DOM so @media print can reveal them */}
+      <div
+        className="source-items"
+        style={{ borderTop: "1px solid #21262d", display: expanded ? "block" : "none" }}
+      >
+        {items.map((item, idx) => (
+          <div
+            key={idx}
+            style={{
+              padding: "12px 16px",
+              borderBottom: idx < items.length - 1 ? "1px solid #21262d" : "none",
+              background: "#0d1117",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
+              <a
+                href={item.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  fontSize: 13, fontWeight: 600, color: "#58a6ff",
+                  textDecoration: "none", lineHeight: 1.4, flex: 1,
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.textDecoration = "underline"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.textDecoration = "none"; }}
+              >
+                {item.title} ↗
+              </a>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#8b949e", flexShrink: 0 }}>
+                {(item.relevance_score * 100).toFixed(0)}%
+              </span>
+            </div>
 
-              <p style={{ fontSize: 12, color: "#8b949e", lineHeight: 1.55, margin: "0 0 8px 0" }}>
-                {item.summary}
-              </p>
+            <p style={{ fontSize: 12, color: "#8b949e", lineHeight: 1.55, margin: "0 0 8px 0" }}>
+              {item.summary}
+            </p>
 
-              {/* Per-item relevance bar */}
-              <div style={{ display: "grid", gridTemplateColumns: "64px 1fr", gap: 8, alignItems: "center" }}>
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "#8b949e", letterSpacing: "0.06em" }}>
-                  RELEVANCE
-                </span>
-                <div style={{ height: 4, background: "#21262d", borderRadius: 999, overflow: "hidden", border: "1px solid #30363d" }}>
-                  <div style={{ height: "100%", width: `${item.relevance_score * 100}%`, background: getBarFill(item.relevance_score), borderRadius: 999 }} />
-                </div>
+            {/* Per-item relevance bar */}
+            <div style={{ display: "grid", gridTemplateColumns: "64px 1fr", gap: 8, alignItems: "center" }}>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "#8b949e", letterSpacing: "0.06em" }}>
+                RELEVANCE
+              </span>
+              <div style={{ height: 4, background: "#21262d", borderRadius: 999, overflow: "hidden", border: "1px solid #30363d" }}>
+                <div style={{ height: "100%", width: `${item.relevance_score * 100}%`, background: getBarFill(item.relevance_score), borderRadius: 999 }} />
               </div>
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

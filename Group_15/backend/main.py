@@ -4,7 +4,6 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import json
 import uuid
-import os
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,6 +11,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from graph.builder import build_graph
 from utils.cache import get_cached_report, cache_report
+from utils.llm import call_llm_async
 
 load_dotenv()
 
@@ -32,6 +32,30 @@ class AnalyzeRequest(BaseModel):
     idea_description: str
     audience: str = ""
     product_url: str = ""
+
+
+class TaglineRequest(BaseModel):
+    idea_description: str
+
+
+@app.post("/tagline")
+async def tagline(req: TaglineRequest):
+    prompt = (
+        f"You are a product analyst. Given this idea: \"{req.idea_description}\"\n\n"
+        f"Return a JSON object with exactly two fields:\n"
+        f"1. \"tagline\": a 3-6 word catchy noun phrase naming the product category "
+        f"(e.g. 'AI Meeting Summariser', 'Pet Health Monitor'). No punctuation, no quotes.\n"
+        f"2. \"summary\": exactly 2 sentences explaining what this product does and the core problem it solves "
+        f"for its target users. Be crisp and specific. No more than 2 sentences.\n\n"
+        f"Return only valid JSON, no extra text."
+    )
+    raw = await call_llm_async(prompt, max_tokens=160)
+    try:
+        import json as _json
+        parsed = _json.loads(raw.strip())
+        return {"tagline": parsed.get("tagline", "").strip(), "summary": parsed.get("summary", "").strip()}
+    except Exception:
+        return {"tagline": raw.strip()[:80], "summary": ""}
 
 
 @app.post("/analyze")

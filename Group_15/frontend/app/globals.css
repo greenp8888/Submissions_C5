@@ -103,4 +103,11 @@ body {
 
   /* remove glow effects */
   * { animation: none !important; box-shadow: none !important; }
+
+  /* Force all source card items to be visible (they may be collapsed on screen) */
+  .source-items { display: block !important; }
+
+  /* Hide the expand/collapse chevron button header row and replace with static layout */
+  .source-items-toggle { cursor: default !important; pointer-events: none; }
+  .source-items-toggle .source-chevron { display: none !important; }
 }

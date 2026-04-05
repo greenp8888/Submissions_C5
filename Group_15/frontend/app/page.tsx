@@ -56,6 +56,22 @@ const AI4ThatLogo = () => (
     <path d="M8 14h.01M12 14h.01M16 14h.01" strokeWidth={2} strokeLinecap="round" />
   </svg>
 );
+/* IdeaScope knowledge-base logo — bolt + database stack */
+const IdeaScopeKBLogo = () => (
+  <svg viewBox="0 0 24 24" fill="none" aria-label="IdeaScope Knowledge Base" className="w-5 h-5">
+    {/* Bolt */}
+    <path d="M13 3L5 13h7l-1 8 9-11h-7l1-7z" fill="url(#kb-grad)" />
+    {/* Tiny DB lines */}
+    <line x1="3" y1="20" x2="9" y2="20" stroke="#22d3ee" strokeWidth="1.5" strokeLinecap="round" />
+    <line x1="3" y1="22" x2="7" y2="22" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" />
+    <defs>
+      <linearGradient id="kb-grad" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stopColor="#22d3ee" />
+        <stop offset="100%" stopColor="#3b82f6" />
+      </linearGradient>
+    </defs>
+  </svg>
+);
 const ChevronRightIcon = () => (
   <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
     <path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -100,12 +116,13 @@ const pipeline = [
 ];
 
 const sources = [
-  { icon: <GitHubLogo />,      name: "GitHub",        color: "#e2e8f0", bg: "rgba(226,232,240,0.1)"  },
-  { icon: <RedditLogo />,      name: "Reddit",        color: "#FF4500", bg: "rgba(255,69,0,0.12)"    },
-  { icon: <HackerNewsLogo />,  name: "Hacker News",   color: "#FF6600", bg: "rgba(255,102,0,0.12)"   },
-  { icon: <ProductHuntLogo />, name: "Product Hunt",  color: "#DA552F", bg: "rgba(218,85,47,0.12)"   },
-  { icon: <YCLogo />,          name: "Y Combinator",  color: "#FB651E", bg: "rgba(251,101,30,0.12)"  },
-  { icon: <AI4ThatLogo />,     name: "AI For That",   color: "#818cf8", bg: "rgba(129,140,248,0.12)" },
+  { icon: <GitHubLogo />,      name: "GitHub",        color: "#e2e8f0", bg: "rgba(226,232,240,0.1)",  featured: false },
+  { icon: <RedditLogo />,      name: "Reddit",        color: "#FF4500", bg: "rgba(255,69,0,0.12)",    featured: false },
+  { icon: <HackerNewsLogo />,  name: "Hacker News",   color: "#FF6600", bg: "rgba(255,102,0,0.12)",   featured: false },
+  { icon: <ProductHuntLogo />, name: "Product Hunt",  color: "#DA552F", bg: "rgba(218,85,47,0.12)",   featured: false },
+  { icon: <YCLogo />,          name: "Y Combinator",  color: "#FB651E", bg: "rgba(251,101,30,0.12)",  featured: false },
+  { icon: <AI4ThatLogo />,     name: "AI For That",   color: "#818cf8", bg: "rgba(129,140,248,0.12)", featured: false },
+  { icon: <IdeaScopeKBLogo />, name: "IdeaScope KB",  color: "#22d3ee", bg: "rgba(34,211,238,0.12)",  featured: true  },
 ];
 
 const comingSoonContent: Record<Exclude<NavTab, "home">, {
@@ -537,7 +554,9 @@ export default function Home() {
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              {ideasLoading
+              {!mounted
+                ? null
+                : ideasLoading
                 ? Array.from({ length: 4 }).map((_, i) => (
                     <div
                       key={i}
@@ -887,40 +906,103 @@ export default function Home() {
               </p>
 
               <div className="grid grid-cols-3 gap-2 mb-8">
-                {sources.map((src, i) => (
-                  <div
-                    key={src.name}
-                    className="flex flex-col items-center gap-2 rounded-xl transition-all duration-200 cursor-default"
-                    style={{
-                      padding: "12px 8px",
-                      background: "var(--dark-surface)",
-                      border: "1px solid var(--dark-border)",
-                      animation: "fadeInUp 0.5s ease both",
-                      animationDelay: `${0.35 + i * 0.06}s`,
-                      textAlign: "center",
-                    }}
-                    onMouseEnter={(e) => {
-                      const el = e.currentTarget as HTMLElement;
-                      el.style.borderColor = src.color + "55";
-                      el.style.boxShadow = `0 0 14px ${src.bg}`;
-                    }}
-                    onMouseLeave={(e) => {
-                      const el = e.currentTarget as HTMLElement;
-                      el.style.borderColor = "var(--dark-border)";
-                      el.style.boxShadow = "none";
-                    }}
-                  >
+                {sources.map((src, i) =>
+                  src.featured ? (
+                    /* IdeaScope KB — full-width featured card */
                     <div
-                      className="flex items-center justify-center rounded-lg flex-shrink-0"
-                      style={{ width: 34, height: 34, background: src.bg, color: src.color }}
+                      key={src.name}
+                      className="col-span-3 flex items-center gap-3 rounded-xl transition-all duration-200 cursor-default"
+                      style={{
+                        padding: "11px 16px",
+                        background: `linear-gradient(135deg, rgba(34,211,238,0.07), rgba(59,130,246,0.07))`,
+                        border: "1px solid rgba(34,211,238,0.22)",
+                        animation: "fadeInUp 0.5s ease both",
+                        animationDelay: `${0.35 + i * 0.06}s`,
+                        boxShadow: "0 0 20px rgba(34,211,238,0.06)",
+                      }}
+                      onMouseEnter={(e) => {
+                        const el = e.currentTarget as HTMLElement;
+                        el.style.borderColor = "rgba(34,211,238,0.45)";
+                        el.style.boxShadow = "0 0 24px rgba(34,211,238,0.14)";
+                      }}
+                      onMouseLeave={(e) => {
+                        const el = e.currentTarget as HTMLElement;
+                        el.style.borderColor = "rgba(34,211,238,0.22)";
+                        el.style.boxShadow = "0 0 20px rgba(34,211,238,0.06)";
+                      }}
                     >
-                      {src.icon}
+                      <div
+                        className="flex items-center justify-center rounded-lg flex-shrink-0"
+                        style={{
+                          width: 34, height: 34,
+                          background: "linear-gradient(135deg, rgba(34,211,238,0.2), rgba(59,130,246,0.2))",
+                          border: "1px solid rgba(34,211,238,0.3)",
+                        }}
+                      >
+                        {src.icon}
+                      </div>
+                      <div className="flex flex-col">
+                        <span style={{ fontSize: 12, fontWeight: 700, color: "var(--accent-cyan)", lineHeight: 1.3 }}>
+                          {src.name}
+                        </span>
+                        <span style={{ fontSize: 11, color: "var(--dark-muted)", lineHeight: 1.3 }}>
+                          Proprietary intelligence · curated product & market data
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          marginLeft: "auto",
+                          flexShrink: 0,
+                          fontFamily: "var(--font-mono)",
+                          fontSize: 9,
+                          fontWeight: 600,
+                          letterSpacing: "0.1em",
+                          color: "var(--accent-cyan)",
+                          background: "rgba(34,211,238,0.1)",
+                          border: "1px solid rgba(34,211,238,0.25)",
+                          padding: "2px 8px",
+                          borderRadius: 4,
+                        }}
+                      >
+                        EXCLUSIVE
+                      </div>
                     </div>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: "var(--dark-muted)", lineHeight: 1.2 }}>
-                      {src.name}
-                    </span>
-                  </div>
-                ))}
+                  ) : (
+                    /* Regular source card */
+                    <div
+                      key={src.name}
+                      className="flex flex-col items-center gap-2 rounded-xl transition-all duration-200 cursor-default"
+                      style={{
+                        padding: "12px 8px",
+                        background: "var(--dark-surface)",
+                        border: "1px solid var(--dark-border)",
+                        animation: "fadeInUp 0.5s ease both",
+                        animationDelay: `${0.35 + i * 0.06}s`,
+                        textAlign: "center",
+                      }}
+                      onMouseEnter={(e) => {
+                        const el = e.currentTarget as HTMLElement;
+                        el.style.borderColor = src.color + "55";
+                        el.style.boxShadow = `0 0 14px ${src.bg}`;
+                      }}
+                      onMouseLeave={(e) => {
+                        const el = e.currentTarget as HTMLElement;
+                        el.style.borderColor = "var(--dark-border)";
+                        el.style.boxShadow = "none";
+                      }}
+                    >
+                      <div
+                        className="flex items-center justify-center rounded-lg flex-shrink-0"
+                        style={{ width: 34, height: 34, background: src.bg, color: src.color }}
+                      >
+                        {src.icon}
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: "var(--dark-muted)", lineHeight: 1.2 }}>
+                        {src.name}
+                      </span>
+                    </div>
+                  )
+                )}
               </div>
 
               {/* Explore tabs nudge */}
