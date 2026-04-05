@@ -44,7 +44,8 @@ Everything runs **locally** on the user’s machine; the LLM and optional Tavily
 | F-09 | Final report | Rendered as markdown in the UI. |
 | F-10 | Download report | File download; includes full detailed extracts appended after the main report when available. |
 | F-11 | Detailed extracts | Toggle via **Detailed Analysis** to show or hide long retrieved snippets. |
-| F-12 | Evidence catalog and trace | Collapsible **Evidence and execution trace**: table of sources and markdown trace (orchestration + retrieval log). |
+| F-12 | Evidence catalog and trace | **Sources** and **Trace & gaps** tabs: evidence table, detailed extracts, orchestration + retrieval log. |
+| F-13 | Human-in-the-loop preflight | **1. Review uploads & question** shows BLIP image captions, short PDF excerpts, and an LLM **alignment** note vs the research question. **2. Yes — run full research** starts the LangGraph pipeline; **No — cancel** clears the review strip and keeps the user on the same page to adjust inputs. |
 
 ---
 
@@ -72,7 +73,7 @@ Settings load from **environment variables** (including a project `.env` via `py
 
 ## 5. Internal workflow (LangGraph)
 
-After the user clicks **Run deep research**, the graph runs in this order:
+After the user clicks **2. Yes — run full research** (post-preflight), the graph runs in this order:
 
 1. **planner** — Produces subquestions/queries for retrieval.  
 2. **prep_retrieval** — Prepares retrieval step.  
@@ -95,31 +96,32 @@ The UI **trace** and **retrieval log** reflect messages from these stages.
 | Area | Element | Function |
 |------|---------|----------|
 | Header | Title and short description | Orientation. |
+| Main column (top) | Preflight markdown | Instructions, then after **Review**: captions, PDF excerpts, alignment note. |
 | Left column | Research question | Multi-line text input. |
 | Left column | File upload | Multiple files; types include `.pdf`, images, audio extensions listed in `app.py`. |
 | Left column | Enable web search | Checkbox; controls Tavily branch (still requires API key). |
 | Left column | Top-K local retrieval | Slider 2–8. |
 | Left column | Web results per query | Slider 1–5. |
-| Left column | **Run deep research** | Starts the graph. |
-| Right column | Report | Main markdown output. |
+| Left column | **1. Review uploads & question** | Builds preflight markdown (image captions, PDF excerpts, alignment); reveals **Yes / No** row. |
+| Left column | **2. Yes — run full research** | Starts the LangGraph pipeline after review. |
+| Left column | **No — cancel** | Hides confirm row and clears preflight strip; same page, adjust inputs. |
+| Right column | Report | Main markdown output (after full run). |
 | Right column | Contradictions | Markdown list. |
 | Right column | Download markdown report | File component for saved `.md`. |
-| Right column | Detailed extracts + **Detailed Analysis** | Toggle visibility of long snippets. |
-| Bottom (accordion) | Evidence catalog | Non-interactive dataframe: source type, label, title, URL, query, relevance hint. |
-| Bottom (accordion) | Execution trace | Orchestration bullets + retrieval bullets. |
+| Bottom tabs | **Sources** / **Trace & gaps** | Evidence table + detailed extracts; orchestration + retrieval + gap log. |
 
 ---
 
 ## 7. Outputs
 
-- **On-screen:** Report, contradictions, optional detailed extracts, evidence table, trace.  
+- **On-screen:** Preflight review strip, then after confirm: report, contradictions, evidence table and trace in tabs.  
 - **Download:** `research_report.md` (temporary directory); if detailed extracts exist, they are appended after a horizontal rule below the main report.
 
 ---
 
 ## 8. Known limits (product scope)
 
-Aligned with `ARCHITECTURE.md`: no user accounts, no persistent multi-user database, no human-in-the-loop approvals in the graph, and citation formatting is practical markdown rather than a full academic style engine.
+Aligned with `ARCHITECTURE.md`: no user accounts, no persistent multi-user database, no LangGraph interrupt/checkpoint nodes (preflight is UI-only before `invoke`), and citation formatting is practical markdown rather than a full academic style engine.
 
 ---
 
@@ -157,19 +159,19 @@ Aligned with `ARCHITECTURE.md`: no user accounts, no persistent multi-user datab
    - **Top-K local retrieval:** more chunks from your files (higher = more context, more noise risk).  
    - **Web results per query:** only affects Tavily when enabled.
 
-6. Click **Run deep research**. Wait until processing finishes (LLM and retrieval can take from seconds to minutes).
+6. Click **1. Review uploads & question**. Read the preflight summary (what images show, PDF lead-in, and whether it matches your question). If something is wrong, click **No — cancel**, change files or the question, and review again.
 
-7. **Read the report** in the right-hand markdown panel.
+7. Click **2. Yes — run full research** when you want to proceed. Wait until processing finishes (LLM and retrieval can take from seconds to minutes).
 
-8. **Review contradictions** directly under the report (if any were identified).
+8. **Read the report** in the right-hand markdown panel.
 
-9. **Download:** Use **Download markdown report** to save the combined report (and detailed extracts when present).
+9. **Review contradictions** directly under the report (if any were identified).
 
-10. **Detailed snippets:** Click **Detailed Analysis** to show full **Detailed extracts**; click again to collapse.
+10. **Download:** Use **Download markdown report** to save the combined report (and detailed extracts when present).
 
-11. **Audit sources:** Open **Evidence and execution trace** to inspect the **Evidence catalog** table and the **Orchestration** / **Retrieval** trace.
+11. **Audit sources:** Use the **Sources** tab for the evidence table and detailed extracts; use **Trace & gaps** for orchestration, retrieval, and gap rounds.
 
-12. **Iterate:** Adjust the question, files, or sliders and click **Run deep research** again for a new run.
+12. **Iterate:** Adjust the question, files, or sliders; run **1. Review** again, then **Yes** for another full run.
 
 ---
 

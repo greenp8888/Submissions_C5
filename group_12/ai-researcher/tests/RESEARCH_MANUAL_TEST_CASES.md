@@ -2,6 +2,8 @@
 
 Use these **public PDFs** and **questions** to exercise local retrieval, multi-source behavior, inline citations, and (optionally) a second analyst pass.
 
+**Gradio flow:** Click **1. Review uploads & question**, read the preflight (image captions + PDF excerpts + alignment), then **2. Yes — run full research** to execute the graph. **No — cancel** keeps you on the same page to change inputs.
+
 ## How to obtain the PDFs
 
 **Option A — script (recommended)**  
@@ -75,6 +77,36 @@ For each run, note: **single-pass vs 2 analyst passes**, **web search on/off**, 
 | TC-6a | Give a **short literature bridge**: from **BERT-style pre-training** to **dense retrieval in RAG** to **NIST-style governance** of deployed LLM systems. Use the three uploads for the technical core and the web for **one** current example (product, regulation, or benchmark). | Inline **clickable** source chips + numbered references. |
 | TC-6b | Same as TC-6a but set **Max analyst passes = 2** and confirm **gap / follow-up** appears in **Trace & gaps** when the model requests another retrieval wave. | Phase 2 path. |
 
+### TC-7 — Multimodal: **one image** + **one document (PDF)**
+
+**Purpose:** Exercise **local** ingestion where the PDF is chunked for FAISS retrieval and the **raster image** is turned into a **BLIP caption** (see `build_local_media_evidence` in `deep_researcher/retrieval.py`). The retriever should surface both **text chunks** and **image-caption** documents in the shared index.
+
+**Supported uploads (Gradio):** `.pdf` plus image types (`.png`, `.jpg`, …). **Word `.doc` / `.docx` is not** in the current file picker—export to **PDF** first, or treat “doc file” below as **PDF**.
+
+#### Inputs
+
+| Role | Suggested file | How to get it |
+|------|----------------|---------------|
+| **Document** | `RAG_arxiv_2005.11401.pdf` (or any fixture PDF) | `bash tests/scripts/download_test_pdfs.sh` |
+| **Image** | e.g. `rag_schematic.png` | Save any **PNG/JPG** that depicts RAG or retrieval (diagram, slide export, or screenshot). Optional: Wikimedia Commons often has permissively licensed diagrams—download a small PNG yourself and rename. |
+
+**Setup in UI:** In **Upload PDF, image, or audio files**, add **both** files (multi-select) in one batch before **Run deep research**.
+
+#### Research questions
+
+| ID | Research question | What to verify |
+|----|-------------------|----------------|
+| TC-7a | Summarize what the **uploaded image** appears to show (architecture, flow, or components). Then relate that picture to how **RAG** is described in the **PDF**—do they agree, partially overlap, or conflict? | Report and **Sources** tab should reference **image caption** evidence (title like `… (image caption)`) and **PDF page** chunks. |
+| TC-7b | What **retrieval and generation** roles does the **paper** assign to each part of the system? Does anything in the **diagram image** map to those roles (even if the caption is imperfect)? | Tests merging **caption text** with **scientific text** in one FAISS index. |
+| TC-7c | If the image caption is **vague or wrong**, does the **critical analyst** or final report **hedge** appropriately while still using the PDF as the authority? | Qualitative; expect honest uncertainty in narrative. |
+
+#### Pass hints
+
+- **Trace / retrieval log** mentions both PDF paths and image path (or “image” modality).
+- **Evidence catalog** includes rows with `local_image` (or similar `source_type`) and `local_pdf` (or pages).
+- **Top-K:** use **6–8** so caption + PDF chunks both have room to rank.
+- **Dependencies:** BLIP image captioning needs **torch + transformers** (and time on first run to load the model).
+
 ---
 
 ## Pass/fail checklist (quick)
@@ -84,6 +116,7 @@ For each run, note: **single-pass vs 2 analyst passes**, **web search on/off**, 
 - [ ] **References** section lists sources; **Appendix** per-channel notes sit **below** the narrative.
 - [ ] **Sources** tab shows excerpts without **one-word-per-line** PDF garbage (whitespace normalization).
 - [ ] With **web on**, Tavily results contribute; with **web off**, report still completes from PDFs + Wikipedia/arXiv as configured.
+- [ ] **TC-7:** With **PDF + image** uploaded, evidence mixes **page-level** and **image-caption** local items; report ties them together where relevant.
 
 ---
 

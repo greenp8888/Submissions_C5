@@ -80,11 +80,39 @@ def _get_blip_pipeline() -> Any:
     if _BLIP_PIPE is None:
         from transformers import pipeline
 
-        _BLIP_PIPE = pipeline(
-            "image-to-text",
-            model="Salesforce/blip-image-captioning-base",
-        )
+        model_id = "Salesforce/blip-image-captioning-base"
+        # transformers removed the "image-to-text" task in favor of "image-text-to-text";
+        # keep "image-to-text" as fallback for older installs.
+        last_exc: Exception | None = None
+        for task in ("image-text-to-text", "image-to-text"):
+            try:
+                _BLIP_PIPE = pipeline(task, model=model_id)
+                break
+            except Exception as exc:
+                last_exc = exc
+                _BLIP_PIPE = None
+        if _BLIP_PIPE is None:
+            raise RuntimeError(
+                "Could not load BLIP captioning pipeline. "
+                "Try upgrading transformers/torch, or see the inner error."
+            ) from last_exc
     return _BLIP_PIPE
+
+
+def _run_blip_on_image(pipe: Any, im: Any) -> Any:
+    """Call BLIP pipeline across transformers versions.
+
+    ImageTextToTextPipeline requires ``text=`` when given a valid PIL image (text may be empty).
+    Legacy image-to-text only accepted a single image argument.
+    """
+    try:
+        try:
+            return pipe(images=im, text="")
+        except Exception:
+            # Some BLIP/processor builds prefer a short conditional prefix for captioning.
+            return pipe(images=im, text="a picture of")
+    except TypeError:
+        return pipe(im)
 
 
 def _get_asr_pipeline(model_id: str) -> Any:
@@ -146,7 +174,7 @@ def _documents_from_image(path: str) -> list[Document]:
     try:
         pipe = _get_blip_pipeline()
         im = Image.open(path).convert("RGB")
-        res = pipe(im)
+        res = _run_blip_on_image(pipe, im)
         if isinstance(res, str):
             cap = res
         elif isinstance(res, list) and res:

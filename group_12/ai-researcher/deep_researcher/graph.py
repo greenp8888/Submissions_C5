@@ -7,10 +7,11 @@ from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlparse
 
+from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 
-from .config import Settings
+from .config import LLM_PROVIDER_ANTHROPIC, Settings
 from .models import EvidenceItem, ResearchState
 from .retrieval import (
     LOCAL_FILE_LABEL,
@@ -21,10 +22,25 @@ from .retrieval import (
 )
 
 
-def get_llm(settings: Settings, temperature: float = 0.2) -> ChatOpenAI:
+def get_llm(settings: Settings, temperature: float = 0.2) -> BaseChatModel:
+    """Route to OpenRouter or Anthropic based on `settings.llm_provider` (UI / LLM_PROVIDER env)."""
+    if settings.llm_provider == LLM_PROVIDER_ANTHROPIC:
+        from langchain_anthropic import ChatAnthropic
+
+        ak = (settings.anthropic_api_key or "").strip()
+        if not ak:
+            raise ValueError("Anthropic API key is missing.")
+        return ChatAnthropic(
+            model=settings.anthropic_model,
+            api_key=ak,
+            temperature=temperature,
+        )
+    ork = (settings.openrouter_api_key or "").strip()
+    if not ork:
+        raise ValueError("OpenRouter API key is missing; set it in the UI or OPENROUTER_API_KEY.")
     return ChatOpenAI(
         model=settings.openrouter_model,
-        openai_api_key=settings.openrouter_api_key,
+        openai_api_key=ork,
         openai_api_base="https://openrouter.ai/api/v1",
         temperature=temperature,
         default_headers={
@@ -245,7 +261,7 @@ def _bundle_excerpts_for_summary_prompt(evidence: list[EvidenceItem], max_items_
 
 
 def llm_per_tool_source_summaries(
-    llm: ChatOpenAI,
+    llm: BaseChatModel,
     question: str,
     evidence: list[EvidenceItem],
 ) -> dict[str, str]:
