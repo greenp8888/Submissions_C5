@@ -3,11 +3,9 @@
 
 FROM python:3.11-slim-bookworm
 
-# libsndfile: soundfile/librosa; build tools minimal
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libsndfile1 \
-    && rm -rf /var/lib/apt/lists/*
-
+# libsndfile: librosa/soundfile
+# libcairo2-dev + build-essential: pycairo (xhtml2pdf → svglib → rlpycairo) has no wheel for slim; needs cc + cairo headers
+# libcairo2: runtime for the built pycairo extension
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
@@ -17,8 +15,17 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libsndfile1 \
+    libcairo2 \
+    build-essential \
+    pkg-config \
+    libcairo2-dev \
+    && pip install --upgrade pip \
+    && pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu \
+    && pip install -r requirements.txt \
+    && apt-get purge -y build-essential pkg-config libcairo2-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY . .
 

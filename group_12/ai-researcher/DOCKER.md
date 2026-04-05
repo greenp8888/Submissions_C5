@@ -20,6 +20,11 @@ This app is the **Streamlit** UI (`streamlitApp.py`). Images are **large** (~sev
 - [Docker Engine](https://docs.docker.com/engine/install/) and [Docker Compose V2](https://docs.docker.com/compose/) (`docker compose version`).
 - At least **8 GB RAM** recommended for build/run (PyTorch + embeddings).
 
+### Build details
+
+- **PyTorch in the image is CPU-only** (installed from `download.pytorch.org/whl/cpu` before `requirements.txt`) so the Docker build does not pull NVIDIA CUDA wheels.
+- **pycairo** (via `xhtml2pdf` → `svglib`) may build from source on Linux; the Dockerfile installs `build-essential`, `pkg-config`, and `libcairo2-dev` for that step, then removes the dev packages to keep the runtime image smaller. Runtime still ships **`libcairo2`** and **`libsndfile1`**.
+
 ---
 
 ## Quick start
