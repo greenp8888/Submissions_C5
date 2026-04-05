@@ -272,13 +272,13 @@ export function ResearchDashboard({ sessionId, viewMode = "output" }: { sessionI
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <Label>Sources</Label>
-                    <Badge variant="muted">Configured from `.env`</Badge>
+                    <Badge variant="muted">Configure from Settings</Badge>
                   </div>
                   <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-1">
                     {SOURCE_OPTIONS.map((item) => {
                       const checked = formValues.enabledSources.includes(item.key);
                       return (
-                        <label key={item.key} className="flex cursor-pointer items-start gap-3 rounded-2xl border border-border bg-white/75 p-3">
+                        <label key={item.key} className="flex cursor-pointer items-start gap-3 rounded-2xl border border-border bg-white p-3">
                           <Checkbox checked={checked} onCheckedChange={(value) => toggleSource(item.key, Boolean(value))} />
                           <span>
                             <span className="block font-semibold">{item.label}</span>
@@ -300,7 +300,7 @@ export function ResearchDashboard({ sessionId, viewMode = "output" }: { sessionI
                   <select
                     id="collections"
                     multiple
-                    className="min-h-[152px] w-full rounded-xl border border-border bg-white/80 px-3 py-2 text-sm"
+                    className="min-h-[152px] w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-foreground"
                     value={formValues.collectionIds}
                     onChange={(event) =>
                       setFormValues((current) => ({
@@ -329,7 +329,7 @@ export function ResearchDashboard({ sessionId, viewMode = "output" }: { sessionI
                     accept=".pdf,.txt,.md"
                     onChange={(event) => setFormValues((current) => ({ ...current, files: Array.from(event.target.files ?? []) }))}
                   />
-                  <div className="rounded-2xl border border-border bg-white/75 p-4">
+                  <div className="rounded-2xl border border-border bg-slate-50 p-4">
                     <p className="text-sm font-semibold">Upload to RAG online knowledge building</p>
                     <p className="mt-1 text-sm text-muted-foreground">Attach PDFs, markdown, or text files here, or use the Research Documents page to build reusable collections.</p>
                     {formValues.files.length ? (
@@ -342,7 +342,7 @@ export function ResearchDashboard({ sessionId, viewMode = "output" }: { sessionI
               </div>
 
               {formValues.runMode === "single" ? (
-                <div className="space-y-4 rounded-2xl border border-border bg-white/75 p-4">
+                <div className="space-y-4 rounded-2xl border border-border bg-slate-50 p-4">
                   <label className="flex cursor-pointer items-start gap-3">
                     <Checkbox
                       checked={formValues.debateEnabled}
@@ -444,7 +444,7 @@ export function ResearchDashboard({ sessionId, viewMode = "output" }: { sessionI
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant={session.status === "complete" ? "success" : session.status === "error" ? "warning" : "secondary"}>{session.status}</Badge>
-                    <select className="h-10 min-w-[280px] rounded-xl border border-border bg-white/80 px-3 text-sm" value={digDeeperTarget} onChange={(event) => setDigDeeperTarget(event.target.value)}>
+                    <select className="h-10 min-w-[280px] rounded-xl border border-border bg-white px-3 text-sm text-foreground" value={digDeeperTarget} onChange={(event) => setDigDeeperTarget(event.target.value)}>
                       <option value="">Choose a finding, claim, or insight</option>
                       {targetOptions.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -719,24 +719,56 @@ function LiveAgentBar({
   streamState: string;
   lastEventType: string | null;
 }) {
+  const latestTrace = session?.agent_trace.at(-1);
+  const recentEvents = session?.events.slice(-4).reverse() ?? [];
+  const stages = ["planner", "retriever", "analysis", "insight", "reporter", "qa review"];
+  const traceAgents = new Set((session?.agent_trace ?? []).map((trace) => trace.agent.replace(/_/g, " ")));
+  const activeAgent = (latestTrace?.agent || recentEvents[0]?.agent || "coordinator").replace(/_/g, " ");
+
   return (
     <div className="panel-surface overflow-hidden">
-      <div className="h-1.5 w-full overflow-hidden bg-muted">
+      <div className="h-1.5 w-full overflow-hidden bg-slate-200">
         <div className="h-full w-1/3 animate-[pulse_1.8s_ease-in-out_infinite] rounded-full bg-primary" />
       </div>
       <div className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
+        <div className="space-y-3">
           <p className="subtle-label">Agent Trace Live View</p>
-          <p className="font-semibold">Research is live right now</p>
-          <p className="text-sm text-muted-foreground">
+          <p className="font-semibold text-slate-900">Research is live right now</p>
+          <p className="text-sm text-slate-600">
             {session?.events.length ? session.events[session.events.length - 1]?.message : "Agents are coordinating the current investigation."}
           </p>
+          <div className="flex flex-wrap gap-2">
+            {stages.map((stage) => (
+              <Badge key={stage} variant={activeAgent === stage ? "success" : traceAgents.has(stage) ? "secondary" : "muted"}>
+                {stage}
+              </Badge>
+            ))}
+          </div>
+          {latestTrace ? (
+            <div className="rounded-2xl border border-border bg-slate-50 p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Current operation</p>
+              <p className="mt-2 text-sm font-semibold text-slate-900">
+                {latestTrace.agent.replace(/_/g, " ")} • {latestTrace.step.replace(/_/g, " ")}
+              </p>
+              {latestTrace.output_summary ? <p className="mt-1 text-sm text-slate-600">{latestTrace.output_summary}</p> : null}
+            </div>
+          ) : null}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {session ? <Badge variant="secondary">Status: {session.status}</Badge> : null}
-          <Badge variant={streamState === "live" ? "success" : "secondary"}>{streamState}</Badge>
-          {lastEventType ? <Badge variant="muted">Last: {lastEventType}</Badge> : null}
-          {session ? <Badge variant="muted">{session.agent_trace.length} trace steps</Badge> : null}
+        <div className="flex max-w-xl flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {session ? <Badge variant="secondary">Status: {session.status}</Badge> : null}
+            <Badge variant={streamState === "live" ? "success" : "secondary"}>{streamState}</Badge>
+            {lastEventType ? <Badge variant="muted">Last: {lastEventType}</Badge> : null}
+            {session ? <Badge variant="muted">{session.agent_trace.length} trace steps</Badge> : null}
+          </div>
+          <div className="space-y-2">
+            {recentEvents.map((event, index) => (
+              <div key={`${event.timestamp}-${index}`} className="rounded-2xl border border-border bg-white p-3">
+                <p className="text-xs uppercase tracking-[0.16em] text-slate-500">{(event.agent || event.event_type).replace(/_/g, " ")}</p>
+                <p className="mt-1 text-sm text-slate-900">{event.message}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

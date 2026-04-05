@@ -39,7 +39,7 @@ export function ReferencesPanel({
                         onSelectSource(source.id);
                       }
                     }}
-                    className={`w-full rounded-2xl border border-border bg-white/75 p-4 text-left ${selectedSourceId === source.id ? "ring-2 ring-primary/20" : ""}`}
+                    className={`w-full rounded-2xl border border-border bg-white p-4 text-left ${selectedSourceId === source.id ? "ring-2 ring-primary/20" : ""}`}
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div>

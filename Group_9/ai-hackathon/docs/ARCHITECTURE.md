@@ -1,20 +1,19 @@
 # AI Hackathon Architecture
 
-## Overview
+## Purpose
 
-This document describes the implemented architecture of the `ai-hackathon` codebase after the LLM-agent and state-store upgrade.
+This document describes the implemented architecture of `ai-hackathon` as it exists in code today. It focuses on the real system shape:
 
-The system is built as:
+- React dashboard with multiple product routes
+- FastAPI backend serving APIs and the built SPA
+- LangGraph-based orchestration
+- LLM-backed reasoning agents with fallback behavior
+- semantic local retrieval
+- browser-backed provider setup
+- SQLite session persistence
+- frontend output state persistence and cache hydration
 
-- a React + Vite dashboard for `Research Setup`, `Research Output`, and `Research Documents`
-- a FastAPI backend serving APIs and the built SPA
-- a LangGraph-driven orchestration pipeline
-- an LLM-backed reasoning layer with heuristic fallback
-- a semantic local retrieval layer
-- a durable SQLite-backed session store
-- a persisted frontend output store using Zustand plus React Query
-
-## High-Level System Graph
+## System Overview
 
 ```mermaid
 flowchart TB
@@ -22,31 +21,31 @@ flowchart TB
 
     subgraph Frontend[React Frontend]
         AppShell[App Shell]
-        SetupPage[Research Setup]
-        OutputPage[Research Output]
-        DocsPage[Research Documents]
+        Setup[Research Setup]
+        Output[Research Output]
+        Knowledge[Research Documents]
+        Settings[Settings]
+        Docs[Docs]
+        DraftStore[Local Draft Storage]
         OutputStore[Zustand Output Store]
+        SessionCache[Persisted Session Cache]
         QueryCache[React Query]
-        ReportUI[Report Panel]
-        CompareUI[Comparative Analysis]
-        RefsUI[References Panel]
-        TraceUI[Trace Panel]
-        GraphUI[Graph View]
     end
 
     subgraph Backend[FastAPI Backend]
         Main[main.py]
         ResearchAPI[Research API]
         KnowledgeAPI[Knowledge API]
-        SettingsAPI[Internal Provider Status API]
+        SettingsAPI[Settings API]
+        DocsAPI[Docs API]
         Coordinator[Research Coordinator]
         SessionStore[SQLite Session Store]
-        SSE[SSE Queue Fanout]
         ReportService[Report Service]
         ExportService[Export Service]
+        SSE[SSE Queue Fanout]
     end
 
-    subgraph Workflow[LangGraph Pipeline]
+    subgraph Workflow[LangGraph Workflow]
         Planner[Planner Agent]
         Retriever[Contextual Retriever]
         Analysis[Critical Analysis Agent]
@@ -57,13 +56,13 @@ flowchart TB
     end
 
     subgraph Retrieval[Retrieval and Indexing]
+        Ingestion[Document Ingestion]
+        LocalIndex[Semantic Local Index]
         LocalRetriever[Local Retriever]
         PDFRetriever[PDF Fallback Retriever]
         WebRetriever[Web Retriever]
         NewsRetriever[News Retriever]
         AcademicRetriever[Academic Retriever]
-        LocalIndex[Semantic Local Index]
-        Ingestion[Document Ingestion Service]
         Scoring[Scoring and Deduplication]
         Embeddings[Sentence Transformers Embeddings]
     end
@@ -75,34 +74,36 @@ flowchart TB
     end
 
     User --> AppShell
-    AppShell --> SetupPage
-    AppShell --> OutputPage
-    AppShell --> DocsPage
+    AppShell --> Setup
+    AppShell --> Output
+    AppShell --> Knowledge
+    AppShell --> Settings
+    AppShell --> Docs
 
-    OutputPage --> OutputStore
-    OutputPage --> QueryCache
+    Setup --> DraftStore
+    Output --> OutputStore
+    Output --> SessionCache
+    Output --> QueryCache
     QueryCache --> ResearchAPI
     OutputStore --> QueryCache
 
-    SetupPage --> ResearchAPI
-    DocsPage --> KnowledgeAPI
-    ReportUI --> QueryCache
-    CompareUI --> QueryCache
-    RefsUI --> QueryCache
-    TraceUI --> QueryCache
-    GraphUI --> QueryCache
+    Setup --> ResearchAPI
+    Knowledge --> KnowledgeAPI
+    Settings --> SettingsAPI
+    Docs --> DocsAPI
 
     Main --> ResearchAPI
     Main --> KnowledgeAPI
     Main --> SettingsAPI
-    Main --> Coordinator
-
+    Main --> DocsAPI
     ResearchAPI --> Coordinator
+    KnowledgeAPI --> Coordinator
+    SettingsAPI --> Coordinator
+
     Coordinator --> SessionStore
-    Coordinator --> SSE
     Coordinator --> ReportService
     Coordinator --> ExportService
-
+    Coordinator --> SSE
     Coordinator --> Planner
     Coordinator --> Retriever
     Coordinator --> Analysis
@@ -118,8 +119,8 @@ flowchart TB
     Retriever --> AcademicRetriever
     Retriever --> Scoring
 
-    LocalRetriever --> LocalIndex
     Ingestion --> LocalIndex
+    LocalRetriever --> LocalIndex
     LocalIndex --> Embeddings
 
     Planner --> OpenRouter
@@ -132,200 +133,260 @@ flowchart TB
     AcademicRetriever --> ArxivAPI
 ```
 
-## Runtime Layer Graph
+## Frontend Architecture
+
+### Route Structure
 
 ```mermaid
 flowchart LR
-    HTTP[HTTP Request]
-    API[FastAPI Routers]
-    Coord[Research Coordinator]
-    Graph[LangGraph]
-    Store[SQLite Session Store]
-    Queue[SSE Queue]
-    Render[Report and Export Services]
-    SPA[React SPA]
-
-    HTTP --> API
-    API --> Coord
-    Coord --> Graph
-    Graph --> Coord
-    Coord --> Store
-    Coord --> Queue
-    Coord --> Render
-    API --> SPA
-```
-
-## Frontend Route and State Graph
-
-```mermaid
-flowchart LR
-    Root[/]
-    Setup[/research/setup]
-    OutputEmpty[/research/output]
-    OutputSession[/research/output/:sessionId]
-    Docs[/knowledge]
-    Legacy[/sessions/:sessionId]
-    Zustand[Zustand Output Store]
-    Query[React Query Session Cache]
+    Root["/"]
+    Setup["/research/setup"]
+    OutputEmpty["/research/output"]
+    OutputSession["/research/output/:sessionId"]
+    Legacy["/sessions/:sessionId"]
+    Knowledge["/knowledge"]
+    Docs["/docs"]
+    Settings["/settings"]
 
     Root --> Setup
-    Setup --> OutputSession
-    OutputEmpty --> Setup
-    OutputSession --> Docs
-    Legacy --> OutputSession
-
-    OutputSession --> Zustand
-    OutputSession --> Query
-    Zustand --> Query
+    Root --> OutputEmpty
+    Root --> OutputSession
+    Root --> Legacy
+    Root --> Knowledge
+    Root --> Docs
+    Root --> Settings
 ```
 
-## Backend Code Layout
+### Frontend Responsibilities
 
-```text
-src/ai_app/
-|-- main.py
-|-- config.py
-|-- api/
-|   |-- health.py
-|   |-- knowledge.py
-|   |-- research.py
-|   `-- settings.py
-|-- agents/
-|   |-- planner_agent.py
-|   |-- contextual_retriever_agent.py
-|   |-- critical_analysis_agent.py
-|   |-- contradiction_checker_agent.py
-|   |-- insight_generation_agent.py
-|   |-- qa_review_agent.py
-|   |-- report_builder_agent.py
-|   `-- llm_contracts.py
-|-- orchestration/
-|   |-- coordinator.py
-|   |-- graph.py
-|   `-- state.py
-|-- retrieval/
-|   |-- local_index.py
-|   |-- document_parser.py
-|   |-- chunking.py
-|   |-- source_scoring.py
-|   |-- deduper.py
-|   |-- time_filters.py
-|   `-- citation_builder.py
-|-- schemas/
-|   |-- research.py
-|   `-- report.py
-|-- services/
-|   |-- document_ingestion_service.py
-|   |-- report_service.py
-|   |-- export_service.py
-|   `-- research_service.py
-|-- llms/
-|   |-- client.py
-|   |-- embeddings.py
-|   |-- prompts.py
-|   |-- retry.py
-|   `-- structured_output.py
-`-- memory/
-    `-- session_store.py
-```
+- `AppShell` provides global navigation and boot-time provider-key sync from browser cache to backend runtime.
+- `Research Setup` manages question entry, filters, source selection, debate mode, uploads, and draft persistence.
+- `Research Output` manages session hydration, SSE progress, report rendering, comparative analysis, references, graph, and trace.
+- `Settings` manages browser-cached provider configuration and detailed model usage visibility.
+- `Docs` renders README-style project documentation and Mermaid diagrams inside the app.
 
-## Frontend Code Layout
-
-```text
-frontend/src/
-|-- main.tsx
-|-- pages/
-|   |-- research-setup-page.tsx
-|   |-- research-output-page.tsx
-|   |-- knowledge-page.tsx
-|   `-- session-page.tsx
-|-- components/
-|   |-- app-shell.tsx
-|   |-- research-dashboard.tsx
-|   |-- report-panel.tsx
-|   |-- report-visual.tsx
-|   |-- comparative-analysis.tsx
-|   |-- references-panel.tsx
-|   |-- confidence-panel.tsx
-|   |-- graph-view.tsx
-|   |-- trace-panel.tsx
-|   `-- progress-panel.tsx
-|-- hooks/
-|   `-- use-research-stream.ts
-|-- lib/
-|   |-- api.ts
-|   |-- types.ts
-|   `-- date-presets.ts
-`-- store/
-    `-- research-output-store.ts
-```
-
-## Core Architectural Responsibilities
-
-### React Frontend
-
-- captures setup input and persists unsaved drafts
-- hydrates output from cached session snapshots
-- persists output UI state through Zustand
-- streams live events through SSE
-- renders report, comparative analysis, references, graph, and trace
-
-### FastAPI Backend
-
-- receives research requests
-- creates research sessions
-- orchestrates the agent graph
-- persists session state to SQLite
-- serves report, graph, trace, and export endpoints
-
-### Session Store
-
-- stores full `ResearchSession` payloads durably in SQLite
-- persists events, traces, report sections, timestamps, and payload version
-- keeps in-memory queues only for active SSE delivery
-- recovers interrupted running sessions after restart and marks them failed rather than losing them
-
-### LLM Reasoning Layer
-
-- `PlannerAgent` generates sub-questions from prompts and structured JSON
-- `CriticalAnalysisAgent` converts findings into claims with confidence and evidence summaries
-- `ContradictionCheckerAgent` identifies real semantic disagreement with structured outputs
-- `InsightGenerationAgent` produces higher-order insights, entities, relationships, and follow-up questions
-- `QAReviewAgent` reviews the research output for unsupported claims and gaps
-
-### Retrieval Layer
-
-- local-first search using semantic embeddings
-- document ingestion for PDFs, markdown, and text
-- Tavily web/news retrieval
-- arXiv academic retrieval
-- scoring and deduplication before downstream analysis
-
-## Persistence Model
+### Frontend State Layers
 
 ```mermaid
 flowchart TD
-    Run[Research Run]
+    Draft[Unsaved setup draft]
+    LocalStorage[Browser localStorage]
+    OutputStore[Zustand output UI state]
+    SessionCache[Persisted session snapshot cache]
+    QueryCache[React Query cache]
+    OutputPage[Research Output page]
+
+    Draft --> LocalStorage
+    OutputStore --> LocalStorage
+    SessionCache --> LocalStorage
+    OutputPage --> OutputStore
+    OutputPage --> SessionCache
+    OutputPage --> QueryCache
+    QueryCache --> OutputPage
+```
+
+## Backend Architecture
+
+### Runtime Shape
+
+```mermaid
+flowchart LR
+    HTTP[HTTP and SSE Requests]
+    Routers[FastAPI Routers]
+    Coordinator[Research Coordinator]
+    Graph[LangGraph]
+    SessionStore[SQLite Session Store]
+    Services[Report and Export Services]
+    SPA[Built React App]
+
+    HTTP --> Routers
+    Routers --> Coordinator
+    Coordinator --> Graph
+    Coordinator --> SessionStore
+    Coordinator --> Services
+    Routers --> SPA
+```
+
+### API Modules
+
+- `api/research.py`
+  Handles run creation, session restore, graph, trace, dig deeper, SSE streaming, and export.
+- `api/knowledge.py`
+  Handles collection listing and upload-driven local knowledge ingestion.
+- `api/settings.py`
+  Handles runtime provider status and browser-to-runtime key sync.
+- `api/docs.py`
+  Serves markdown files used by the in-app docs section.
+- `api/health.py`
+  Provides basic health status.
+
+## Orchestration and Agent Architecture
+
+### Agent Graph
+
+```mermaid
+flowchart LR
+    Planner[Planner Agent]
+    Retriever[Contextual Retriever]
+    Analysis[Critical Analysis Agent]
+    Contradiction[Contradiction Checker]
+    Insight[Insight Generation Agent]
+    Reporter[Report Builder Agent]
+    QA[QA Review Agent]
+
+    Planner --> Retriever
+    Retriever --> Analysis
+    Analysis --> Contradiction
+    Contradiction --> Insight
+    Insight --> Reporter
+    Reporter --> QA
+```
+
+### Agent Roles
+
+- `PlannerAgent`
+  Builds sub-questions and retrieval plans using OpenRouter when available, then falls back to heuristics.
+- `ContextualRetrieverAgent`
+  Orchestrates local retrieval, PDF fallback, web/news retrieval, academic retrieval, scoring, and deduplication.
+- `CriticalAnalysisAgent`
+  Converts evidence into structured claims, confidence, trust, and evidence summaries.
+- `ContradictionCheckerAgent`
+  Detects disagreement between claims and assigns rationale, lean, and consensus indicators.
+- `InsightGenerationAgent`
+  Produces higher-order insights, graph entities, relationships, and follow-up questions.
+- `ReportBuilderAgent`
+  Deterministically assembles structured report sections and visual-ready blocks.
+- `QAReviewAgent`
+  Reviews the assembled research output for support gaps, citation weakness, and unresolved quality issues.
+
+## Retrieval and Knowledge Architecture
+
+### Local-First Retrieval Flow
+
+```mermaid
+flowchart TD
+    Question[Sub-question]
+    LocalFirst[Search Local RAG first]
+    LocalRetriever[Local Retriever]
+    LocalIndex[Semantic Local Index]
+    NeedMore{Enough evidence?}
+    Web[Web and news retrieval]
+    Academic[Academic retrieval]
+    Score[Score and dedupe]
+    Sources[Normalized sources]
+
+    Question --> LocalFirst
+    LocalFirst --> LocalRetriever
+    LocalRetriever --> LocalIndex
+    LocalIndex --> NeedMore
+    NeedMore -- Yes --> Score
+    NeedMore -- No --> Web
+    NeedMore -- No --> Academic
+    Web --> Score
+    Academic --> Score
+    Score --> Sources
+```
+
+### Knowledge Processing Responsibilities
+
+- `DocumentIngestionService` parses files and creates collection-scoped documents.
+- `LocalIndex` stores chunk embeddings and retrieval metadata.
+- `embeddings.py` uses sentence-transformers when available and preserves fallback behavior.
+- citations preserve filename and page references where supported.
+
+## Persistence Architecture
+
+### Session Persistence
+
+```mermaid
+flowchart TD
+    Run[Research run]
     Session[ResearchSession]
-    Events[Events]
-    Trace[Agent Trace]
-    Report[Report Sections]
-    SQLite[SQLite sessions.db]
-    ClientCache[Persisted Client Cache]
-    OutputStore[Zustand UI Store]
+    Events[Event log]
+    Trace[Agent trace]
+    Report[Report sections]
+    SQLite[SQLite persistence]
+    Restore[Session restore APIs]
 
     Run --> Session
     Session --> Events
     Session --> Trace
     Session --> Report
     Session --> SQLite
-    SQLite --> ClientCache
-    ClientCache --> OutputStore
+    SQLite --> Restore
 ```
 
-## Notes
+The backend persists:
 
-- `.env` remains the intended provider configuration source of truth for the product.
-- The internal provider-status API still exists, but the main UI does not expose a Settings navigation path.
-- Heuristic fallback remains available when OpenRouter or sentence-transformers is unavailable.
-- Report assembly remains deterministic even though the reasoning core is now LLM-backed.
+- core session fields
+- sources, findings, claims, contradictions, insights
+- events and traces
+- report sections and metadata
+- freshness fields such as `updated_at`, `persisted_at`, and `payload_version`
+
+### Runtime and Live Streaming
+
+- live SSE fanout still uses in-memory queues for active sessions
+- persisted SQLite state remains the source of truth for restore and post-run access
+- interrupted running sessions are recoverable as persisted records even when live execution is lost
+
+## Provider Configuration Architecture
+
+### Current Design
+
+```mermaid
+flowchart LR
+    Browser[Browser Settings page]
+    LocalStorage[localStorage cached keys]
+    SettingsAPI["POST /api/settings/providers"]
+    Runtime[Backend runtime settings]
+    Agents[LLM and retrieval agents]
+
+    Browser --> LocalStorage
+    Browser --> SettingsAPI
+    LocalStorage --> Browser
+    SettingsAPI --> Runtime
+    Runtime --> Agents
+```
+
+Important behavior:
+
+- provider keys are entered from the UI
+- keys are cached in the browser
+- backend startup does not preload provider keys from `.env`
+- runtime provider status can be inspected from the Settings page
+- model usage is explained per agent in the UI
+
+## Reporting Architecture
+
+Report sections are structured objects rather than raw markdown-only strings. Each section can contain:
+
+- title
+- lead summary
+- narrative blocks
+- citations
+- metadata rows
+- footer notes
+- optional visual descriptor
+
+This supports summary-first presentation, cleaner citation rendering, better PDF export, and downstream comparative analysis integration.
+
+## Documentation Architecture
+
+The app includes a first-class docs route backed by markdown files:
+
+- `README.md` as the project reference document
+- `docs/ARCHITECTURE.md` as the architecture reference
+- `docs/WORKFLOW_DIAGRAMS.md` as the workflow reference
+
+`api/docs.py` serves those files directly to the frontend docs viewer, which renders both markdown and Mermaid diagrams inside the product.
+
+## Key Implementation Notes
+
+- the system is now a research dashboard, not just a demo shell
+- provider setup is runtime-first and browser-assisted
+- reasoning is LLM-backed but still protected by fallback logic
+- local-first retrieval remains the governing retrieval policy
+- output persistence is implemented at both frontend and backend layers
+
+For end-to-end run flows, see [WORKFLOW_DIAGRAMS.md](./WORKFLOW_DIAGRAMS.md).

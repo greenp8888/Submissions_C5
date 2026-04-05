@@ -236,6 +236,15 @@ export interface ProviderStatusEntry {
   configured: boolean;
   note?: string;
   model?: string;
+  runtime_source?: string;
+  usages?: ProviderUsage[];
+}
+
+export interface ProviderUsage {
+  agent: string;
+  purpose: string;
+  output: string;
+  fallback: string;
 }
 
 export interface ProviderSettingsResponse {

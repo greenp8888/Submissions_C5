@@ -17,10 +17,10 @@ class Settings(BaseSettings):
 
     app_name: str = "AI Hackathon Deep Researcher"
     debug: bool = False
-    openrouter_api_key: str | None = Field(default=None, validation_alias=AliasChoices("OPENROUTER_API_KEY", "AI_HACKATHON_OPENROUTER_API_KEY"))
+    openrouter_api_key: str | None = None
     openrouter_model: str = Field(default="openai/gpt-4o-mini", validation_alias=AliasChoices("OPENROUTER_MODEL", "AI_HACKATHON_OPENROUTER_MODEL"))
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    tavily_api_key: str | None = Field(default=None, validation_alias=AliasChoices("TAVILY_API_KEY", "AI_HACKATHON_TAVILY_API_KEY"))
+    tavily_api_key: str | None = None
     top_k: int = 5
     embed_dim: int = 64
     embedding_model_name: str = Field(default="sentence-transformers/all-MiniLM-L6-v2", validation_alias=AliasChoices("AI_HACKATHON_EMBEDDING_MODEL_NAME", "EMBEDDING_MODEL_NAME"))
@@ -37,5 +37,7 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     settings = Settings()
+    settings.openrouter_api_key = None
+    settings.tavily_api_key = None
     settings.ensure_dirs()
     return settings

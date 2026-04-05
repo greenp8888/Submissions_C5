@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 from datetime import date, timedelta
-from pathlib import Path
 
 from ai_app.agents.academic_expansion_retriever import AcademicExpansionRetriever
 from ai_app.agents.academic_retriever import AcademicRetriever
@@ -81,10 +80,6 @@ class ResearchCoordinator:
             self._wrap_node("insight", insights.run),
             self._wrap_node("reporter", reporter.run),
         )
-
-    @property
-    def env_file_path(self) -> Path:
-        return Path(__file__).resolve().parents[3] / ".env"
 
     def _wrap_node(self, label: str, node_fn: Callable[[ResearchSession], Awaitable[ResearchSession]]):
         async def wrapped(state):
@@ -196,9 +191,13 @@ class ResearchCoordinator:
             session.metadata["debate_enabled"] = True
         provider_warnings: list[str] = []
         if SourceChannel.WEB in enabled_sources and not self.settings.tavily_api_key:
-            provider_warnings.append("Web and news search were enabled in the request, but Tavily is not configured because no TAVILY_API_KEY was loaded from .env or environment variables.")
+            provider_warnings.append(
+                "Web and news search were enabled, but Tavily is not configured in the current browser-backed runtime session."
+            )
         if not self.settings.openrouter_api_key:
-            provider_warnings.append("OpenRouter is not configured, so the reasoning agents will use heuristic fallback behavior.")
+            provider_warnings.append(
+                "OpenRouter is not configured in the current browser-backed runtime session, so the reasoning agents will use heuristic fallback behavior."
+            )
         if provider_warnings:
             session.metadata["provider_warnings"] = provider_warnings
         return self.session_store.create(session)
@@ -223,15 +222,73 @@ class ResearchCoordinator:
                 "status": "configured" if self.settings.openrouter_api_key else "not configured",
                 "configured": bool(self.settings.openrouter_api_key),
                 "model": self.settings.openrouter_model,
+                "runtime_source": "Browser-cached key synced into backend runtime",
+                "usages": [
+                    {
+                        "agent": "Planner Agent",
+                        "purpose": "Breaks the research question into depth-aware sub-questions and retrieval plans.",
+                        "output": "Structured planning output for downstream retrieval and analysis.",
+                        "fallback": "Heuristic planner decomposition.",
+                    },
+                    {
+                        "agent": "Critical Analysis Agent",
+                        "purpose": "Extracts claims, summarizes evidence, and assigns confidence and trust context.",
+                        "output": "Structured claims with evidence summaries, confidence, and credibility notes.",
+                        "fallback": "Heuristic claim extraction and scoring.",
+                    },
+                    {
+                        "agent": "Contradiction Checker Agent",
+                        "purpose": "Determines whether sources meaningfully disagree and explains the weighted lean.",
+                        "output": "Structured contradiction records with rationale, favored side, and consensus metadata.",
+                        "fallback": "Heuristic contradiction matching.",
+                    },
+                    {
+                        "agent": "Insight Generation Agent",
+                        "purpose": "Generates higher-order insights, entities, relationships, and follow-up questions.",
+                        "output": "Structured insight bundle used by the report, graph, and follow-up workflows.",
+                        "fallback": "Heuristic insight generation.",
+                    },
+                    {
+                        "agent": "QA Review Agent",
+                        "purpose": "Reviews the final research package for unsupported claims, citation gaps, and unresolved weaknesses.",
+                        "output": "QA review summary with warnings and completeness checks.",
+                        "fallback": "Heuristic QA review.",
+                    },
+                ],
             },
             "tavily": {
                 "status": "configured" if self.settings.tavily_api_key else "not configured",
                 "configured": bool(self.settings.tavily_api_key),
+                "runtime_source": "Browser-cached key synced into backend runtime",
+                "note": "Used for live web and news retrieval before evidence ranking and synthesis.",
+                "usages": [
+                    {
+                        "agent": "Web Retriever",
+                        "purpose": "Fetches public web sources for current context and supporting evidence.",
+                        "output": "Normalized web sources with titles, snippets, links, and retrieval metadata.",
+                        "fallback": "No live web retrieval when Tavily is unavailable.",
+                    },
+                    {
+                        "agent": "News Retriever",
+                        "purpose": "Fetches recent reporting and news-style coverage for current developments.",
+                        "output": "Normalized news-oriented sources used in comparison and synthesis.",
+                        "fallback": "No live news retrieval when Tavily is unavailable.",
+                    },
+                ],
             },
             "arxiv": {
                 "status": "enabled",
                 "configured": True,
-                "note": "No API key required.",
+                "runtime_source": "Always available",
+                "note": "No API key required. Used for academic paper retrieval.",
+                "usages": [
+                    {
+                        "agent": "Academic Retriever",
+                        "purpose": "Retrieves academic papers from arXiv for research-grade evidence and references.",
+                        "output": "Normalized academic sources with publication metadata and canonical links.",
+                        "fallback": "No key fallback is required because arXiv is public.",
+                    }
+                ],
             },
         }
         if include_values:
@@ -239,32 +296,10 @@ class ResearchCoordinator:
             payload["tavily"]["api_key"] = self.settings.tavily_api_key or ""
         return payload
 
-    def update_provider_keys(self, openrouter_api_key: str | None, tavily_api_key: str | None, persist: bool = True) -> str:
+    def update_provider_keys(self, openrouter_api_key: str | None, tavily_api_key: str | None, persist: bool = False) -> str:
         self.settings.openrouter_api_key = openrouter_api_key.strip() if openrouter_api_key else None
         self.settings.tavily_api_key = tavily_api_key.strip() if tavily_api_key else None
-        if persist:
-            self._persist_provider_keys()
         return self.provider_status()
-
-    def _persist_provider_keys(self) -> None:
-        lines: dict[str, str] = {}
-        if self.env_file_path.exists():
-            for raw_line in self.env_file_path.read_text(encoding="utf-8").splitlines():
-                if "=" in raw_line and not raw_line.strip().startswith("#"):
-                    key, value = raw_line.split("=", 1)
-                    lines[key] = value
-        lines["OPENROUTER_API_KEY"] = self.settings.openrouter_api_key or ""
-        lines["TAVILY_API_KEY"] = self.settings.tavily_api_key or ""
-        if "OPENROUTER_MODEL" not in lines:
-            lines["OPENROUTER_MODEL"] = self.settings.openrouter_model
-        if "AI_HACKATHON_DATA_DIR" not in lines:
-            lines["AI_HACKATHON_DATA_DIR"] = str(self.settings.data_dir)
-        if "AI_HACKATHON_TOP_K" not in lines:
-            lines["AI_HACKATHON_TOP_K"] = str(self.settings.top_k)
-        if "AI_HACKATHON_EMBED_DIM" not in lines:
-            lines["AI_HACKATHON_EMBED_DIM"] = str(self.settings.embed_dim)
-        payload = "\n".join(f"{key}={value}" for key, value in lines.items()) + "\n"
-        self.env_file_path.write_text(payload, encoding="utf-8")
 
     async def run_research(self, session: ResearchSession) -> ResearchSession:
         session.status = ResearchStatus.RUNNING

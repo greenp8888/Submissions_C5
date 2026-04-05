@@ -1,75 +1,130 @@
 # AI Hackathon Deep Researcher
 
-`ai-hackathon` is the Group 9 implementation of a multi-agent, local-first AI research assistant. The project combines a FastAPI backend, a React + Vite dashboard, LangGraph orchestration, local RAG, public-source enrichment, contradiction analysis, credibility scoring, structured reporting, and export support into one runnable application.
+`ai-hackathon` is Group 9's multi-agent research assistant for local-first, citation-backed investigations across uploaded documents, the public web, and academic papers. The implemented system combines a FastAPI backend, a React research dashboard, LangGraph orchestration, LLM-backed reasoning agents, semantic local retrieval, durable session persistence, and structured report generation in one application.
 
-This README is the main project reference document. It includes:
-
-- Product Overview
-- Technical Concepts used in the build
-- Project structure
-- Setup and Run Instructions
-- API References
-- Architecture Diagrams
-- Workflow Diagrams
-- Implementation notes and limitations
+This README is the main project reference for team members, evaluators, and maintainers. The same reference content is also available inside the app under the `Docs` route through the in-product documentation viewer.
 
 ## Project References
 
 - [Architecture Reference](./docs/ARCHITECTURE.md)
 - [Workflow Diagrams](./docs/WORKFLOW_DIAGRAMS.md)
-- [High Level Design](../HLD.md)
-- [Product Creation Prompt](../Product_Creation_Prompt.md)
-- [Execution Plan](../Execution_Plan.md)
-- [Project Creation Log](../Project_Creation.md)
-- [Debate Mode Notes](../debate-mode.md)
-- [Source Disagreement Notes](../Source-Disagreement.md)
 
 ## Group 9 Project Members
 
-| Member | 
+| Member |
 | --- |
 | Chirag Shah |
 | Gaurav Thapa |
-| Krunal Deshkar |
+| Kunal Deshkar |
 | Ritesh Goyal |
 | Sandeep Girgaonkar |
 | Shraddha Sheth |
-| Vaishali Agarwal|
+| Vaishali Agarwal |
 
-## What The Project Does
+## What The Product Does
 
-The application accepts a research question, optional collections, optional uploaded documents, source selections, date filters, and optional debate positions. It then:
+The application accepts:
 
-1. Plans the investigation with a planner agent.
-2. Searches Local RAG first.
-3. Expands to Tavily and arXiv only when needed.
-4. Converts findings into structured claims through LLM-backed analysis.
-5. Detects contradictions and contested evidence.
-6. Generates insights, entities, relationships, and follow-up questions.
-7. Builds a structured report with citations, credibility notes, and optional quantitative visuals.
-8. Persists the session durably and hydrates the Research Output workspace from live data or cache.
+- a research question
+- optional batch topics
+- depth and date filters
+- source selection for Local RAG, Web, and arXiv
+- uploaded research documents and saved collections
+- optional debate positions
 
-## Core Concepts Used In The Build
+It then:
 
-- Multi-agent orchestration
+1. creates a durable research session
+2. plans the investigation with an LLM-backed planner
+3. searches local RAG first
+4. enriches with web and academic retrieval when needed
+5. analyzes evidence into structured claims
+6. detects contradictions and low-consensus claims
+7. generates insights, entities, relationships, and follow-up questions
+8. composes a structured report with citations and optional quantitative visuals
+9. persists the output to SQLite and hydrates the Research Output workspace from cache plus backend state
+
+## Current Product Experience
+
+### Research Setup
+
+The `Research Setup` route is the draft and submission workspace. It supports:
+
+- long-form research question input
+- `single` and `batch` run modes
+- `quick`, `standard`, and `deep` depth modes
+- date presets and explicit date ranges
+- Local RAG, Web, and arXiv source toggles
+- collection selection
+- upload of research documents for local RAG
+- optional debate mode with `Position A` and `Position B`
+- local draft persistence even before submission
+
+### Research Output
+
+The `Research Output` route is the persistent read and analysis workspace. It provides:
+
+- live top progress bar and detailed progress view
+- structured report sections
+- comparative analysis for debate and disagreement
+- references and evidence browsing
+- confidence and trust panels
+- graph and trace views
+- dig deeper actions
+- markdown and PDF export
+- cached restore of the last viewed session
+
+### Research Documents
+
+The `Research Documents` route manages uploaded material and collections that feed local-first retrieval.
+
+### Settings
+
+The `Settings` route is now the first-launch provider setup surface. It shows:
+
+- OpenRouter model in use
+- which agents use the model and for what purpose
+- Tavily and arXiv usage details
+- browser-cached key setup
+
+Important behavior:
+
+- provider keys are not loaded from `.env` at app launch
+- users enter keys from the UI
+- keys are cached in browser storage
+- cached keys are synced into the backend runtime on load
+- keys are never returned from backend APIs
+
+### Docs
+
+The `Docs` route exposes:
+
+- Project Reference
+- Architecture
+- Workflows
+
+This means evaluators can review the implementation reference and diagrams directly inside the product UI.
+
+## Core Technical Concepts Used
+
+- multi-agent orchestration
 - LangGraph workflow execution
-- Retrieval-augmented generation
-- Local-first RAG
-- Semantic local embeddings with sentence-transformers fallback handling
+- local-first retrieval-augmented generation
+- sentence-transformers semantic embeddings
 - PDF parsing, chunking, and page-aware citations
-- Source scoring and deduplication
-- LLM-backed planning, analysis, contradiction detection, insight generation, and QA review
-- Structured report generation
-- Confidence versus trust score separation
-- Comparative analysis for debate and disagreement
-- Live SSE progress streaming
+- LLM-backed planning and reasoning
+- contradiction detection and comparative analysis
+- confidence versus trust separation
+- structured report generation
+- optional quantitative chart generation from explicit numeric evidence
+- SSE live progress streaming
 - SQLite-backed durable session persistence
-- Zustand-based frontend output state store
+- Zustand frontend output state store
 - React Query session fetching and refresh
-- Cached session hydration for Research Output
-- Markdown and PDF export
+- client-side cached output hydration
+- markdown and PDF export
 
-## Technical Stack
+## Technology Stack
 
 ### Backend
 
@@ -93,87 +148,40 @@ The application accepts a research question, optional collections, optional uplo
 - Zustand
 - React Flow
 - Radix UI primitives
+- Tailwind CSS
+- Mermaid for in-app docs rendering
 
-### Providers and Sources
+### Providers and Retrieval Sources
 
-- OpenRouter
-- Tavily
-- arXiv
-- Local uploaded documents and indexed collections
+- OpenRouter for LLM reasoning agents
+- Tavily for web and news retrieval
+- arXiv for academic retrieval
+- uploaded documents and saved local collections
 
-## Current User Experience
-
-### Research Setup
-
-The setup route lets the user:
-
-- Enter a long-form research question
-- Choose single or batch mode
-- Choose depth
-- Choose a quick date preset or explicit date range
-- Choose Local RAG, Web/Tavily, and arXiv
-- Select collections
-- Upload files for the current run
-- Optionally enable debate mode and define Position A and Position B
-
-### Research Output
-
-The output route provides:
-
-- Live progress status and event stream
-- Report sections
-- Comparative analysis
-- References
-- Confidence and trust
-- Graph
-- Trace
-- Dig deeper actions
-- Markdown and PDF export
-
-### Research Output State Store
-
-The research documents workspace supports:
-
-- frontend UI state through Zustand
-- cached session snapshots through persisted client storage
-- durable backend session state through SQLite
-
-This means the workspace can preserve active tabs, selected sections, selected sources, graph context, comparative accordion state, and previously fetched session output even when the user navigates away or refreshes.
-
-The system is split into:
-
-1. A React frontend for setup, output, references, graph, trace, and comparative analysis
-2. A FastAPI backend serving APIs and the built frontend
-3. A LangGraph-based orchestration layer
-4. A retrieval layer for local RAG, PDF fallback, web/news, and arXiv
-5. A reporting layer that converts session state into structured presentation output
-
-## High-Level Architecture Graph
+## High-Level Architecture Diagram
 
 ```mermaid
 flowchart TB
     User[User]
 
-    subgraph Frontend[React Frontend]
+    subgraph Frontend[React Dashboard]
         AppShell[App Shell]
-        SetupPage[Research Setup]
-        OutputPage[Research Output]
-        DocsPage[Research Documents]
-        ReportUI[Report Panel]
-        CompareUI[Comparative Analysis]
-        RefsUI[References Panel]
-        TraceUI[Trace Panel]
-        GraphUI[Graph View]
+        Setup[Research Setup]
+        Output[Research Output]
+        Knowledge[Research Documents]
+        Settings[Settings]
+        Docs[Docs]
+        OutputStore[Zustand Output Store]
+        QueryCache[React Query Cache]
     end
 
     subgraph Backend[FastAPI Backend]
-        Main[main.py]
         ResearchAPI[Research API]
         KnowledgeAPI[Knowledge API]
-        HealthAPI[Health API]
         SettingsAPI[Settings API]
+        DocsAPI[Docs API]
         Coordinator[Research Coordinator]
-        SessionStore[Session Store]
+        SessionStore[SQLite Session Store]
         ReportService[Report Service]
         ExportService[Export Service]
     end
@@ -182,18 +190,18 @@ flowchart TB
         Planner[Planner Agent]
         Retriever[Contextual Retriever]
         Analysis[Critical Analysis Agent]
-        Contradictions[Contradiction Checker]
-        Insights[Insight Generation Agent]
+        Contradiction[Contradiction Checker]
+        Insight[Insight Generation Agent]
         Reporter[Report Builder Agent]
         QA[QA Review Agent]
     end
 
-    subgraph Retrieval[Retrieval and Indexing]
-        LocalRAG[Local RAG]
-        Index[Semantic Local Index]
+    subgraph Retrieval[Retrieval Layer]
+        LocalIndex[Semantic Local Index]
         Ingestion[Document Ingestion]
-        Web[Web and News Retrieval]
-        Arxiv[Academic Retrieval]
+        Web[Web Retriever]
+        News[News Retriever]
+        Academic[Academic Retriever]
         Scoring[Scoring and Deduplication]
     end
 
@@ -206,81 +214,58 @@ flowchart TB
     User --> AppShell
     AppShell --> Setup
     AppShell --> Output
-    AppShell --> Documents
-
-    Setup --> API
-    Output --> API
-    Documents --> API
+    AppShell --> Knowledge
+    AppShell --> Settings
+    AppShell --> Docs
     Output --> OutputStore
     Output --> QueryCache
-    QueryCache --> API
-    OutputStore --> QueryCache
-
-    API --> Coordinator
-    API --> SQLiteStore
-    Coordinator --> SQLiteStore
-    Coordinator --> SSE
+    QueryCache --> ResearchAPI
+    Setup --> ResearchAPI
+    Knowledge --> KnowledgeAPI
+    Settings --> SettingsAPI
+    Docs --> DocsAPI
+    ResearchAPI --> Coordinator
+    Coordinator --> SessionStore
     Coordinator --> ReportService
-
+    Coordinator --> ExportService
     Coordinator --> Planner
     Coordinator --> Retriever
     Coordinator --> Analysis
-    Analysis --> Contradictions
-    Coordinator --> Insights
+    Analysis --> Contradiction
+    Coordinator --> Insight
     Coordinator --> Reporter
     Coordinator --> QA
-
-    Retriever --> LocalRAG
-    LocalRAG --> Index
-    Ingestion --> Index
+    Retriever --> LocalIndex
+    Ingestion --> LocalIndex
     Retriever --> Web
-    Retriever --> Arxiv
+    Retriever --> News
+    Retriever --> Academic
     Retriever --> Scoring
-
     Planner --> OpenRouter
     Analysis --> OpenRouter
-    Contradictions --> OpenRouter
-    Insights --> OpenRouter
+    Contradiction --> OpenRouter
+    Insight --> OpenRouter
     QA --> OpenRouter
     Web --> Tavily
-    Arxiv --> ArxivAPI
+    News --> Tavily
+    Academic --> ArxivAPI
 ```
 
-Detailed diagrams are also available in:
-
-- [ARCHITECTURE.md](./docs/ARCHITECTURE.md)
-- [WORKFLOW_DIAGRAMS.md](./docs/WORKFLOW_DIAGRAMS.md)
+For a more detailed breakdown, see [ARCHITECTURE.md](./docs/ARCHITECTURE.md). For end-to-end run flows, see [WORKFLOW_DIAGRAMS.md](./docs/WORKFLOW_DIAGRAMS.md).
 
 ## Repository Structure
 
 ```text
 ai-hackathon/
-|-- .env
-|-- .env.example
 |-- README.md
 |-- requirements.txt
 |-- pyproject.toml
 |-- start.ps1
 |-- stop.ps1
 |-- frontend/
-|   |-- package.json
 |   `-- src/
-|       |-- components/
-|       |-- hooks/
-|       |-- lib/
-|       |-- pages/
-|       `-- store/
 |-- src/
 |   `-- ai_app/
-|       |-- agents/
-|       |-- api/
-|       |-- domain/
-|       |-- llms/
-|       |-- memory/
-|       |-- orchestration/
-|       |-- retrieval/
-|       |-- schemas/
-|       `-- services/
 |-- docs/
 |   |-- ARCHITECTURE.md
 |   `-- WORKFLOW_DIAGRAMS.md
@@ -292,69 +277,53 @@ ai-hackathon/
 ### Frontend
 
 - `frontend/src/main.tsx`
+- `frontend/src/components/app-shell.tsx`
 - `frontend/src/components/research-dashboard.tsx`
-- `frontend/src/components/report-panel.tsx`
-- `frontend/src/components/comparative-analysis.tsx`
+- `frontend/src/components/provider-settings-form.tsx`
+- `frontend/src/components/docs-viewer.tsx`
 - `frontend/src/store/research-output-store.ts`
 
 ### Backend
 
 - `src/ai_app/main.py`
 - `src/ai_app/api/research.py`
+- `src/ai_app/api/settings.py`
+- `src/ai_app/api/docs.py`
 - `src/ai_app/orchestration/coordinator.py`
 - `src/ai_app/memory/session_store.py`
+- `src/ai_app/retrieval/local_index.py`
+- `src/ai_app/llms/embeddings.py`
+- `src/ai_app/agents/planner_agent.py`
 - `src/ai_app/agents/critical_analysis_agent.py`
 - `src/ai_app/agents/contradiction_checker_agent.py`
 - `src/ai_app/agents/insight_generation_agent.py`
 - `src/ai_app/agents/qa_review_agent.py`
-- `src/ai_app/retrieval/local_index.py`
 
-## Main Data Objects
+## Provider Configuration Model
 
-Important schema models live in `src/ai_app/schemas/research.py`.
+The application still reads non-secret runtime defaults from `.env`, such as:
 
-- `ResearchRequest`
-- `ResearchSession`
-- `Source`
-- `Finding`
-- `Claim`
-- `Contradiction`
-- `Insight`
-- `ReportSection`
-- `ReportBlock`
-- `ReportCitation`
-- `ReportVisual`
-- `AgentTraceEntry`
+- `OPENROUTER_MODEL`
+- `AI_HACKATHON_DATA_DIR`
+- `AI_HACKATHON_TOP_K`
+- `AI_HACKATHON_EMBED_DIM`
+- `AI_HACKATHON_EMBEDDING_MODEL_NAME`
+- `AI_HACKATHON_DEBUG`
 
-These are mirrored in `frontend/src/lib/types.ts`.
+Provider keys are intentionally not loaded from `.env` at startup:
 
-## Environment Configuration
+- `OPENROUTER_API_KEY`
+- `TAVILY_API_KEY`
 
-Create a local `.env` file in the project root.
+Those keys must be entered from the UI and are then:
 
-Example:
-
-```env
-OPENROUTER_API_KEY=
-OPENROUTER_MODEL=openai/gpt-4o-mini
-TAVILY_API_KEY=
-AI_HACKATHON_DATA_DIR=.data
-AI_HACKATHON_TOP_K=5
-AI_HACKATHON_EMBED_DIM=64
-AI_HACKATHON_EMBEDDING_MODEL_NAME=sentence-transformers/all-MiniLM-L6-v2
-AI_HACKATHON_DEBUG=false
-```
-
-Notes:
-
-- if `OPENROUTER_API_KEY` is empty, the upgraded reasoning agents fall back to heuristic behavior
-- if `TAVILY_API_KEY` is empty, web/news enrichment is skipped gracefully
-- arXiv retrieval does not require an API key
-- `.env` remains the intended source of truth for provider configuration
+- cached in browser `localStorage`
+- synced to the backend runtime
+- kept out of backend responses
 
 ## Installation
 
-### Python
+### Python Environment
 
 ```powershell
 cd E:\hackathon-project\Submissions_C5\Group_9\ai-hackathon
@@ -429,86 +398,47 @@ npm run dev
 - `GET /api/knowledge/collections`
 - `GET /api/knowledge/collections/{id}`
 
-### Internal Provider Status
+### Settings and Docs
 
 - `GET /api/settings/providers`
 - `POST /api/settings/providers`
+- `GET /api/docs/project-reference`
+- `GET /api/docs/architecture`
+- `GET /api/docs/workflows`
 
-The settings endpoints still exist internally, but the main UI treats `.env` as the provider configuration source of truth.
+## Output State and Persistence
 
-## Reporting Model
+### Backend Persistence
 
-The reporting layer uses structured sections rather than raw markdown-only output.
+- sessions are stored durably in SQLite
+- events and traces are persisted with session state
+- report sections and metadata are preserved across reloads
 
-Each report section can include:
+### Frontend Persistence
 
-- a section title
-- a lead summary
-- structured blocks
-- citations
-- metadata rows
-- footer notes
-- optional quantitative visuals
-
-This supports:
-
-- summary-first reading
-- smaller gray metadata and reference treatment
-- better PDF and markdown export
-- cleaner Comparative Analysis integration
-
-## Session Persistence and Output Hydration
-
-### Backend
-
-- Sessions are persisted to SQLite.
-- Events and traces are persisted as part of the session payload.
-- Running sessions interrupted by a restart are recovered and marked with an error note rather than disappearing.
-
-### Frontend
-
-- Output view state is persisted in Zustand.
-- Cached `ResearchSession` snapshots are persisted locally.
-- The Output route hydrates from local cache first and then refreshes from backend state and SSE.
-
-## Validation Completed
-
-The current implementation was validated with:
-
-- `python -m compileall` on `src/ai_app`
-- `npm install` in `frontend`
-- `npm run build` in `frontend`
-- FastAPI app creation/import smoke test
-- SQLite session persistence smoke test
-- basic background research start smoke test
+- setup drafts are stored locally before submission
+- output UI state is persisted in Zustand
+- cached session snapshots are reused for fast output hydration
+- the last active output session is restored on navigation
 
 ## Known Limitations
 
-- OpenRouter-backed reasoning quality still depends on provider availability and chosen model quality
-- heuristic fallback remains available and can still appear when the provider or structured JSON response fails
-- running research sessions do not resume automatically after a server restart; they are restored and marked failed
-- sentence-transformers downloads can be heavy in a fresh environment
-- the frontend bundle still shows a large chunk warning during production build
-- several secondary provider adapters remain outside the primary live path
+- live OpenRouter quality still depends on provider availability and model behavior
+- fallback heuristics still appear when structured LLM output fails
+- interrupted live runs are restored from SQLite but not resumed automatically
+- sentence-transformers may require a first-run model download
+- the frontend bundle remains large because Mermaid and graph tooling are included
 
-## Suggested Next Improvements
+## Summary
 
-- add resume/retry semantics for interrupted running sessions
-- add dedicated automated API and UI test suites
-- add model-specific prompt tuning and evaluation harnesses
-- store normalized events and traces separately for analytics
-- code-split the React dashboard further
-- expand provider coverage beyond the current primary integrations
+The repository currently implements:
 
-## Project Summary
+- a production-style React research dashboard
+- browser-cached runtime provider setup
+- LLM-backed reasoning agents with fallback behavior
+- semantic local-first retrieval
+- durable SQLite research sessions
+- structured reporting with comparative analysis
+- graph, trace, export, and in-app documentation views
 
-This repository now contains a working multi-agent research assistant with:
-
-- LLM-backed reasoning agents
-- semantic local retrieval
-- durable SQLite session persistence
-- a persisted React Research Output state store
-- structured reporting and comparative analysis
-- live progress, graph, trace, and export flows
-
-Use this README together with [ARCHITECTURE.md](./docs/ARCHITECTURE.md) and [WORKFLOW_DIAGRAMS.md](./docs/WORKFLOW_DIAGRAMS.md) as the main implementation and onboarding reference.
+Use this README together with [ARCHITECTURE.md](./docs/ARCHITECTURE.md) and [WORKFLOW_DIAGRAMS.md](./docs/WORKFLOW_DIAGRAMS.md) as the primary implementation reference.

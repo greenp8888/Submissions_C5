@@ -10,7 +10,7 @@ router = APIRouter(prefix="/api/settings", tags=["settings"])
 class ProviderSettingsPayload(BaseModel):
     openrouter_api_key: str | None = None
     tavily_api_key: str | None = None
-    persist: bool = True
+    persist: bool = False
 
 
 @router.get("/providers")

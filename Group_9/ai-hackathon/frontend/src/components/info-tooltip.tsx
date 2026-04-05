@@ -20,7 +20,7 @@ export function InfoTooltip({
       >
         <Info className="h-3.5 w-3.5" />
       </button>
-      <span className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden w-80 -translate-x-1/2 rounded-2xl border border-border bg-slate-950 px-4 py-3 text-left text-xs leading-5 text-slate-100 shadow-2xl group-hover:block group-focus-within:block">
+      <span className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden w-80 -translate-x-1/2 rounded-2xl border border-border bg-white px-4 py-3 text-left text-xs leading-5 text-slate-700 shadow-2xl group-hover:block group-focus-within:block">
         {content}
       </span>
     </span>

@@ -91,6 +91,10 @@ export async function fetchSession(sessionId: string) {
   return apiRequest<ResearchSession>(`/api/research/${sessionId}/state`);
 }
 
+export async function fetchProjectDoc(docName: "project-reference" | "architecture" | "workflows") {
+  return apiRequest<{ name: string; title: string; content: string }>(`/api/docs/${docName}`);
+}
+
 export async function digDeeper(sessionId: string, payload: { finding_id?: string; claim_id?: string; insight_id?: string }) {
   return apiRequest<{ session_id: string }>(`/api/research/${sessionId}/dig-deeper`, {
     method: "POST",

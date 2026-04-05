@@ -1,16 +1,43 @@
 # AI Hackathon Workflow Diagrams
 
+## Purpose
+
+This document captures the implemented workflows for setup, provider initialization, research execution, output hydration, dig deeper continuation, and documentation access.
+
+## First-Launch Provider Setup Workflow
+
+```mermaid
+flowchart TD
+    Open[User opens app]
+    Shell[AppShell boot]
+    Cache{Cached provider keys exist?}
+    Sync[Sync cached keys to backend runtime]
+    Settings[Open Settings page]
+    Enter[Enter OpenRouter and Tavily keys]
+    Save[Save to browser cache and runtime]
+    Runtime[Providers available for current runtime]
+
+    Open --> Shell
+    Shell --> Cache
+    Cache -- Yes --> Sync
+    Cache -- No --> Settings
+    Settings --> Enter
+    Enter --> Save
+    Save --> Runtime
+    Sync --> Runtime
+```
+
 ## End-to-End Research Workflow
 
 ```mermaid
 flowchart TD
-    Start[User opens Research Setup]
-    Draft[Draft state saved locally]
-    Submit[Start research]
-    API[POST /api/research]
+    Setup[Research Setup page]
+    Draft[Persist unsaved draft locally]
+    Submit[Submit research request]
+    API["POST /api/research"]
     Session[Create ResearchSession]
     Persist[Persist session to SQLite]
-    Run[Background research execution]
+    Background[Start background run]
     Planner[Planner Agent]
     Retriever[Contextual Retriever]
     Analysis[Critical Analysis Agent]
@@ -18,49 +45,53 @@ flowchart TD
     Insight[Insight Generation Agent]
     Reporter[Report Builder Agent]
     QA[QA Review Agent]
-    Complete[Session marked complete]
+    SaveFinal[Persist completed session]
     Output[Research Output page]
 
-    Start --> Draft
+    Setup --> Draft
     Draft --> Submit
     Submit --> API
     API --> Session
     Session --> Persist
-    Persist --> Run
-    Run --> Planner
+    Persist --> Background
+    Background --> Planner
     Planner --> Retriever
     Retriever --> Analysis
     Analysis --> Contradiction
     Contradiction --> Insight
     Insight --> Reporter
     Reporter --> QA
-    QA --> Complete
-    Complete --> Output
+    QA --> SaveFinal
+    SaveFinal --> Output
 ```
 
-## LLM Agent Reasoning Workflow
+## LLM Reasoning Workflow
 
 ```mermaid
 flowchart LR
-    Findings[Retrieved Findings]
+    Query[Research query]
+    Plan[Planner LLM]
+    Findings[Retrieved findings]
     AnalysisLLM[Critical Analysis LLM]
-    Claims[Structured Claims]
+    Claims[Claims and evidence summaries]
     ContradictionLLM[Contradiction LLM]
-    Contradictions[Structured Contradictions]
+    Disagreement[Contradictions and consensus]
     InsightLLM[Insight LLM]
-    Insights[Insights, Entities, Relationships]
+    Insights[Insights, entities, relationships]
     QALLM[QA Review LLM]
-    QAResult[QA Verdict and Warnings]
+    QAResult[Warnings and completeness checks]
 
+    Query --> Plan
+    Plan --> Findings
     Findings --> AnalysisLLM
     AnalysisLLM --> Claims
     Claims --> ContradictionLLM
-    ContradictionLLM --> Contradictions
+    ContradictionLLM --> Disagreement
     Claims --> InsightLLM
-    Contradictions --> InsightLLM
+    Disagreement --> InsightLLM
     InsightLLM --> Insights
     Claims --> QALLM
-    Contradictions --> QALLM
+    Disagreement --> QALLM
     Insights --> QALLM
     QALLM --> QAResult
 ```
@@ -69,70 +100,85 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    Question[Sub-question]
+    SubQuestion[Sub-question]
     LocalFirst[Search Local RAG first]
-    LocalIndex[Semantic local index]
-    Embed[Sentence Transformers embedding]
-    NeedMore{Enough evidence?}
-    Web[Tavily web and news retrieval]
+    LocalIndex[Semantic Local Index]
+    Enough{Enough evidence found?}
+    Web[Web and news retrieval]
     Arxiv[arXiv retrieval]
-    Score[Score, dedupe, rank]
-    Findings[Normalized findings and sources]
+    Score[Score, rank, and dedupe]
+    Normalize[Normalize sources and findings]
 
-    Question --> LocalFirst
+    SubQuestion --> LocalFirst
     LocalFirst --> LocalIndex
-    LocalIndex --> Embed
-    Embed --> NeedMore
-    NeedMore -- Yes --> Score
-    NeedMore -- No --> Web
-    NeedMore -- No --> Arxiv
+    LocalIndex --> Enough
+    Enough -- Yes --> Score
+    Enough -- No --> Web
+    Enough -- No --> Arxiv
     Web --> Score
     Arxiv --> Score
-    Score --> Findings
+    Score --> Normalize
 ```
 
-## Output Hydration Workflow
+## Research Output Hydration Workflow
 
 ```mermaid
 sequenceDiagram
-    participant U as User
+    participant User as User
     participant Output as Research Output
     participant Store as Zustand Output Store
     participant Cache as Persisted Session Cache
     participant API as FastAPI
     participant SSE as SSE Stream
 
-    U->>Output: Open output route
-    Output->>Store: Read UI state
-    Output->>Cache: Read cached session snapshot
-    Cache-->>Output: Hydrate session immediately
-    Output->>API: GET /api/research/{session_id}/state
-    API-->>Output: Fresh session payload
-    Output->>Store: Persist refreshed output state
-    Output->>SSE: Connect to /stream when running
-    SSE-->>Output: Live events
-    Output->>API: Refresh state on stream events
+    User->>Output: Open output route
+    Output->>Store: Restore UI state
+    Output->>Cache: Load session snapshot by sessionId
+    Cache-->>Output: Immediate cached render
+    Output->>API: GET /api/research/{id}/state
+    API-->>Output: Fresh session
+    Output->>Store: Persist refreshed state
+    Output->>SSE: Connect when session is running
+    SSE-->>Output: Agent events and progress
+    Output->>API: Refresh state after relevant events
 ```
 
-## SSE and Durable Recovery Workflow
+## Detailed Progress Workflow
 
 ```mermaid
 flowchart TD
-    Start[Active run starts]
-    Queue[SSE queue emits live events]
-    Persist[Session store persists events and traces]
-    Restart{Server restart?}
-    Recover[Load persisted session from SQLite]
-    Mark[Mark interrupted run as error with recovery note]
-    Output[Output page can still restore session]
+    Start[Session running]
+    Event[Agent emits status or result event]
+    Persist[SessionStore persists event]
+    Queue[SSE queue broadcasts event]
+    TopBar[Top live progress bar updates]
+    Panel[Detailed progress panel updates]
+    Trace[Agent trace panel updates]
 
-    Start --> Queue
-    Queue --> Persist
-    Persist --> Restart
-    Restart -- No --> Queue
-    Restart -- Yes --> Recover
-    Recover --> Mark
-    Mark --> Output
+    Start --> Event
+    Event --> Persist
+    Event --> Queue
+    Queue --> TopBar
+    Queue --> Panel
+    Queue --> Trace
+```
+
+## Comparative Analysis Workflow
+
+```mermaid
+flowchart TD
+    Claims[Claims]
+    Contradictions[Contradictions]
+    Debate[Debate mode positions]
+    Merge[Build comparative view model]
+    Report[Comparative summary in report]
+    UI[Comparative Analysis section]
+
+    Claims --> Merge
+    Contradictions --> Merge
+    Debate --> Merge
+    Merge --> Report
+    Merge --> UI
 ```
 
 ## Dig Deeper Workflow
@@ -140,77 +186,62 @@ flowchart TD
 ```mermaid
 flowchart TD
     Select[User selects finding, claim, or insight]
-    Request[POST /api/research/{id}/dig-deeper]
-    Focus[Create focused follow-up session]
-    Run[Run follow-up research pipeline]
-    Merge[Merge follow-up sources, claims, insights, and report]
+    Request["POST /api/research/{id}/dig-deeper"]
+    FollowUp[Create focused follow-up session]
+    Run[Run follow-up pipeline]
+    Merge[Merge results back into parent session]
     Persist[Persist merged session]
-    Refresh[Refresh Research Output]
+    Refresh[Refresh output workspace]
 
     Select --> Request
-    Request --> Focus
-    Focus --> Run
+    Request --> FollowUp
+    FollowUp --> Run
     Run --> Merge
     Merge --> Persist
     Persist --> Refresh
 ```
 
-## Frontend Navigation and Persistence Workflow
+## Documentation Workflow
 
 ```mermaid
 flowchart LR
-    Setup[Research Setup]
-    Draft[Local setup draft]
-    Start[Start research]
-    Output[Research Output]
-    UIState[Persisted output UI state]
-    SessionCache[Persisted session cache]
-    Reopen[Reopen same session later]
+    DocsPage[Docs route]
+    Tabs[Project Reference, Architecture, Workflows]
+    DocsAPI["/api/docs/..."]
+    Files[Markdown files in repo]
+    Mermaid[Mermaid rendering in UI]
 
-    Setup --> Draft
-    Draft --> Start
-    Start --> Output
-    Output --> UIState
-    Output --> SessionCache
-    Reopen --> UIState
-    Reopen --> SessionCache
-    UIState --> Output
-    SessionCache --> Output
+    DocsPage --> Tabs
+    Tabs --> DocsAPI
+    DocsAPI --> Files
+    Files --> Mermaid
+    Mermaid --> DocsPage
 ```
 
-## Report Generation Workflow
+## Recovery and Persistence Workflow
 
 ```mermaid
 flowchart TD
-    Session[ResearchSession]
-    Sources[Ordered sources]
-    Claims[Claims]
-    Contradictions[Contradictions]
-    Insights[Insights]
-    Sections[Structured report sections]
-    Blocks[Summary-first report blocks]
-    Visuals[Optional quantitative visuals]
-    Export[Markdown and PDF export]
+    Run[Active research run]
+    Persist[Persist session, events, and trace]
+    Restart{Server restart occurs?}
+    Recover[Load persisted session from SQLite]
+    Mark[Mark interrupted run as failed recovery state]
+    Restore[Output route can still restore the session]
 
-    Session --> Sources
-    Session --> Claims
-    Session --> Contradictions
-    Session --> Insights
-    Sources --> Sections
-    Claims --> Sections
-    Contradictions --> Sections
-    Insights --> Sections
-    Sections --> Blocks
-    Sections --> Visuals
-    Blocks --> Export
-    Visuals --> Export
+    Run --> Persist
+    Persist --> Restart
+    Restart -- No --> Persist
+    Restart -- Yes --> Recover
+    Recover --> Mark
+    Mark --> Restore
 ```
 
-## Architecture Notes
+## Notes
 
-- `Research Setup` is the draft and submission workspace.
-- `Research Output` is the persistent read and analysis workspace.
+- `Research Setup` is the entry and draft-preserving workspace.
+- `Research Output` is the persistent analysis workspace.
+- browser-cached provider setup is now part of the real workflow.
+- docs are a first-class in-product evaluation surface.
 - local RAG remains the first retrieval path when enabled.
-- reasoning stages are now primarily LLM-backed with fallback behavior.
-- sessions are durable in SQLite even though live SSE fanout still uses in-memory queues.
-- output hydration now uses both client-side cache and backend restore.
+- LLM reasoning is primary, but fallback behavior still exists when providers are unavailable.

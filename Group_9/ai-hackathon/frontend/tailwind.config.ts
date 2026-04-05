@@ -6,30 +6,30 @@ export default {
   theme: {
     extend: {
       colors: {
-        border: "hsl(26 18% 82%)",
-        input: "hsl(26 18% 82%)",
-        ring: "hsl(18 62% 43%)",
-        background: "hsl(40 38% 96%)",
-        foreground: "hsl(215 24% 16%)",
+        border: "hsl(214 24% 86%)",
+        input: "hsl(214 24% 86%)",
+        ring: "hsl(174 67% 40%)",
+        background: "hsl(210 40% 98%)",
+        foreground: "hsl(222 47% 11%)",
         primary: {
-          DEFAULT: "hsl(18 62% 43%)",
-          foreground: "hsl(40 38% 98%)",
+          DEFAULT: "hsl(173 70% 38%)",
+          foreground: "hsl(0 0% 100%)",
         },
         secondary: {
-          DEFAULT: "hsl(186 18% 88%)",
-          foreground: "hsl(215 24% 20%)",
+          DEFAULT: "hsl(210 40% 96%)",
+          foreground: "hsl(222 47% 11%)",
         },
         muted: {
-          DEFAULT: "hsl(42 30% 91%)",
-          foreground: "hsl(215 16% 38%)",
+          DEFAULT: "hsl(210 40% 96%)",
+          foreground: "hsl(215 16% 47%)",
         },
         accent: {
-          DEFAULT: "hsl(34 82% 70%)",
-          foreground: "hsl(215 24% 16%)",
+          DEFAULT: "hsl(28 92% 58%)",
+          foreground: "hsl(210 40% 98%)",
         },
         card: {
-          DEFAULT: "hsla(40 38% 99% / 0.9)",
-          foreground: "hsl(215 24% 16%)",
+          DEFAULT: "hsla(0 0% 100% / 0.92)",
+          foreground: "hsl(222 47% 11%)",
         },
       },
       borderRadius: {
@@ -37,7 +37,7 @@ export default {
         "2xl": "1.5rem",
       },
       boxShadow: {
-        panel: "0 20px 45px -30px rgba(41, 51, 65, 0.35)",
+        panel: "0 24px 60px -34px rgba(15, 23, 42, 0.18)",
       },
       fontFamily: {
         heading: ["'Space Grotesk'", "sans-serif"],
@@ -45,7 +45,7 @@ export default {
       },
       backgroundImage: {
         "dashboard-grid":
-          "linear-gradient(rgba(140, 126, 111, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(140, 126, 111, 0.08) 1px, transparent 1px)",
+          "linear-gradient(rgba(148, 163, 184, 0.18) 1px, transparent 1px), linear-gradient(90deg, rgba(148, 163, 184, 0.18) 1px, transparent 1px)",
       },
     },
   },

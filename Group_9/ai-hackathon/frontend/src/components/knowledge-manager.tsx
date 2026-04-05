@@ -103,7 +103,7 @@ export function KnowledgeManager() {
                   type="button"
                   onClick={() => setSelectedCollectionId(collection.id)}
                   className={`w-full rounded-2xl border p-4 text-left transition ${
-                    selectedCollectionId === collection.id ? "border-primary bg-primary/5" : "border-border bg-white/70 hover:bg-white"
+                    selectedCollectionId === collection.id ? "border-primary bg-primary/10" : "border-border bg-white hover:bg-slate-50"
                   }`}
                 >
                   <div className="flex items-center justify-between gap-3">
@@ -120,7 +120,7 @@ export function KnowledgeManager() {
             )}
           </div>
 
-          <div className="rounded-2xl border border-border bg-white/65 p-4">
+          <div className="rounded-2xl border border-border bg-slate-50 p-4">
             {detailsQuery.isLoading ? (
               <p className="text-sm text-muted-foreground">Select a collection to inspect its documents.</p>
             ) : detailsQuery.data ? (
@@ -134,7 +134,7 @@ export function KnowledgeManager() {
                 </div>
                 <div className="space-y-3">
                   {detailsQuery.data.documents.map((document) => (
-                    <div key={document.id} className="rounded-xl border border-border bg-white/80 p-4">
+                    <div key={document.id} className="rounded-xl border border-border bg-white p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="font-semibold">{document.filename}</p>

@@ -12,7 +12,7 @@ export function ReportPanel({
 }) {
   return (
     <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
-      <div className="rounded-2xl border border-border bg-muted/45 p-4">
+      <div className="rounded-2xl border border-border bg-slate-50 p-4">
         <p className="subtle-label">Sections</p>
         <div className="mt-3 space-y-2">
           {session.report_sections.map((section) => (
@@ -29,7 +29,7 @@ export function ReportPanel({
       </div>
       <div className="max-h-[820px] space-y-5 overflow-auto pr-1">
         {session.report_sections.map((section) => (
-          <section key={section.section_type} id={section.section_type} className={`rounded-2xl border border-border bg-white/80 p-5 ${selectedSectionId === section.section_type ? "ring-2 ring-primary/20" : ""}`}>
+          <section key={section.section_type} id={section.section_type} className={`rounded-2xl border border-border bg-white p-5 ${selectedSectionId === section.section_type ? "ring-2 ring-primary/20" : ""}`}>
             <p className="subtle-label">{humanize(section.section_type)}</p>
             <h3 className="mt-2 text-2xl">{section.title}</h3>
             {section.lead_summary ? <p className="mt-4 text-base leading-7 text-slate-700">{section.lead_summary}</p> : null}
@@ -60,20 +60,20 @@ export function ReportPanel({
 
 function ReportBlockCard({ block }: { block: ReportBlock }) {
   return (
-    <div className="rounded-2xl border border-border bg-muted/30 p-4">
+    <div className="rounded-2xl border border-border bg-slate-50 p-4">
       {block.title ? <p className="text-sm font-semibold uppercase tracking-[0.12em] text-muted-foreground">{humanize(block.title)}</p> : null}
-      {block.summary ? <p className="mt-2 text-base leading-7 text-slate-800">{block.summary}</p> : null}
+      {block.summary ? <p className="mt-2 text-base leading-7 text-slate-900">{block.summary}</p> : null}
       {block.narrative ? <p className="mt-3 text-sm leading-6 text-slate-600">{block.narrative}</p> : null}
       {block.visual ? <div className="mt-4"><ReportVisualBlock visual={block.visual} /></div> : null}
       {block.citations.length ? (
         <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-500">
           {block.citations.map((citation) =>
             citation.url ? (
-              <a key={`${citation.source_id}-${citation.label}`} href={citation.url} target="_blank" rel="noreferrer" className="rounded-full bg-white px-2.5 py-1 hover:text-foreground">
+              <a key={`${citation.source_id}-${citation.label}`} href={citation.url} target="_blank" rel="noreferrer" className="rounded-full bg-slate-100 px-2.5 py-1 hover:text-slate-900">
                 {citation.label} {citation.title ? `• ${citation.title}` : ""}
               </a>
             ) : (
-              <span key={`${citation.source_id}-${citation.label}`} className="rounded-full bg-white px-2.5 py-1">
+              <span key={`${citation.source_id}-${citation.label}`} className="rounded-full bg-slate-100 px-2.5 py-1">
                 {citation.label} {citation.title ? `• ${citation.title}` : ""}
               </span>
             ),
@@ -84,7 +84,7 @@ function ReportBlockCard({ block }: { block: ReportBlock }) {
         <div className="mt-3 space-y-1 text-xs text-slate-500">
           {block.metadata.map((item, index) => (
             <p key={`${item.label}-${index}`}>
-              <span className="font-semibold text-slate-500">{humanize(item.label)}:</span> {item.value}
+              <span className="font-semibold text-slate-600">{humanize(item.label)}:</span> {item.value}
             </p>
           ))}
         </div>

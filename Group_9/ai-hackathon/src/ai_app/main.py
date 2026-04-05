@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from ai_app.api.health import router as health_router
 from ai_app.api.knowledge import router as knowledge_router
+from ai_app.api.docs import router as docs_router
 from ai_app.api.research import router as research_router
 from ai_app.api.settings import router as settings_router
 from ai_app.config import get_settings
@@ -27,6 +28,7 @@ def create_app() -> FastAPI:
     app.state.coordinator = ResearchCoordinator(settings, app.state.session_store)
     app.include_router(health_router)
     app.include_router(knowledge_router)
+    app.include_router(docs_router)
     app.include_router(research_router)
     app.include_router(settings_router)
 

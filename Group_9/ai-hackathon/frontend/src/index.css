@@ -6,11 +6,11 @@
 
 @layer base {
   :root {
-    color: hsl(215 24% 16%);
+    color: hsl(222 47% 11%);
     background:
-      radial-gradient(circle at top left, rgba(224, 150, 102, 0.18), transparent 34%),
-      radial-gradient(circle at top right, rgba(76, 136, 145, 0.15), transparent 26%),
-      linear-gradient(180deg, #f8f4ee 0%, #f2eee7 100%);
+      radial-gradient(circle at top left, rgba(45, 212, 191, 0.18), transparent 34%),
+      radial-gradient(circle at top right, rgba(251, 191, 36, 0.16), transparent 24%),
+      linear-gradient(180deg, #f8fbff 0%, #edf5fb 100%);
   }
 
   * {
@@ -35,10 +35,43 @@
 
 @layer components {
   .panel-surface {
-    @apply rounded-2xl border border-white/70 bg-card/95 shadow-panel backdrop-blur;
+    @apply rounded-2xl border border-border bg-card/95 shadow-panel backdrop-blur;
   }
 
   .subtle-label {
     @apply text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground;
+  }
+
+  .docs-markdown {
+    @apply max-w-none text-slate-700;
+  }
+
+  .docs-markdown h1,
+  .docs-markdown h2,
+  .docs-markdown h3,
+  .docs-markdown h4 {
+    @apply mt-8 text-slate-900;
+  }
+
+  .docs-markdown p,
+  .docs-markdown li {
+    @apply text-slate-700;
+  }
+
+  .docs-markdown ul,
+  .docs-markdown ol {
+    @apply my-4 pl-6;
+  }
+
+  .docs-markdown strong {
+    @apply text-slate-900;
+  }
+
+  .docs-markdown a {
+    @apply text-primary;
+  }
+
+  .docs-markdown code {
+    @apply rounded bg-slate-100 px-1.5 py-0.5 text-amber-700;
   }
 }

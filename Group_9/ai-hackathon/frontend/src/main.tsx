@@ -6,6 +6,7 @@ import "reactflow/dist/style.css";
 
 import "@/index.css";
 import { AppShell } from "@/components/app-shell";
+import { DocsPage } from "@/pages/docs-page";
 import { KnowledgePage } from "@/pages/knowledge-page";
 import { ResearchOutputPage } from "@/pages/research-output-page";
 import { ResearchSetupPage } from "@/pages/research-setup-page";
@@ -25,6 +26,7 @@ const router = createBrowserRouter([
       { path: "research/output/:sessionId", element: <ResearchOutputPage /> },
       { path: "sessions/:sessionId", element: <SessionPage /> },
       { path: "knowledge", element: <KnowledgePage /> },
+      { path: "docs", element: <DocsPage /> },
       { path: "settings", element: <SettingsPage /> },
     ],
   },
