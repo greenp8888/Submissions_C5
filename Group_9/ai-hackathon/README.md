@@ -1,8 +1,17 @@
 # AI Hackathon Deep Researcher
 
-`ai-hackathon` is Group 9's multi-agent deep research platform. It combines a React research dashboard, a FastAPI backend, durable SQLite session persistence, local-first RAG, public-source enrichment, structured LLM agents, comparative analysis, graph generation, trace visibility, and export support into one application.
+`ai-hackathon` is the Group 9 implementation of a multi-agent, local-first AI research assistant. The project combines a FastAPI backend, a React + Vite dashboard, LangGraph orchestration, local RAG, public-source enrichment, contradiction analysis, credibility scoring, structured reporting, and export support into one runnable application.
 
-This README is the main project reference for team members and reviewers. It describes the implemented architecture, key workflows, major concepts used in the build, runtime setup, API surface, and the supporting diagram documents.
+This README is the main project reference document. It includes:
+
+- Product Overview
+- Technical Concepts used in the build
+- Project structure
+- Setup and Run Instructions
+- API References
+- Architecture Diagrams
+- Workflow Diagrams
+- Implementation notes and limitations
 
 ## Project References
 
@@ -15,18 +24,17 @@ This README is the main project reference for team members and reviewers. It des
 - [Debate Mode Notes](../debate-mode.md)
 - [Source Disagreement Notes](../Source-Disagreement.md)
 
-## Project Members
+## Group 9 Project Members
 
-Use this section as the final team handoff table.
-
-| Member | Role | Ownership Area |
-| --- | --- | --- |
-| Group 9 Member 1 | Project Lead | Product direction and integration |
-| Group 9 Member 2 | Backend | FastAPI, orchestration, persistence |
-| Group 9 Member 3 | Retrieval | Local RAG, ingestion, providers |
-| Group 9 Member 4 | Frontend | React dashboard and output store |
-| Group 9 Member 5 | Intelligence | LLM agents, reporting, contradictions |
-| Group 9 Member 6 | QA and Demo | Validation, presentation, documentation |
+| Member | 
+| --- |
+| Chirag Shah |
+| Gaurav Thapa |
+| Krunal Deshkar |
+| Ritesh Goyal |
+| Sandeep Girgaonkar |
+| Shraddha Sheth |
+| Vaishali Agarwal|
 
 ## What The Project Does
 
@@ -99,31 +107,32 @@ The application accepts a research question, optional collections, optional uplo
 
 The setup route lets the user:
 
-- enter a long research question
-- choose single or batch mode
-- choose depth
-- choose a date preset or exact date range
-- enable Local RAG, Web, and arXiv
-- select collections
-- upload files for the current run
-- optionally enable Debate mode and define Position A and Position B
+- Enter a long-form research question
+- Choose single or batch mode
+- Choose depth
+- Choose a quick date preset or explicit date range
+- Choose Local RAG, Web/Tavily, and arXiv
+- Select collections
+- Upload files for the current run
+- Optionally enable debate mode and define Position A and Position B
 
 ### Research Output
 
 The output route provides:
 
-- live agent progress
-- report sections with summary-first rendering
-- comparative analysis
-- references grouped by source type
-- confidence and trust view
-- graph and trace views
-- dig-deeper actions
-- markdown and PDF export
+- Live progress status and event stream
+- Report sections
+- Comparative analysis
+- References
+- Confidence and trust
+- Graph
+- Trace
+- Dig deeper actions
+- Markdown and PDF export
 
 ### Research Output State Store
 
-The output workspace now persists state at three layers:
+The research documents workspace supports:
 
 - frontend UI state through Zustand
 - cached session snapshots through persisted client storage
@@ -131,7 +140,15 @@ The output workspace now persists state at three layers:
 
 This means the workspace can preserve active tabs, selected sections, selected sources, graph context, comparative accordion state, and previously fetched session output even when the user navigates away or refreshes.
 
-## High-Level Architecture
+The system is split into:
+
+1. A React frontend for setup, output, references, graph, trace, and comparative analysis
+2. A FastAPI backend serving APIs and the built frontend
+3. A LangGraph-based orchestration layer
+4. A retrieval layer for local RAG, PDF fallback, web/news, and arXiv
+5. A reporting layer that converts session state into structured presentation output
+
+## High-Level Architecture Graph
 
 ```mermaid
 flowchart TB
@@ -139,19 +156,26 @@ flowchart TB
 
     subgraph Frontend[React Frontend]
         AppShell[App Shell]
-        Setup[Research Setup]
-        Output[Research Output]
-        Documents[Research Documents]
-        OutputStore[Zustand Output Store]
-        QueryCache[React Query Cache]
+        SetupPage[Research Setup]
+        OutputPage[Research Output]
+        DocsPage[Research Documents]
+        ReportUI[Report Panel]
+        CompareUI[Comparative Analysis]
+        RefsUI[References Panel]
+        TraceUI[Trace Panel]
+        GraphUI[Graph View]
     end
 
     subgraph Backend[FastAPI Backend]
-        API[Research and Knowledge APIs]
+        Main[main.py]
+        ResearchAPI[Research API]
+        KnowledgeAPI[Knowledge API]
+        HealthAPI[Health API]
+        SettingsAPI[Settings API]
         Coordinator[Research Coordinator]
-        SQLiteStore[SQLite Session Store]
-        SSE[SSE Stream Fanout]
-        ReportService[Report and Export Services]
+        SessionStore[Session Store]
+        ReportService[Report Service]
+        ExportService[Export Service]
     end
 
     subgraph Agents[LLM and Workflow Agents]
