@@ -23,7 +23,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title=settings.app_name)
     app.state.settings = settings
-    app.state.session_store = SessionStore()
+    app.state.session_store = SessionStore(settings)
     app.state.coordinator = ResearchCoordinator(settings, app.state.session_store)
     app.include_router(health_router)
     app.include_router(knowledge_router)

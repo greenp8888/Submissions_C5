@@ -63,6 +63,7 @@ class Claim(BaseModel):
     trust_score: int = 0
     debate_position: str = ""
     consensus_pct: int = 100
+    source_finding_ids: list[str] = Field(default_factory=list)
 
 
 class Contradiction(BaseModel):
@@ -79,6 +80,8 @@ class Contradiction(BaseModel):
     resolution: str | None = None
     credibility_lean: str = ""
     weighting_rationale: str = ""
+    conflict_level: str = "mixed"
+    consensus_pct: int = 50
 
 
 class Insight(BaseModel):
@@ -237,6 +240,10 @@ class ResearchSession(BaseModel):
     debate_mode: bool = False
     position_a: str | None = None
     position_b: str | None = None
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
+    persisted_at: datetime | None = None
+    payload_version: str = ""
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 

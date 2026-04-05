@@ -23,12 +23,15 @@ class Settings(BaseSettings):
     tavily_api_key: str | None = Field(default=None, validation_alias=AliasChoices("TAVILY_API_KEY", "AI_HACKATHON_TAVILY_API_KEY"))
     top_k: int = 5
     embed_dim: int = 64
+    embedding_model_name: str = Field(default="sentence-transformers/all-MiniLM-L6-v2", validation_alias=AliasChoices("AI_HACKATHON_EMBEDDING_MODEL_NAME", "EMBEDDING_MODEL_NAME"))
     data_dir: Path = Path(".data")
 
     def ensure_dirs(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         (self.data_dir / "collections").mkdir(parents=True, exist_ok=True)
         (self.data_dir / "exports").mkdir(parents=True, exist_ok=True)
+        (self.data_dir / "cache").mkdir(parents=True, exist_ok=True)
+        (self.data_dir / "prompts").mkdir(parents=True, exist_ok=True)
 
 
 @lru_cache

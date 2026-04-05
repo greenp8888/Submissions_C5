@@ -1,10 +1,18 @@
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, CheckCircle2 } from "lucide-react";
 
 import type { Source } from "@/lib/types";
 import { formatDate, truncate } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-export function ReferencesPanel({ groupedSources }: { groupedSources: Record<string, Source[]> }) {
+export function ReferencesPanel({
+  groupedSources,
+  selectedSourceId,
+  onSelectSource,
+}: {
+  groupedSources: Record<string, Source[]>;
+  selectedSourceId: string | null;
+  onSelectSource: (sourceId: string | null) => void;
+}) {
   const entries = Object.entries(groupedSources);
   return (
     <div className="grid gap-6 xl:grid-cols-2">
@@ -20,13 +28,26 @@ export function ReferencesPanel({ groupedSources }: { groupedSources: Record<str
             ) : (
               <div className="space-y-3">
                 {sources.map((source) => (
-                  <div key={source.id} className="rounded-2xl border border-border bg-white/75 p-4">
+                  <div
+                    key={source.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => onSelectSource(source.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onSelectSource(source.id);
+                      }
+                    }}
+                    className={`w-full rounded-2xl border border-border bg-white/75 p-4 text-left ${selectedSourceId === source.id ? "ring-2 ring-primary/20" : ""}`}
+                  >
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <p className="font-semibold">{source.filename || source.title}</p>
+                        {selectedSourceId === source.id ? <span className="mt-1 inline-flex items-center gap-1 text-xs text-primary"><CheckCircle2 className="h-3.5 w-3.5" /> Selected reference</span> : null}
                       </div>
                       {source.url ? (
-                        <a href={source.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm font-semibold text-primary">
+                        <a href={source.url} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()} className="inline-flex items-center gap-1 text-sm font-semibold text-primary">
                           Open <ArrowUpRight className="h-4 w-4" />
                         </a>
                       ) : null}

@@ -9,7 +9,7 @@ from ai_app.agents.web_retriever import WebRetriever
 class NewsRetriever(WebRetriever):
     name = "news_retriever"
 
-    async def run(self, sub_question: str, start_date: date | None = None, end_date: date | None = None):
+    async def run(self, sub_question: str, start_date: date | None = None, end_date: date | None = None, max_results: int | None = None):
         if not self.settings.tavily_api_key:
             return [], []
         payload = {
@@ -17,7 +17,7 @@ class NewsRetriever(WebRetriever):
             "query": sub_question if not start_date and not end_date else f"{sub_question} (news within {start_date or 'any'} to {end_date or 'today'})",
             "search_depth": "advanced",
             "topic": "news",
-            "max_results": self.settings.top_k,
+            "max_results": max_results or self.settings.top_k,
         }
         import httpx
 

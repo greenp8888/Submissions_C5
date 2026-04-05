@@ -69,6 +69,8 @@ export interface Contradiction {
   resolution?: string | null;
   credibility_lean: string;
   weighting_rationale: string;
+  conflict_level: string;
+  consensus_pct: number;
 }
 
 export interface Insight {
@@ -213,6 +215,10 @@ export interface ResearchSession {
   debate_mode: boolean;
   position_a?: string | null;
   position_b?: string | null;
+  created_at: string;
+  updated_at: string;
+  persisted_at?: string | null;
+  payload_version: string;
   metadata: Record<string, unknown>;
 }
 

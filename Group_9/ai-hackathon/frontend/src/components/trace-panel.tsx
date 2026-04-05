@@ -1,8 +1,18 @@
 import type { ResearchSession } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
-export function TracePanel({ session }: { session: ResearchSession }) {
+export function TracePanel({
+  session,
+  activeFilter,
+  onFilterChange,
+}: {
+  session: ResearchSession;
+  activeFilter: string;
+  onFilterChange: (value: string) => void;
+}) {
+  const traceRows = session.agent_trace.filter((trace) => !activeFilter || trace.agent.toLowerCase().includes(activeFilter.toLowerCase()) || trace.step.toLowerCase().includes(activeFilter.toLowerCase()));
   return (
     <Card>
       <CardHeader>
@@ -10,11 +20,14 @@ export function TracePanel({ session }: { session: ResearchSession }) {
         <CardDescription>Inspect the sequence of planner, retriever, analysis, insight, and reporting steps for this run.</CardDescription>
       </CardHeader>
       <CardContent>
+        <div className="mb-4 max-w-sm">
+          <Input value={activeFilter} onChange={(event) => onFilterChange(event.target.value)} placeholder="Filter by agent or step" />
+        </div>
         <div className="space-y-3">
-          {session.agent_trace.length === 0 ? (
+          {traceRows.length === 0 ? (
             <p className="text-sm text-muted-foreground">No trace entries yet.</p>
           ) : (
-            session.agent_trace.map((trace) => (
+            traceRows.map((trace) => (
               <div key={trace.id} className="rounded-2xl border border-border bg-white/75 p-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="secondary">{trace.agent}</Badge>

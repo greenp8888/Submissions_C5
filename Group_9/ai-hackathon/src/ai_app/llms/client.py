@@ -43,7 +43,29 @@ class OpenRouterClient:
         text = await self.complete(system_prompt, user_prompt)
         if not text:
             return {}
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            return {}
+        for candidate in _json_candidates(text):
+            try:
+                parsed = json.loads(candidate)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, dict):
+                return parsed
+        return {}
+
+
+def _json_candidates(text: str) -> list[str]:
+    stripped = text.strip()
+    candidates = [stripped]
+    if "```" in stripped:
+        segments = stripped.split("```")
+        for segment in segments:
+            cleaned = segment.strip()
+            if cleaned.startswith("json"):
+                cleaned = cleaned[4:].strip()
+            if cleaned:
+                candidates.append(cleaned)
+    start = stripped.find("{")
+    end = stripped.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        candidates.append(stripped[start : end + 1])
+    return candidates

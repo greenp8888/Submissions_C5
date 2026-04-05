@@ -15,6 +15,7 @@ import { digDeeper, exportUrl, fetchCollections, fetchProviderSettings, fetchSes
 import { DATE_PRESETS, presetToRange } from "@/lib/date-presets";
 import type { ResearchFormValues, ResearchSession, Source, SourceChannel } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useResearchOutputStore } from "@/store/research-output-store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,11 +46,23 @@ const DRAFT_STORAGE_PREFIX = "ai-hackathon-research-draft";
 export function ResearchDashboard({ sessionId, viewMode = "output" }: { sessionId?: string; viewMode?: "setup" | "output" }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const cachedSnapshot = useResearchOutputStore((state) => (sessionId ? state.cachedSessions[sessionId] : undefined));
+  const currentSessionId = useResearchOutputStore((state) => state.currentSessionId);
+  const cacheSession = useResearchOutputStore((state) => state.cacheSession);
+  const setCurrentSession = useResearchOutputStore((state) => state.setCurrentSession);
+  const setActiveTab = useResearchOutputStore((state) => state.setActiveTab);
+  const setSelectedSection = useResearchOutputStore((state) => state.setSelectedSection);
+  const setSelectedSource = useResearchOutputStore((state) => state.setSelectedSource);
+  const setSelectedNode = useResearchOutputStore((state) => state.setSelectedNode);
+  const setTraceFilter = useResearchOutputStore((state) => state.setTraceFilter);
+  const setProgressExpandedState = useResearchOutputStore((state) => state.setProgressExpanded);
+  const toggleComparativeSection = useResearchOutputStore((state) => state.toggleComparativeSection);
+  const setGraphViewport = useResearchOutputStore((state) => state.setGraphViewport);
+  const outputUiState = useResearchOutputStore((state) => (sessionId ? state.uiBySession[sessionId] : undefined));
   const [formValues, setFormValues] = useState<ResearchFormValues>(() => loadDraft(sessionId));
   const [clientError, setClientError] = useState<string | null>(null);
   const [digDeeperTarget, setDigDeeperTarget] = useState("");
   const [setupCollapsed, setSetupCollapsed] = useState(false);
-  const [progressExpanded, setProgressExpanded] = useState(false);
 
   const collectionsQuery = useQuery({ queryKey: ["collections"], queryFn: fetchCollections });
   const settingsQuery = useQuery({ queryKey: ["provider-settings"], queryFn: fetchProviderSettings });
@@ -58,6 +71,7 @@ export function ResearchDashboard({ sessionId, viewMode = "output" }: { sessionI
     queryFn: () => fetchSession(sessionId!),
     enabled: Boolean(sessionId),
     refetchOnWindowFocus: false,
+    initialData: cachedSnapshot?.session,
   });
 
   const session = sessionQuery.data;
@@ -75,6 +89,8 @@ export function ResearchDashboard({ sessionId, viewMode = "output" }: { sessionI
     if (!session) {
       return;
     }
+    setCurrentSession(session.session_id);
+    cacheSession(session);
     const sessionDefaults: ResearchFormValues = {
       query: session.run_mode === "batch" ? "" : session.query,
       batchTopics: session.batch_topics.join("\n"),
@@ -91,7 +107,7 @@ export function ResearchDashboard({ sessionId, viewMode = "output" }: { sessionI
       files: [],
     };
     setFormValues(mergeDraft(loadDraft(session.session_id), sessionDefaults));
-  }, [session]);
+  }, [cacheSession, session, setCurrentSession]);
 
   useEffect(() => {
     saveDraft(sessionId, formValues);
@@ -130,10 +146,10 @@ export function ResearchDashboard({ sessionId, viewMode = "output" }: { sessionI
   const liveRun = session?.status === "running" || streamState === "live" || startMutation.isPending;
 
   useEffect(() => {
-    if (liveRun) {
-      setProgressExpanded(false);
+    if (liveRun && sessionId) {
+      setProgressExpandedState(sessionId, false);
     }
-  }, [liveRun]);
+  }, [liveRun, sessionId, setProgressExpandedState]);
 
   const groupedSources = useMemo(() => groupSources(session?.sources ?? []), [session?.sources]);
   const targetOptions = useMemo(() => buildDigDeeperOptions(session), [session]);
@@ -401,8 +417,8 @@ export function ResearchDashboard({ sessionId, viewMode = "output" }: { sessionI
             <>
               <details
                 className="panel-surface overflow-hidden"
-                open={progressExpanded}
-                onToggle={(event) => setProgressExpanded((event.currentTarget as HTMLDetailsElement).open)}
+                open={outputUiState?.progressExpanded ?? false}
+                onToggle={(event) => sessionId && setProgressExpandedState(sessionId, (event.currentTarget as HTMLDetailsElement).open)}
               >
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5">
                   <div>
@@ -412,7 +428,7 @@ export function ResearchDashboard({ sessionId, viewMode = "output" }: { sessionI
                   <div className="flex items-center gap-2">
                     <Badge variant={streamState === "live" ? "success" : "muted"}>{streamState}</Badge>
                     {lastEventType ? <Badge variant="secondary">{lastEventType}</Badge> : null}
-                    {progressExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    {(outputUiState?.progressExpanded ?? false) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </div>
                 </summary>
                 <div className="border-t border-border px-5 pb-5 pt-3">
@@ -450,13 +466,24 @@ export function ResearchDashboard({ sessionId, viewMode = "output" }: { sessionI
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <ReportPanel session={session} />
+                  <ReportPanel
+                    session={session}
+                    selectedSectionId={outputUiState?.selectedSectionId ?? null}
+                    onSelectSection={(sectionId) => sessionId && setSelectedSection(sessionId, sectionId)}
+                  />
                 </CardContent>
               </Card>
 
-              <ComparativeAnalysis session={session} />
+              <ComparativeAnalysis
+                session={session}
+                expandedSections={outputUiState?.expandedComparativeSections ?? []}
+                onToggleSection={(section, expanded) => sessionId && toggleComparativeSection(sessionId, section, expanded)}
+              />
 
-              <Tabs defaultValue="references">
+              <Tabs
+                value={outputUiState?.activeTab ?? "references"}
+                onValueChange={(value) => sessionId && setActiveTab(sessionId, value as "references" | "confidence" | "graph" | "trace")}
+              >
                 <TabsList>
                   <TabsTrigger value="references">References</TabsTrigger>
                   <TabsTrigger value="confidence">Confidence</TabsTrigger>
@@ -464,16 +491,31 @@ export function ResearchDashboard({ sessionId, viewMode = "output" }: { sessionI
                   <TabsTrigger value="trace">Trace</TabsTrigger>
                 </TabsList>
                 <TabsContent value="references">
-                  <ReferencesPanel groupedSources={groupedSources} />
+                  <ReferencesPanel
+                    groupedSources={groupedSources}
+                    selectedSourceId={outputUiState?.selectedSourceId ?? null}
+                    onSelectSource={(sourceId) => sessionId && setSelectedSource(sessionId, sourceId)}
+                  />
                 </TabsContent>
                 <TabsContent value="confidence">
                   <ConfidencePanel claims={session.claims} />
                 </TabsContent>
                 <TabsContent value="graph">
-                  <GraphView entities={session.entities} relationships={session.relationships} />
+                  <GraphView
+                    entities={session.entities}
+                    relationships={session.relationships}
+                    selectedNodeId={outputUiState?.selectedNodeId ?? null}
+                    viewport={outputUiState?.graphViewport ?? null}
+                    onSelectNode={(nodeId) => sessionId && setSelectedNode(sessionId, nodeId)}
+                    onViewportChange={(viewport) => sessionId && setGraphViewport(sessionId, viewport)}
+                  />
                 </TabsContent>
                 <TabsContent value="trace">
-                  <TracePanel session={session} />
+                  <TracePanel
+                    session={session}
+                    activeFilter={outputUiState?.traceFilter ?? ""}
+                    onFilterChange={(filter) => sessionId && setTraceFilter(sessionId, filter)}
+                  />
                 </TabsContent>
               </Tabs>
             </>
@@ -486,7 +528,10 @@ export function ResearchDashboard({ sessionId, viewMode = "output" }: { sessionI
                   <p className="max-w-3xl text-muted-foreground">
                     Start a run from Research Setup to populate this workspace with live progress, report sections, references, charts when explicit quantitative data exists, graph, and trace output.
                   </p>
-                  <Button onClick={() => navigate("/research/setup")}>Go to Research Setup</Button>
+                  <div className="flex flex-wrap gap-3">
+                    <Button onClick={() => navigate("/research/setup")}>Go to Research Setup</Button>
+                    {currentSessionId ? <Button variant="outline" onClick={() => navigate(`/research/output/${currentSessionId}`)}>Open last session</Button> : null}
+                  </div>
                 </div>
               </CardContent>
             </Card>

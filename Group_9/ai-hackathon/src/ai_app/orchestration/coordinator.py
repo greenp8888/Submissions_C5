@@ -63,10 +63,11 @@ class ResearchCoordinator:
             report_api_retriever=ReportAPIRetriever(),
             top_k=settings.top_k,
         )
-        analysis = CriticalAnalysisAgent(SourceVerifierAgent(), ContradictionCheckerAgent())
-        insights = InsightGenerationAgent(HypothesisAgent())
+        contradiction_checker = ContradictionCheckerAgent(self.llm_client)
+        analysis = CriticalAnalysisAgent(self.llm_client, SourceVerifierAgent(), contradiction_checker)
+        insights = InsightGenerationAgent(self.llm_client, HypothesisAgent())
         reporter = ReportBuilderAgent()
-        self.qa_review = QAReviewAgent()
+        self.qa_review = QAReviewAgent(self.llm_client)
 
         self._planner = planner
         self._retriever = retriever
@@ -189,8 +190,17 @@ class ResearchCoordinator:
         session.metadata["date_range_label"] = (
             f"{start_date.isoformat()} to {end_date.isoformat()}" if start_date and end_date else request.date_preset.value
         )
+        session.metadata["llm_model"] = self.settings.openrouter_model
+        session.metadata["session_store"] = "sqlite"
         if request.debate_enabled:
             session.metadata["debate_enabled"] = True
+        provider_warnings: list[str] = []
+        if SourceChannel.WEB in enabled_sources and not self.settings.tavily_api_key:
+            provider_warnings.append("Web and news search were enabled in the request, but Tavily is not configured because no TAVILY_API_KEY was loaded from .env or environment variables.")
+        if not self.settings.openrouter_api_key:
+            provider_warnings.append("OpenRouter is not configured, so the reasoning agents will use heuristic fallback behavior.")
+        if provider_warnings:
+            session.metadata["provider_warnings"] = provider_warnings
         return self.session_store.create(session)
 
     async def emit(self, session_id: str, event: ResearchEvent) -> None:
@@ -260,6 +270,8 @@ class ResearchCoordinator:
         session.status = ResearchStatus.RUNNING
         self.session_store.save(session)
         try:
+            for warning in session.metadata.get("provider_warnings", []):
+                await self.emit(session.session_id, ResearchEvent(event_type="status", agent="coordinator", message=warning))
             result = await self.graph.ainvoke({"session": session})
             session = result["session"]
             session = await self.qa_review.run(session)

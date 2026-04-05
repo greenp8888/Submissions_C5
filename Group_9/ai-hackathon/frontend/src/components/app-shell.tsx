@@ -2,15 +2,17 @@ import { BrainCircuit, Database, PanelLeftOpen } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 
 import { Badge } from "@/components/ui/badge";
+import { useResearchOutputStore } from "@/store/research-output-store";
 import { cn } from "@/lib/utils";
 
-const navigation = [
-  { to: "/research/setup", label: "Research Setup", icon: BrainCircuit },
-  { to: "/research/output", label: "Research Output", icon: BrainCircuit },
-  { to: "/knowledge", label: "Research Documents", icon: Database },
-];
-
 export function AppShell() {
+  const currentSessionId = useResearchOutputStore((state) => state.currentSessionId);
+  const navigation = [
+    { to: "/research/setup", label: "Research Setup", icon: BrainCircuit },
+    { to: currentSessionId ? `/research/output/${currentSessionId}` : "/research/output", label: "Research Output", icon: BrainCircuit },
+    { to: "/knowledge", label: "Research Documents", icon: Database },
+  ];
+
   return (
     <div className="min-h-screen px-4 py-6 md:px-6 lg:px-10">
       <div className="mx-auto flex max-w-[1600px] flex-col gap-6">

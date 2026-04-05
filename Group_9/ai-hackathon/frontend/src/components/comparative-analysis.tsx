@@ -13,7 +13,15 @@ type ComparisonRow = {
   citations: string;
 };
 
-export function ComparativeAnalysis({ session }: { session: ResearchSession }) {
+export function ComparativeAnalysis({
+  session,
+  expandedSections,
+  onToggleSection,
+}: {
+  session: ResearchSession;
+  expandedSections: string[];
+  onToggleSection: (section: string, expanded: boolean) => void;
+}) {
   const sourceIndex = new Map(session.sources.map((source, index) => [source.id, index + 1]));
   const rows = buildRows(session, sourceIndex);
   const contestedClaims = session.claims.filter((claim) => claim.contested || claim.consensus_pct < 60);
@@ -63,7 +71,7 @@ export function ComparativeAnalysis({ session }: { session: ResearchSession }) {
           </table>
         </div>
 
-        <details className="overflow-hidden rounded-2xl border border-border bg-white/80">
+        <details className="overflow-hidden rounded-2xl border border-border bg-white/80" open={expandedSections.includes("debate")} onToggle={(event) => onToggleSection("debate", (event.currentTarget as HTMLDetailsElement).open)}>
           <summary className="cursor-pointer list-none px-5 py-4 font-semibold">Debate Evidence</summary>
           <div className="border-t border-border px-5 py-4 text-sm text-slate-700">
             {session.debate_mode ? (
@@ -85,7 +93,7 @@ export function ComparativeAnalysis({ session }: { session: ResearchSession }) {
           </div>
         </details>
 
-        <details className="overflow-hidden rounded-2xl border border-border bg-white/80">
+        <details className="overflow-hidden rounded-2xl border border-border bg-white/80" open={expandedSections.includes("disagreement")} onToggle={(event) => onToggleSection("disagreement", (event.currentTarget as HTMLDetailsElement).open)}>
           <summary className="cursor-pointer list-none px-5 py-4 font-semibold">Source Disagreement</summary>
           <div className="border-t border-border px-5 py-4">
             {session.contradictions.length ? (
@@ -108,7 +116,7 @@ export function ComparativeAnalysis({ session }: { session: ResearchSession }) {
           </div>
         </details>
 
-        <details className="overflow-hidden rounded-2xl border border-border bg-white/80">
+        <details className="overflow-hidden rounded-2xl border border-border bg-white/80" open={expandedSections.includes("contested")} onToggle={(event) => onToggleSection("contested", (event.currentTarget as HTMLDetailsElement).open)}>
           <summary className="cursor-pointer list-none px-5 py-4 font-semibold">Contested Claims</summary>
           <div className="border-t border-border px-5 py-4">
             {contestedClaims.length ? (
@@ -131,7 +139,7 @@ export function ComparativeAnalysis({ session }: { session: ResearchSession }) {
           </div>
         </details>
 
-        <details className="overflow-hidden rounded-2xl border border-border bg-white/80">
+        <details className="overflow-hidden rounded-2xl border border-border bg-white/80" open={expandedSections.includes("weighted")} onToggle={(event) => onToggleSection("weighted", (event.currentTarget as HTMLDetailsElement).open)}>
           <summary className="cursor-pointer list-none px-5 py-4 font-semibold">Why One Side Was Weighted More</summary>
           <div className="border-t border-border px-5 py-4 text-sm text-slate-700">
             {session.contradictions.length ? (

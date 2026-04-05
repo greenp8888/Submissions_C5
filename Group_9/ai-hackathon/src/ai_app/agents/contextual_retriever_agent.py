@@ -46,6 +46,7 @@ class ContextualRetrieverAgent(AgentBase):
         all_sources: list[Source] = []
         all_findings: list[Finding] = []
         enabled_sources = set(session.enabled_sources)
+        per_question_limit = self._per_question_limit(session.depth)
         for sub_question in session.sub_questions:
             local_sources: list[Source] = []
             local_findings: list[Finding] = []
@@ -56,14 +57,14 @@ class ContextualRetrieverAgent(AgentBase):
             all_sources.extend(local_sources)
             all_findings.extend(local_findings)
 
-            if SourceChannel.LOCAL_RAG in enabled_sources and len(local_findings) >= 2:
+            if self._should_skip_public_enrichment(session, enabled_sources, local_findings):
                 continue
 
             tasks = []
             if SourceChannel.WEB in enabled_sources:
-                tasks.append(self.web_retriever.run(sub_question, session.start_date, session.end_date))
+                tasks.append(self.web_retriever.run(sub_question, session.start_date, session.end_date, max_results=per_question_limit))
                 if session.depth != Depth.QUICK:
-                    tasks.append(self.news_retriever.run(sub_question, session.start_date, session.end_date))
+                    tasks.append(self.news_retriever.run(sub_question, session.start_date, session.end_date, max_results=per_question_limit))
                 if session.depth == Depth.DEEP:
                     tasks.extend(
                         [
@@ -72,7 +73,7 @@ class ContextualRetrieverAgent(AgentBase):
                         ]
                     )
             if SourceChannel.ARXIV in enabled_sources:
-                tasks.append(self.academic_retriever.run(sub_question, session.start_date, session.end_date))
+                tasks.append(self.academic_retriever.run(sub_question, session.start_date, session.end_date, max_results=per_question_limit))
                 if session.depth == Depth.DEEP:
                     tasks.append(self.academic_expansion_retriever.run(sub_question))
             if tasks:
@@ -80,8 +81,27 @@ class ContextualRetrieverAgent(AgentBase):
                     all_sources.extend(sources)
                     all_findings.extend(findings)
 
-        all_sources = rank_sources(dedupe_sources(all_sources))[: max(self.top_k * max(1, len(session.sub_questions)), self.top_k)]
+        all_sources = rank_sources(dedupe_sources(all_sources))[: self._final_result_cap(session)]
         kept_ids = {source.id for source in all_sources}
         session.sources.extend(all_sources)
         session.findings.extend([finding for finding in all_findings if not finding.source_ids or any(source_id in kept_ids for source_id in finding.source_ids)])
         return session
+
+    def _should_skip_public_enrichment(self, session: ResearchSession, enabled_sources: set[SourceChannel], local_findings: list[Finding]) -> bool:
+        if SourceChannel.LOCAL_RAG not in enabled_sources:
+            return False
+        if session.depth == Depth.DEEP:
+            return False
+        threshold = 3 if session.depth == Depth.STANDARD else 2
+        return len(local_findings) >= threshold
+
+    def _per_question_limit(self, depth: Depth) -> int:
+        if depth == Depth.DEEP:
+            return self.top_k * 3
+        if depth == Depth.STANDARD:
+            return self.top_k * 2
+        return self.top_k
+
+    def _final_result_cap(self, session: ResearchSession) -> int:
+        multiplier = 5 if session.depth == Depth.DEEP else 3 if session.depth == Depth.STANDARD else 1
+        return max(self.top_k * multiplier * max(1, len(session.sub_questions)), self.top_k)

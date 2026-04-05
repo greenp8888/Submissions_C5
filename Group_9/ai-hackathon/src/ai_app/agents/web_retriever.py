@@ -18,7 +18,13 @@ class WebRetriever(AgentBase):
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
 
-    async def run(self, sub_question: str, start_date: date | None = None, end_date: date | None = None) -> tuple[list[Source], list[Finding]]:
+    async def run(
+        self,
+        sub_question: str,
+        start_date: date | None = None,
+        end_date: date | None = None,
+        max_results: int | None = None,
+    ) -> tuple[list[Source], list[Finding]]:
         if not self.settings.tavily_api_key:
             return [], []
         query = expand_query_with_date_window(sub_question, start_date, end_date)
@@ -27,7 +33,7 @@ class WebRetriever(AgentBase):
             "query": query,
             "search_depth": "advanced",
             "topic": "general",
-            "max_results": self.settings.top_k,
+            "max_results": max_results or self.settings.top_k,
         }
         try:
             async with httpx.AsyncClient(timeout=20.0) as client:

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import ReactFlow, { Background, Controls, MiniMap, type Edge, type Node } from "reactflow";
+import ReactFlow, { Background, Controls, MiniMap, type Edge, type Node, type Viewport } from "reactflow";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Entity, Relationship } from "@/lib/types";
@@ -7,9 +7,13 @@ import type { Entity, Relationship } from "@/lib/types";
 interface GraphViewProps {
   entities: Entity[];
   relationships: Relationship[];
+  selectedNodeId: string | null;
+  viewport: Viewport | null;
+  onSelectNode: (nodeId: string | null) => void;
+  onViewportChange: (viewport: Viewport) => void;
 }
 
-export function GraphView({ entities, relationships }: GraphViewProps) {
+export function GraphView({ entities, relationships, selectedNodeId, viewport, onSelectNode, onViewportChange }: GraphViewProps) {
   const { nodes, edges } = useMemo(() => {
     const nodes: Node[] = entities.map((entity, index) => ({
       id: entity.id,
@@ -52,7 +56,17 @@ export function GraphView({ entities, relationships }: GraphViewProps) {
           </div>
         ) : (
           <div className="h-[560px] overflow-hidden rounded-2xl border border-border bg-white/70">
-            <ReactFlow nodes={nodes} edges={edges} fitView>
+            <ReactFlow
+              nodes={nodes.map((node) => ({
+                ...node,
+                style: node.id === selectedNodeId ? { border: "2px solid #b86139", borderRadius: "1rem" } : node.style,
+              }))}
+              edges={edges}
+              fitView={!viewport}
+              defaultViewport={viewport ?? undefined}
+              onNodeClick={(_, node) => onSelectNode(node.id)}
+              onMoveEnd={(_, nextViewport) => onViewportChange(nextViewport)}
+            >
               <MiniMap pannable zoomable />
               <Controls />
               <Background gap={24} size={1} color="#d4c7ba" />

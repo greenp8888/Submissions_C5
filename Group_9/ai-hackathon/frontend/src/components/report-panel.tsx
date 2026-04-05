@@ -1,14 +1,27 @@
 import { ReportVisualBlock } from "@/components/report-visual";
 import type { ReportBlock, ResearchSession } from "@/lib/types";
 
-export function ReportPanel({ session }: { session: ResearchSession }) {
+export function ReportPanel({
+  session,
+  selectedSectionId,
+  onSelectSection,
+}: {
+  session: ResearchSession;
+  selectedSectionId: string | null;
+  onSelectSection: (sectionId: string | null) => void;
+}) {
   return (
     <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
       <div className="rounded-2xl border border-border bg-muted/45 p-4">
         <p className="subtle-label">Sections</p>
         <div className="mt-3 space-y-2">
           {session.report_sections.map((section) => (
-            <a key={section.section_type} href={`#${section.section_type}`} className="block rounded-xl px-3 py-2 text-sm font-semibold text-foreground hover:bg-white/80">
+            <a
+              key={section.section_type}
+              href={`#${section.section_type}`}
+              onClick={() => onSelectSection(section.section_type)}
+              className={`block rounded-xl px-3 py-2 text-sm font-semibold text-foreground hover:bg-white/80 ${selectedSectionId === section.section_type ? "bg-white shadow-sm" : ""}`}
+            >
               {section.title}
             </a>
           ))}
@@ -16,7 +29,7 @@ export function ReportPanel({ session }: { session: ResearchSession }) {
       </div>
       <div className="max-h-[820px] space-y-5 overflow-auto pr-1">
         {session.report_sections.map((section) => (
-          <section key={section.section_type} id={section.section_type} className="rounded-2xl border border-border bg-white/80 p-5">
+          <section key={section.section_type} id={section.section_type} className={`rounded-2xl border border-border bg-white/80 p-5 ${selectedSectionId === section.section_type ? "ring-2 ring-primary/20" : ""}`}>
             <p className="subtle-label">{humanize(section.section_type)}</p>
             <h3 className="mt-2 text-2xl">{section.title}</h3>
             {section.lead_summary ? <p className="mt-4 text-base leading-7 text-slate-700">{section.lead_summary}</p> : null}

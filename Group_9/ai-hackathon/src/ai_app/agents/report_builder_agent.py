@@ -38,6 +38,7 @@ class ReportBuilderAgent(AgentBase):
         enabled_sources = ", ".join(source.value for source in session.enabled_sources)
         date_window = describe_date_window(session.start_date, session.end_date)
         quantitative_visual = self._extract_quantitative_visual(ordered_sources)
+        limits = self._section_limits(session)
 
         report_sections: list[ReportSection] = [
             ReportSection(
@@ -99,14 +100,14 @@ class ReportBuilderAgent(AgentBase):
                 section_type="evidence_synthesis",
                 title="Evidence Synthesis by Sub-question",
                 lead_summary="The evidence below is organized by the sub-questions investigated during the run.",
-                blocks=self._build_evidence_blocks(session, source_map, reference_index),
+                blocks=self._build_evidence_blocks(session, source_map, reference_index, limits["findings"]),
                 order=4,
             ),
             ReportSection(
                 section_type="findings",
                 title="Detailed Findings",
                 lead_summary="Each finding below starts with the main takeaway, followed by compact evidence, citations, and trust signals.",
-                blocks=self._build_claim_blocks(session, source_map, reference_index),
+                blocks=self._build_claim_blocks(session, source_map, reference_index, limits["claims"]),
                 visual=quantitative_visual,
                 order=5,
             ),
@@ -119,7 +120,7 @@ class ReportBuilderAgent(AgentBase):
                     section_type="comparative_analysis",
                     title="Comparative Analysis",
                     lead_summary=self._build_comparative_lead(session),
-                    blocks=self._build_comparative_blocks(session, source_map, reference_index),
+                    blocks=self._build_comparative_blocks(session, source_map, reference_index, limits["contradictions"]),
                     order=next_order,
                 )
             )
@@ -131,7 +132,7 @@ class ReportBuilderAgent(AgentBase):
                     section_type="contested",
                     title="Contradictions and Disputed Claims",
                     lead_summary="The following items show where retrieved sources disagreed and how the system weighted the evidence.",
-                    blocks=self._build_contradiction_blocks(session, reference_index),
+                    blocks=self._build_contradiction_blocks(session, reference_index, limits["contradictions"]),
                     order=next_order,
                 )
             )
@@ -143,7 +144,7 @@ class ReportBuilderAgent(AgentBase):
                     section_type="contested_claims",
                     title="Contested Claims (Low Consensus)",
                     lead_summary="These claims showed lower consensus or stronger contradiction pressure across the evidence base.",
-                    blocks=self._build_contested_claim_blocks(contested_claims, source_map, reference_index),
+                    blocks=self._build_contested_claim_blocks(contested_claims, source_map, reference_index, limits["contested_claims"]),
                     order=next_order,
                 )
             )
@@ -155,11 +156,12 @@ class ReportBuilderAgent(AgentBase):
                     section_type="credibility",
                     title="Credibility and Trust Evaluation",
                     lead_summary="Confidence and trust score are different signals: confidence reflects claim-level certainty, while trust score reflects the quality of the supporting evidence base.",
-                    blocks=self._build_credibility_blocks(ordered_sources, reference_index),
+                    blocks=self._build_credibility_blocks(ordered_sources, reference_index, limits["sources"]),
                     footer_notes=[
                         "Source credibility heuristic weights source type at 35%, provider trust at 20%, metadata completeness at 15%, date-window fit at 15%, and cross-source agreement at 15%.",
                         "Confidence reflects support, contradiction, agreement, and evidence sufficiency.",
                         "Trust score reflects source quality, provider quality, metadata completeness, date fit, and corroboration.",
+                        *[note for note in session.metadata.get("provider_warnings", []) if isinstance(note, str)],
                     ],
                     order=next_order,
                 ),
@@ -167,7 +169,7 @@ class ReportBuilderAgent(AgentBase):
                     section_type="insights",
                     title="Insights and Interpretive Analysis",
                     lead_summary="These insights synthesize patterns across findings rather than simply repeating a single source.",
-                    blocks=self._build_insight_blocks(session, source_map, reference_index),
+                    blocks=self._build_insight_blocks(session, source_map, reference_index, limits["insights"]),
                     order=next_order + 1,
                 ),
                 ReportSection(
@@ -181,21 +183,21 @@ class ReportBuilderAgent(AgentBase):
                     section_type="links",
                     title="Web and arXiv Links",
                     lead_summary="External sources are listed below with their main summary first and compact metadata after.",
-                    blocks=self._build_link_blocks([source for source in ordered_sources if source.url], reference_index),
+                    blocks=self._build_link_blocks([source for source in ordered_sources if source.url], reference_index, limits["external_links"]),
                     order=next_order + 3,
                 ),
                 ReportSection(
                     section_type="rag_refs",
                     title="RAG Document References",
                     lead_summary="Local RAG references include the supporting summary first, followed by compact file, page, and credibility details.",
-                    blocks=self._build_reference_blocks(rag_sources, reference_index),
+                    blocks=self._build_reference_blocks(rag_sources, reference_index, limits["rag_refs"]),
                     order=next_order + 4,
                 ),
                 ReportSection(
                     section_type="appendix",
                     title="Comprehensive Bibliography / References",
                     lead_summary="All ranked sources used in this run are listed below in a humanized reference format.",
-                    blocks=self._build_reference_blocks(ordered_sources[:50], reference_index),
+                    blocks=self._build_reference_blocks(ordered_sources, reference_index, limits["sources"]),
                     order=next_order + 5,
                 ),
             ]
@@ -203,9 +205,9 @@ class ReportBuilderAgent(AgentBase):
         session.report_sections = report_sections
         return session
 
-    def _build_evidence_blocks(self, session: ResearchSession, source_map: dict[str, Source], reference_index: dict[str, int]) -> list[ReportBlock]:
+    def _build_evidence_blocks(self, session: ResearchSession, source_map: dict[str, Source], reference_index: dict[str, int], limit: int) -> list[ReportBlock]:
         findings_by_question: dict[str, list[ReportBlock]] = defaultdict(list)
-        for finding in session.findings[:24]:
+        for finding in session.findings[:limit]:
             linked_sources = [source_map[source_id] for source_id in finding.source_ids if source_id in source_map]
             findings_by_question[self._humanize_text(finding.sub_question)].append(
                 ReportBlock(
@@ -223,12 +225,12 @@ class ReportBuilderAgent(AgentBase):
                     summary=f"{len(entries)} evidence item(s) supported this sub-question.",
                 )
             )
-            blocks.extend(entries[:5])
+            blocks.extend(entries[: max(5, limit // max(1, len(findings_by_question)))])
         return blocks or [ReportBlock(summary="No evidence synthesis was generated for this run.")]
 
-    def _build_claim_blocks(self, session: ResearchSession, source_map: dict[str, Source], reference_index: dict[str, int]) -> list[ReportBlock]:
+    def _build_claim_blocks(self, session: ResearchSession, source_map: dict[str, Source], reference_index: dict[str, int], limit: int) -> list[ReportBlock]:
         blocks: list[ReportBlock] = []
-        for claim in session.claims[:12]:
+        for claim in session.claims[:limit]:
             sources = [source_map[source_id] for source_id in claim.supporting_source_ids if source_id in source_map]
             blocks.append(
                 ReportBlock(
@@ -246,9 +248,9 @@ class ReportBuilderAgent(AgentBase):
             )
         return blocks or [ReportBlock(summary="No claims were generated for this run.")]
 
-    def _build_contradiction_blocks(self, session: ResearchSession, reference_index: dict[str, int]) -> list[ReportBlock]:
+    def _build_contradiction_blocks(self, session: ResearchSession, reference_index: dict[str, int], limit: int) -> list[ReportBlock]:
         blocks: list[ReportBlock] = []
-        for contradiction in session.contradictions[:10]:
+        for contradiction in session.contradictions[:limit]:
             citations = []
             for source_id in (contradiction.source_a_id, contradiction.source_b_id):
                 if not source_id or source_id not in reference_index:
@@ -273,9 +275,9 @@ class ReportBuilderAgent(AgentBase):
             )
         return blocks
 
-    def _build_contested_claim_blocks(self, claims, source_map: dict[str, Source], reference_index: dict[str, int]) -> list[ReportBlock]:
+    def _build_contested_claim_blocks(self, claims, source_map: dict[str, Source], reference_index: dict[str, int], limit: int) -> list[ReportBlock]:
         blocks: list[ReportBlock] = []
-        for claim in claims[:10]:
+        for claim in claims[:limit]:
             sources = [source_map[source_id] for source_id in claim.supporting_source_ids if source_id in source_map]
             blocks.append(
                 ReportBlock(
@@ -291,14 +293,14 @@ class ReportBuilderAgent(AgentBase):
             )
         return blocks
 
-    def _build_credibility_blocks(self, sources: list[Source], reference_index: dict[str, int]) -> list[ReportBlock]:
+    def _build_credibility_blocks(self, sources: list[Source], reference_index: dict[str, int], limit: int) -> list[ReportBlock]:
         blocks: list[ReportBlock] = [
             ReportBlock(
                 summary="Confidence answers how sure the system is about a claim. Trust score answers how trustworthy the supporting evidence base is.",
                 narrative="A claim can show high confidence from consistent evidence but only moderate trust if the sources are weak. It can also have strong-trust sources but lower confidence if those sources disagree.",
             )
         ]
-        for source in sources[:12]:
+        for source in sources[:limit]:
             blocks.append(
                 ReportBlock(
                     title=self._display_source_title(source),
@@ -316,9 +318,9 @@ class ReportBuilderAgent(AgentBase):
             )
         return blocks
 
-    def _build_insight_blocks(self, session: ResearchSession, source_map: dict[str, Source], reference_index: dict[str, int]) -> list[ReportBlock]:
+    def _build_insight_blocks(self, session: ResearchSession, source_map: dict[str, Source], reference_index: dict[str, int], limit: int) -> list[ReportBlock]:
         blocks: list[ReportBlock] = []
-        for insight in session.insights[:10]:
+        for insight in session.insights[:limit]:
             sources = [source_map[source_id] for source_id in insight.evidence_chain if source_id in source_map]
             blocks.append(
                 ReportBlock(
@@ -346,9 +348,9 @@ class ReportBuilderAgent(AgentBase):
             )
         return blocks
 
-    def _build_link_blocks(self, sources: list[Source], reference_index: dict[str, int]) -> list[ReportBlock]:
+    def _build_link_blocks(self, sources: list[Source], reference_index: dict[str, int], limit: int) -> list[ReportBlock]:
         blocks: list[ReportBlock] = []
-        for source in sources[:30]:
+        for source in sources[:limit]:
             blocks.append(
                 ReportBlock(
                     title=self._display_source_title(source),
@@ -359,9 +361,9 @@ class ReportBuilderAgent(AgentBase):
             )
         return blocks or [ReportBlock(summary="No external links were collected.")]
 
-    def _build_reference_blocks(self, sources: list[Source], reference_index: dict[str, int]) -> list[ReportBlock]:
+    def _build_reference_blocks(self, sources: list[Source], reference_index: dict[str, int], limit: int) -> list[ReportBlock]:
         blocks: list[ReportBlock] = []
-        for source in sources:
+        for source in sources[:limit]:
             blocks.append(
                 ReportBlock(
                     title=self._display_source_title(source),
@@ -382,7 +384,7 @@ class ReportBuilderAgent(AgentBase):
             return "Comparative analysis was generated from cross-source disagreement rather than an explicit debate setup."
         return "No meaningful comparative analysis was required for this run."
 
-    def _build_comparative_blocks(self, session: ResearchSession, source_map: dict[str, Source], reference_index: dict[str, int]) -> list[ReportBlock]:
+    def _build_comparative_blocks(self, session: ResearchSession, source_map: dict[str, Source], reference_index: dict[str, int], limit: int) -> list[ReportBlock]:
         blocks: list[ReportBlock] = []
         if session.debate_mode and session.position_a and session.position_b:
             a_claims = [claim for claim in session.claims if claim.debate_position == "position_a"]
@@ -402,7 +404,7 @@ class ReportBuilderAgent(AgentBase):
                     ],
                 )
             )
-        for contradiction in session.contradictions[:6]:
+        for contradiction in session.contradictions[:limit]:
             related_sources = [source_map[source_id] for source_id in (contradiction.source_a_id, contradiction.source_b_id) if source_id in source_map]
             blocks.append(
                 ReportBlock(
@@ -416,6 +418,40 @@ class ReportBuilderAgent(AgentBase):
                 )
             )
         return blocks or [ReportBlock(summary="No comparative evidence required additional interpretation.")]
+
+    def _section_limits(self, session: ResearchSession) -> dict[str, int]:
+        if session.depth.value == "deep":
+            return {
+                "findings": 72,
+                "claims": 28,
+                "contradictions": 18,
+                "contested_claims": 18,
+                "sources": 100,
+                "insights": 18,
+                "external_links": 60,
+                "rag_refs": 60,
+            }
+        if session.depth.value == "standard":
+            return {
+                "findings": 40,
+                "claims": 16,
+                "contradictions": 10,
+                "contested_claims": 10,
+                "sources": 60,
+                "insights": 12,
+                "external_links": 36,
+                "rag_refs": 36,
+            }
+        return {
+            "findings": 18,
+            "claims": 8,
+            "contradictions": 6,
+            "contested_claims": 6,
+            "sources": 30,
+            "insights": 8,
+            "external_links": 20,
+            "rag_refs": 20,
+        }
 
     def _extract_quantitative_visual(self, sources: list[Source]) -> ReportVisual | None:
         ranked_sources = sorted(

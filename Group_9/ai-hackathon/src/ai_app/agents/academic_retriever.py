@@ -16,8 +16,14 @@ from ai_app.schemas.research import Finding, Source
 class AcademicRetriever(AgentBase):
     name = "academic_retriever"
 
-    async def run(self, sub_question: str, start_date: date | None = None, end_date: date | None = None) -> tuple[list[Source], list[Finding]]:
-        url = f"https://export.arxiv.org/api/query?search_query=all:{quote_plus(sub_question)}&start=0&max_results=5"
+    async def run(
+        self,
+        sub_question: str,
+        start_date: date | None = None,
+        end_date: date | None = None,
+        max_results: int = 5,
+    ) -> tuple[list[Source], list[Finding]]:
+        url = f"https://export.arxiv.org/api/query?search_query=all:{quote_plus(sub_question)}&start=0&max_results={max_results}"
         headers = {"User-Agent": "ai-hackathon-deep-researcher/0.1"}
         async with httpx.AsyncClient(timeout=20.0, follow_redirects=True, headers=headers) as client:
             response = await client.get(url)

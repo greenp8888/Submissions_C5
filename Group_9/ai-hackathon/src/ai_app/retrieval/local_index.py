@@ -4,13 +4,14 @@ import json
 from pathlib import Path
 
 from ai_app.config import Settings
-from ai_app.llms.embeddings import embed_text
+from ai_app.llms.embeddings import LocalEmbeddingService, text_checksum
 from ai_app.schemas.research import DocumentChunk
 
 
 class LocalIndex:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
+        self.embedder = LocalEmbeddingService(settings)
 
     def _collection_dir(self, collection_id: str) -> Path:
         path = self.settings.data_dir / "collections" / collection_id
@@ -22,7 +23,8 @@ class LocalIndex:
         payload = [chunk.model_dump(mode="json") for chunk in existing]
         for chunk in chunks:
             if not chunk.embedding:
-                chunk.embedding = embed_text(chunk.text, dim=self.settings.embed_dim)
+                chunk.embedding_id = chunk.embedding_id or text_checksum(chunk.text)
+                chunk.embedding = self.embedder.embed(chunk.text)
             payload.append(chunk.model_dump(mode="json"))
         path = self._collection_dir(collection_id) / "chunks.json"
         path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -35,12 +37,13 @@ class LocalIndex:
         return [DocumentChunk.model_validate(item) for item in payload]
 
     def search(self, collection_ids: list[str], query: str, top_k: int) -> list[DocumentChunk]:
-        query_embedding = embed_text(query, dim=self.settings.embed_dim)
+        query_embedding = self.embedder.embed(query)
         scored: list[tuple[float, DocumentChunk]] = []
         for collection_id in collection_ids:
             for chunk in self.load_chunks(collection_id):
                 if not chunk.embedding:
-                    chunk.embedding = embed_text(chunk.text, dim=self.settings.embed_dim)
+                    chunk.embedding_id = chunk.embedding_id or text_checksum(chunk.text)
+                    chunk.embedding = self.embedder.embed(chunk.text)
                 score = sum(a * b for a, b in zip(query_embedding, chunk.embedding))
                 scored.append((score, chunk))
         scored.sort(key=lambda item: item[0], reverse=True)
