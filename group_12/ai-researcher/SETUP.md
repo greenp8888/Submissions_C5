@@ -39,19 +39,33 @@ pip install -r requirements.txt
 
 ## 4. Configure API keys
 
-In `group_12/ai-researcher`, create a `.env` file (same directory as `app.py`).
+From `group_12/ai-researcher` (same directory as `app.py`), copy the example env file and edit it:
 
-**Required:**
-
-```env
-OPENROUTER_API_KEY=your_key_here
+```bash
+cp .env.example .env
 ```
 
-**Optional** (web search via Tavily):
+On Windows (PowerShell), from that same directory:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Open `.env` in an editor and set **both** of these (values come from your accounts):
+
+| Variable | Required? | Purpose |
+|----------|-----------|---------|
+| `OPENROUTER_API_KEY` | **Yes** | LLM calls via [OpenRouter](https://openrouter.ai/). Paste your secret after `=`. |
+| `TAVILY_API_KEY` | Recommended for web search | Live web retrieval in the UI. Leave empty only if you will turn off web search. |
+
+Example (do not commit real keys):
 
 ```env
-TAVILY_API_KEY=your_key_here
+OPENROUTER_API_KEY=sk-or-v1-...
+TAVILY_API_KEY=tvly-...
 ```
+
+The other lines in `.env.example` (model names, Gradio host/port) can stay as-is unless you want to override defaults.
 
 ## 5. Start the application
 
