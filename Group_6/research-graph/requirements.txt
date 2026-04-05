@@ -1,0 +1,33 @@
+# LangChain + LangGraph (research_graph.py, research_rag.py agents)
+langchain>=1.0.0
+langchain-core>=1.0.0
+langgraph>=1.0.0
+
+# Local LLM + community tools + text splitting
+langchain-ollama>=1.0.0
+langchain-community>=0.3.0
+langchain-text-splitters>=1.0.0
+
+# OpenRouter support
+langchain-openai>=1.0.0
+
+# Embeddings (app.py — HuggingFaceEmbeddings + MiniLM)
+langchain-huggingface>=1.0.0
+sentence-transformers>=2.5.0
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Streamlit UI
+streamlit>=1.30.0
+
+# Env files (.env)
+python-dotenv>=1.0.0
+
+# Retrieval tools (research_graph.build_retrieval_tools)
+tavily-python>=0.5.0
+wikipedia>=1.4.0
+arxiv>=2.1.0
+
+# PDF upload + FAISS index (app.py)
+pypdf>=4.0.0
+faiss-cpu>=1.8.0
