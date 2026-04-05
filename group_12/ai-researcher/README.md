@@ -1,19 +1,21 @@
 <div align="center">
 
-# 🔬 ResearchMind
+# 🔬 ResearchMind — Local Multi-Agent Deep Researcher
 
-### AI-Powered Multi-Agent Research Assistant
+### A Gradio + LangGraph research assistant with human-in-the-loop preflight, parallel retrieval, and a cited markdown report
 
-*Upload any document. Ask any question. Get a structured, verified research report — powered by parallel AI agents.*
+*Upload PDFs, images, or audio. Ask a question. Approve the plan. Get a structured, cited research report — produced by a parallel LangGraph pipeline running entirely on your machine.*
 
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![LangGraph](https://img.shields.io/badge/LangGraph-Multi--Agent-FF6B35?style=for-the-badge)](https://langchain-ai.github.io/langgraph/)
+[![LangGraph](https://img.shields.io/badge/LangGraph-StateGraph-FF6B35?style=for-the-badge)](https://langchain-ai.github.io/langgraph/)
 [![FAISS](https://img.shields.io/badge/FAISS-Vector_Store-00B4D8?style=for-the-badge)](https://faiss.ai/)
 [![OpenRouter](https://img.shields.io/badge/OpenRouter-Multi--Model-8B5CF6?style=for-the-badge)](https://openrouter.ai)
+[![Gradio](https://img.shields.io/badge/Gradio-UI-F97316?style=for-the-badge)](https://gradio.app)
+[![Streamlit](https://img.shields.io/badge/Streamlit-UI-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://streamlit.io)
 
 ---
 
-*Multi-modal ingestion · Multi-hop retrieval · Parallel agent reasoning · Verifiable report generation*
+*Local-first · Human-in-the-loop · Parallel fan-out retrieval · Follow-up gap analysis · Verifiable citations*
 
 </div>
 
@@ -21,462 +23,570 @@
 
 ## What is ResearchMind?
 
-ResearchMind accepts PDFs, images, audio, and text — and runs them through a **10-agent LangGraph pipeline**. Each agent is a specialist: retrieving, analyzing, fact-checking, detecting contradictions, and synthesizing insights in parallel. Powered by hybrid RAG (dense + sparse + web retrieval), the system produces a structured, cited, confidence-scored research report with a built-in reflection loop for quality assurance.
+ResearchMind turns a research question into a **cited markdown report** by orchestrating a deterministic **LangGraph StateGraph**. It accepts multi-modal local media (PDFs, images, audio) and cross-checks claims across four retrieval channels — **local FAISS**, **Wikipedia**, **arXiv**, and **Tavily web search** — in parallel. A **Critical Analyst** agent critiques the first wave, a **Gap Planner** decides whether a focused follow-up wave is needed, and an **Insight Generator** + **Report Builder** assemble the final artifact.
+
+Before any LLM research spend happens, a **Gradio human-in-the-loop (HITL) preflight** summarizes the uploads and checks them against the question. The user must explicitly click **Yes** to proceed.
 
 <div align="center">
 
-| 📄 Multi-Modal Input | 🔍 Hybrid RAG | 🤖 Parallel Agents | ✅ Fact Verification | 📋 Structured Reports |
+| 📄 Multi-Modal Upload | 🧍 HITL Preflight | ⚡ Parallel Retrieval | 🧠 Gap-Driven Follow-up | 📋 Cited Report |
 |:-:|:-:|:-:|:-:|:-:|
-| PDF, Image, Audio, Text | Dense + BM25 + Web | 10 concurrent agents | Source credibility scoring | Citations + confidence scores |
+| PDF · Image · Audio · Text | Digest + alignment + Yes/No | 4 channels fan-out / fan-in | Second wave only when needed | Markdown + citation catalog |
 
 </div>
 
 ---
 
-## System Architecture
+## System Architecture (High-Level)
 
 ```
-User Input
-    │
-    ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                        INPUT LAYER                                  │
-│  Input Router → [PDF Agent | Image Agent | Audio Agent | Text Agent]│
-└─────────────────────────┬───────────────────────────────────────────┘
-                          │ Chunked + Structured Text
-                          ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                     QUERY PLANNING LAYER                            │
-│         Query Planning Agent → Sub-query Decomposition              │
-└─────────────────────────┬───────────────────────────────────────────┘
-                          │ Sub-queries
-                          ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                      RETRIEVAL LAYER (RAG)                          │
-│   Dense Retrieval (FAISS) + BM25 + Web Search + Context Compression │
-└─────────────────────────┬───────────────────────────────────────────┘
-                          │ Retrieved Context
-                          ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                  MULTI-AGENT REASONING LAYER                        │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐  │
-│  │  Retriever   │  │  Analyzer    │  │  Fact Verifier           │  │
-│  │  Agent       │  │  Agent       │  │  Agent                   │  │
-│  └──────────────┘  └──────────────┘  └──────────────────────────┘  │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐  │
-│  │ Contradiction│  │  Insight     │  │  Source Credibility      │  │
-│  │  Detector    │  │  Generator   │  │  Agent                   │  │
-│  └──────────────┘  └──────────────┘  └──────────────────────────┘  │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐  │
-│  │  Citation    │  │  Memory      │  │  Reflection Agent        │  │
-│  │  Manager     │  │  Agent       │  │  (Quality Gate)          │  │
-│  └──────────────┘  └──────────────┘  └──────────────────────────┘  │
-│                    ┌──────────────┐                                 │
-│                    │    Task      │                                 │
-│                    │ Orchestrator │                                 │
-│                    └──────────────┘                                 │
-└─────────────────────────┬───────────────────────────────────────────┘
-                          │
-                          ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                      OUTPUT LAYER                                   │
-│  Summary · Key Findings · Contradictions · Insights · Citations     │
-│                    · Confidence Score                               │
-└─────────────────────────────────────────────────────────────────────┘
++----------------------+
+|      Gradio UI       |
+|  - question input    |
+|  - PDF / media upload|
+|  - toggles / options |
+|  - HITL Yes/No gate  |
+|  - report display    |
++----------+-----------+
+           |
+           v
++------------------------+
+|  preflight_llm (HITL)  |   <- outside LangGraph
+|  digest + alignment    |
++----------+-------------+
+           | Yes
+           v
++-------------------------------------------+
+| LangGraph StateGraph (deep_researcher)    |
+|                                           |
+|  START                                    |
+|    -> planner                             |
+|    -> prep_retrieval                      |
+|    -> [ local | wiki | arxiv | tavily ]   |  (parallel fan-out, wave 1)
+|    -> retriever_merge                     |
+|    -> critical_analyst                    |
+|    -> (route) gap_planner OR insight      |
+|    -> prep_followup                       |
+|    -> [ *_f retrievers ]                  |  (parallel fan-out, wave 2)
+|    -> retriever_merge_followup            |
+|    -> critical_analyst_followup           |
+|    -> insight_* -> report_* -> END        |
++-------------------------------------------+
+           |
+           v
++-------------------------------+
+| Shared ResearchState          |
+|  question, subquestions,      |
+|  evidence[], analysis_summary,|
+|  contradictions, insights,    |
+|  final_report, trace          |
++-------------------------------+
 ```
+
+For the **fully accurate** node/edge diagram matching `deep_researcher/graph.py`, see the next section.
 
 ---
 
-## Agent Pipeline
+## 📊 LangGraph Topology — Directly from `docs/GRAPH.md`
+
+> The following content is mirrored from [`GRAPH.md`](./GRAPH.md). It reflects **`build_graph()`** in [`deep_researcher/graph.py`](./deep_researcher/graph.py): nodes, edges, and routing.
+>
+> **Human-in-the-loop review** (upload digest + LLM alignment, then **Yes / No** before research runs) lives in **Gradio** only: [`app.py`](./app.py) (`run_preflight_review`, `confirm_yes` → `run_research_after_confirm` → `graph.invoke`). It is **not** a LangGraph node, interrupt, or checkpoint, so it does **not** appear on the compiled graph PNG below.
+
+### 0. Full application flow (Gradio + LangGraph)
+
+```mermaid
+flowchart TB
+    subgraph hitl["Gradio UI — human-in-the-loop (outside LangGraph)"]
+        direction TB
+        U[User: question + optional files]
+        R[1. Review uploads & question]
+        PF[preflight_llm: digest + alignment vs question]
+        H{{2. Human: Yes run research / No cancel}}
+        U --> R
+        R --> PF
+        PF --> H
+        H -->|No — cancel| U
+    end
+
+    H -->|Yes — run full research| INV["app.py: graph.invoke(initial_state)"]
+
+    subgraph lg["LangGraph StateGraph — detail in §1 and langgraph_topology.png"]
+        direction TB
+        INV --> ST([__start__])
+        ST --> P[planner → retrieval → analyst → …]
+        P --> EN([__end__])
+    end
+
+    EN --> OUT[Report, sources, trace in UI]
+```
+
+![Application flow — Gradio preflight then LangGraph](./docs/images/application_flow_with_hitl.png)
+
+_Source: [`docs/images/application_flow_with_hitl.mmd`](./docs/images/application_flow_with_hitl.mmd)._
+
+---
+
+**LangGraph-only PNG** (matches the compiled `StateGraph` exactly — no UI steps):
+
+![LangGraph topology — Phase 2 deep researcher](./docs/images/langgraph_topology.png)
+
+_Authoritative source: [`docs/images/langgraph_topology_compiled.mmd`](./docs/images/langgraph_topology_compiled.mmd) (from `build_graph().get_graph().draw_mermaid()`)._
+
+**Regenerate everything:**
+
+```bash
+python scripts/export_langgraph_mermaid.py
+cd docs/images && npx -y @mermaid-js/mermaid-cli -i langgraph_topology_compiled.mmd -o langgraph_topology.png -w 3600 -H 2800 -b white
+```
+
+### 1. End-to-end flow (logical)
+
+```mermaid
+flowchart TB
+    START([START]) --> planner[planner]
+    planner --> prep[prep_retrieval]
+
+    subgraph wave1["Initial retrieval (parallel)"]
+        prep --> L[local_media_retriever]
+        prep --> W[wikipedia_retriever]
+        prep --> A[arxiv_retriever]
+        prep --> T[tavily_retriever]
+        L --> M1[retriever_merge]
+        W --> M1
+        A --> M1
+        T --> M1
+    end
+
+    M1 --> CA[critical_analyst]
+
+    CA -->|max_research_rounds ≤ 1| ID[insight_direct]
+    CA -->|max_research_rounds ≥ 2 and analyst_pass < max| GP[gap_planner]
+
+    GP -->|no followup_queries| IGS[insight_post_gap_skip]
+    GP -->|has followup_queries| PF[prep_followup]
+
+    subgraph wave2["Follow-up retrieval (parallel, optional)"]
+        PF --> Lf[local_media_retriever_f]
+        PF --> Wf[wikipedia_retriever_f]
+        PF --> Af[arxiv_retriever_f]
+        PF --> Tf[tavily_retriever_f]
+        Lf --> M2[retriever_merge_followup]
+        Wf --> M2
+        Af --> M2
+        Tf --> M2
+    end
+
+    M2 --> CAF[critical_analyst_followup]
+    CAF --> IPF[insight_post_followup]
+
+    ID --> RD[report_direct]
+    IGS --> RGS[report_post_gap_skip]
+    IPF --> RPF[report_post_followup]
+
+    RD --> END([END])
+    RGS --> END
+    RPF --> END
+```
+
+> **Note:** `route_after_analyst` / `route_after_gap` use numeric rules (see §3); the diagram labels summarize them. **`max_research_rounds` is clamped to 1–2** in routing.
+
+### 2. Parallel fan-out / fan-in (structural)
+
+Two **independent** retrieve→merge pipelines share **no** retriever or merge nodes, so LangGraph never waits on a merge that did not run.
 
 ```mermaid
 flowchart LR
-    INPUT(["📁 PDF / Image\nAudio / Text"])
-
-    subgraph PIPELINE["⚙️  LangGraph StateGraph · Parallel Agent Execution"]
-        direction LR
-        A1["📂 Input\nProcessor"]
-        A2["🗺️ Query\nPlanner"]
-        A3["🔍 Contextual\nRetriever"]
-        A4["🧠 Critical\nAnalyzer"]
-        A5["✅ Fact\nVerifier"]
-        A6["⚠️ Contradiction\nDetector"]
-        A7["💡 Insight\nGenerator"]
-        A8["🏅 Source\nCredibility"]
-        A9["📎 Citation\nManager"]
-        A10["🪞 Reflection\nAgent"]
-        A11["📋 Report\nGenerator"]
-
-        A1 -->|"chunks + metadata"| A2
-        A2 -->|"sub-queries"| A3
-        A3 -->|"context"| A4 & A5 & A6 & A7 & A8
-        A4 & A5 & A6 & A7 & A8 -->|"agent outputs"| A9
-        A9 -->|"cited findings"| A10
-        A10 -->|"quality gate"| A11
+    subgraph initial["Pipeline A — first wave"]
+        direction TB
+        PR(prep_retrieval) --> R1{{4 retrievers}}
+        R1 --> M(retriever_merge)
     end
 
-    VDB[["🗄️ FAISS\nVector Store"]]
-    LLM[["🤖 LLM\n(via OpenRouter)"]]
-    WEB[["🌐 Web\nSearch"]]
-    OUTPUT(["📊 Structured\nResearch Report"])
+    subgraph follow["Pipeline B — follow-up wave"]
+        direction TB
+        PF(prep_followup) --> R2{{4 × *_f retrievers}}
+        R2 --> MF(retriever_merge_followup)
+    end
 
-    INPUT --> A1
-    A3 -.->|"embed + search"| VDB
-    A3 -.->|"web queries"| WEB
-    A4 & A5 & A6 & A7 & A8 & A11 -.->|"LLM calls"| LLM
-    A11 --> OUTPUT
-
-    style PIPELINE fill:#0f172a,stroke:#6366f1,color:#e2e8f0
-    style LLM fill:#1e1b4b,stroke:#818cf8,color:#e0e7ff
-    style VDB fill:#0c1a2e,stroke:#38bdf8,color:#e0f2fe
-    style WEB fill:#0a1f14,stroke:#34d399,color:#d1fae5
-    style INPUT fill:#1c0a2e,stroke:#a78bfa,color:#ede9fe
-    style OUTPUT fill:#0a1f14,stroke:#34d399,color:#d1fae5
+    M --> CA[critical_analyst]
+    MF --> CAF[critical_analyst_followup]
 ```
 
----
+### 3. Routing functions
 
-## Execution Flow
+| Source node | Routing function | Target | Condition (simplified) |
+|-------------|------------------|--------|-------------------------|
+| `critical_analyst` | `route_after_analyst` | `insight_direct` | `max_research_rounds ≤ 1` **or** `analyst_pass_count ≥ max_research_rounds` |
+| `critical_analyst` | `route_after_analyst` | `gap_planner` | else (typically `max_research_rounds = 2` and first pass complete) |
+| `gap_planner` | `route_after_gap` | `insight_post_gap_skip` | `analyst_pass_count ≥ max_research_rounds` **or** empty `followup_queries` |
+| `gap_planner` | `route_after_gap` | `prep_followup` | non-empty `followup_queries` and passes still below max |
+
+`critical_analyst_followup` has **no** conditional: it always goes to `insight_post_followup` (second pass is terminal for the supported 2-pass design).
+
+### 4. Why duplicate `insight_*` / `report_*` nodes?
+
+LangGraph joins nodes with **multiple incoming edges** by waiting for **all** parents. A single shared `insight_generator` fed from three branches would deadlock. The implementation uses **three parallel chains** to `END`:
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    actor User as 👤 User
-    participant UI as 🌐 UI
-    participant IP as 📂 Input Processor
-    participant QP as 🗺️ Query Planner
-    participant RAG as 🔍 Retrieval Layer
-    participant PA as 🤖 Parallel Agents
-    participant RF as 🪞 Reflection Agent
-    participant RG as 📋 Report Generator
-
-    User->>UI: Upload file + enter query
-    UI->>IP: Route to modality-specific agent
-    IP->>IP: Extract text, chunk, embed
-    IP->>QP: Structured chunks + metadata
-
-    QP->>QP: Decompose into sub-queries
-    QP->>RAG: Sub-queries
-
-    RAG->>RAG: Dense retrieval (FAISS)
-    RAG->>RAG: Sparse retrieval (BM25)
-    RAG->>RAG: Web search + reranking
-    RAG->>PA: Retrieved context
-
-    par Parallel Execution
-        PA->>PA: Critical Analyzer
-    and
-        PA->>PA: Fact Verifier
-    and
-        PA->>PA: Contradiction Detector
-    and
-        PA->>PA: Insight Generator
-    and
-        PA->>PA: Source Credibility Scorer
-    end
-
-    PA->>RF: Aggregated findings + citations
-    RF->>RF: Evaluate output quality
-    RF-->>RAG: Re-retrieve if quality threshold not met
-    RF->>RG: Approved findings
-
-    RG->>UI: Structured report (JSON + rendered)
-    UI->>User: Summary · Findings · Contradictions · Insights · Citations · Confidence Score
+flowchart LR
+    ID[insight_direct] --> RD[report_direct] --> END([END])
+    IGS[insight_post_gap_skip] --> RGS[report_post_gap_skip] --> END
+    IPF[insight_post_followup] --> RPF[report_post_followup] --> END
 ```
+
+Each chain runs **`insight_node` / `report_node`** with the same implementation; only the graph **node id** differs.
+
+### 5. Node responsibilities (quick reference)
+
+| Node | Role |
+|------|------|
+| `planner` | LLM → `subquestions`, `research_objective` |
+| `prep_retrieval` | `queries` = question + subquestions; clears `retrieval_tool_filter` |
+| `*_retriever` | Channel-specific evidence (respects `retrieval_tool_filter` on follow-up) |
+| `retriever_merge` | Replace corpus with first-wave batch (trim to `max_evidence_items`) |
+| `retriever_merge_followup` | Append + dedupe follow-up batch |
+| `critical_analyst` / `critical_analyst_followup` | LLM critique; increments `analyst_pass_count` |
+| `gap_planner` | LLM → `followup_queries`, `followup_tools`, `gap_round_log` |
+| `prep_followup` | Cap queries; set `retrieval_tool_filter` |
+| `insight_*` | LLM → `insights` |
+| `report_*` | LLM narrative + citation catalog; per-tool appendix LLM; assemble `final_report` |
 
 ---
 
-## Output Format
+## 🧭 Agentic Workflow — Complete Walkthrough
 
-Every research session produces a fully structured JSON report:
+Below is the end-to-end trip a single research question takes through the system, step by step.
 
-```json
-{
-  "summary": "A concise synthesis of findings across all sources.",
-  "key_findings": [
-    "Finding 1 with supporting evidence",
-    "Finding 2 with supporting evidence"
-  ],
-  "contradictions": [
-    {
-      "claim_a": "...",
-      "claim_b": "...",
-      "sources": ["source_1", "source_2"]
-    }
-  ],
-  "insights": [
-    "Non-obvious insight derived from cross-source reasoning"
-  ],
-  "citations": [
-    {
-      "id": "cite_001",
-      "text": "...",
-      "source": "document.pdf",
-      "page": 4,
-      "credibility_score": 0.92
-    }
-  ],
-  "confidence_score": 0.87
-}
-```
+### Step 0 — Upload + HITL Preflight (Gradio, outside LangGraph)
+
+1. The user opens the Gradio UI (`app.py`) and types a **question** plus optionally attaches **PDFs / images / audio**.
+2. `run_preflight_review` generates a short **digest** of every upload (filename, size, extracted snippet) and sends it to an LLM alongside the question.
+3. The LLM returns an **alignment assessment**: *does this bundle of files plausibly answer this question?* This is displayed to the user along with the digest.
+4. The user clicks **Yes** (run) or **No** (cancel). Only on **Yes** does `run_research_after_confirm` call `graph.invoke(initial_state)`.
+
+> This gate is **not** a LangGraph interrupt or checkpoint — it lives entirely in the Gradio app. That is why it does not appear in the compiled LangGraph PNG.
+
+### Step 1 — `planner`
+
+The planner LLM turns the broad question into:
+
+- a **research objective** (one-line framing),
+- **4–6 `subquestions`** that narrow the search surface.
+
+These are written into the shared `ResearchState`.
+
+### Step 2 — `prep_retrieval`
+
+Concatenates the original question + subquestions into a `queries` list and clears `retrieval_tool_filter` so **all four channels** run in the first wave.
+
+### Step 3 — Wave 1: Parallel Retrieval Fan-Out
+
+Four retriever nodes run **in parallel**:
+
+| Retriever | Source | Best for |
+|-----------|--------|----------|
+| `local_media_retriever` | FAISS over uploaded PDFs / image OCR+captions / audio transcripts | Your own documents |
+| `wikipedia_retriever` | Wikipedia summaries | Definitions + broad background |
+| `arxiv_retriever` | arXiv titles + abstracts | Technical / academic signals |
+| `tavily_retriever` | Tavily web search (optional, requires key) | Recent / live web content |
+
+Each produces a normalized `EvidenceItem` list (title, url, excerpt, source_label, relevance hint).
+
+### Step 4 — `retriever_merge`
+
+Collapses the four retriever outputs into a single deduplicated corpus on `ResearchState.evidence`, trimmed to `max_evidence_items`. This is the **fan-in** join.
+
+### Step 5 — `critical_analyst`
+
+An LLM critiques the merged evidence and emits:
+
+- `key findings`,
+- `contradictions`,
+- `evidence quality notes`,
+- `research gaps`.
+
+It also increments `analyst_pass_count`.
+
+### Step 6 — Conditional Routing: `route_after_analyst`
+
+- If `max_research_rounds ≤ 1` **or** the first pass already hit the budget → go straight to **`insight_direct`** (single-pass terminal chain).
+- Otherwise → **`gap_planner`** to decide whether a focused second wave is worth it.
+
+### Step 7 — `gap_planner` (multi-pass only)
+
+An LLM reads the analyst critique and proposes:
+
+- up to `max_followup_queries` **targeted `followup_queries`**,
+- a **`followup_tools`** list (which of the 4 channels are worth rerunning),
+- a human-readable `gap_round_log` entry.
+
+### Step 8 — Conditional Routing: `route_after_gap`
+
+- If the gap planner produced **no** follow-ups (or budget is exhausted) → **`insight_post_gap_skip`**.
+- Otherwise → **`prep_followup`** → Wave 2.
+
+### Step 9 — `prep_followup` + Wave 2 Retrieval
+
+`prep_followup` caps the queries and sets `retrieval_tool_filter` so only the channels the gap planner flagged are re-run. The four `*_f` retrievers then fan out in parallel again; `retriever_merge_followup` **appends + dedupes** the new evidence onto the existing corpus (it does **not** replace it).
+
+### Step 10 — `critical_analyst_followup`
+
+A second analyst pass over the enriched evidence — always terminal, always flowing into `insight_post_followup`.
+
+### Step 11 — `insight_*`
+
+Whichever of the three insight nodes was reached (`insight_direct`, `insight_post_gap_skip`, `insight_post_followup`) runs the **same** `insight_node` implementation and emits:
+
+- trends,
+- implications,
+- hypotheses,
+- suggested next-step questions.
+
+### Step 12 — `report_*`
+
+The matching report node assembles the **final markdown report**:
+
+- narrative body with inline citations from a built citation catalog,
+- per-tool analysis appendix (LLM summary per retrieval channel),
+- full references section,
+- parallel-retrieval timing metadata,
+- confidence/limitation notes if evidence was weak.
+
+### Step 13 — END + UI Render
+
+`graph.invoke` returns the terminal `ResearchState`. The Gradio UI renders `final_report`, the evidence table, and a live `trace` panel, plus a **Download Markdown** button.
 
 ---
 
-## Tech Stack
+## 🧰 Tech Stack
 
 <div align="center">
 
-### AI Engine (Python)
-| | Library | Version | Purpose |
-|:-:|---------|---------|---------|
-| 🕸️ | LangGraph | latest | Multi-agent StateGraph orchestration |
-| 🔗 | LangChain | latest | LLM abstraction + RAG chains |
-| 🤖 | OpenRouter | — | Multi-model LLM gateway (50+ models) |
-| 🗄️ | FAISS | latest | Dense vector retrieval |
-| 📖 | BM25 | latest | Sparse keyword retrieval |
-| 🌐 | Tavily / SerpAPI | — | Real-time web search |
-| 📄 | PyMuPDF | latest | PDF text + structure extraction |
-| 👁️ | Tesseract / EasyOCR | — | Image OCR |
-| 🎙️ | Whisper | latest | Audio speech-to-text |
-| 🐼 | pandas | latest | Structured data handling |
+### Orchestration & LLM
 
-### Data Layer
-| | Component | Purpose |
-|:-:|-----------|---------|
-| 🗄️ | FAISS / Chroma | Vector store for embeddings |
-| 🐘 | PostgreSQL | Metadata and source tracking |
-| ⚡ | Redis | Query result caching |
-
-### UI Layer
 | | Library | Purpose |
 |:-:|---------|---------|
-| ⚛️ | React 18 | Frontend UI framework |
-| 🎨 | Tailwind CSS | Utility-first styling |
-| 📈 | Recharts | Output visualization |
+| 🕸️ | **LangGraph** `>=0.2` | `StateGraph`, parallel fan-out, conditional edges |
+| 🔗 | **LangChain** `>=0.3` | LLM abstraction + retrieval chains |
+| 🔌 | `langchain-openai` | ChatOpenAI client for OpenRouter |
+| 🧠 | `langchain-anthropic` | Claude Haiku budget tier |
+| 🌐 | **OpenRouter** | Multi-model LLM gateway (default: `openai/gpt-4o-mini`) |
+| 🤖 | **Anthropic** (optional) | Claude 3.5 Haiku / 3 Haiku (budget-only) |
+
+### Retrieval & Embeddings
+
+| | Library | Purpose |
+|:-:|---------|---------|
+| 🗄️ | **FAISS** (`faiss-cpu`) | Dense vector index over uploaded docs |
+| 🔤 | `sentence-transformers` | `all-MiniLM-L6-v2` embeddings (default) |
+| 🧵 | `langchain-text-splitters` | Recursive chunking (900 / 150 overlap) |
+| 📄 | `pypdf` | PDF text extraction |
+| 🔎 | `tavily-python` | Live web search (optional key) |
+| 📚 | `arxiv` | arXiv paper metadata + abstracts |
+| 📖 | `wikipedia` | Wikipedia summaries |
+
+### Multi-Modal Ingestion
+
+| | Library | Purpose |
+|:-:|---------|---------|
+| 🖼️ | `Pillow` + `transformers` (BLIP, optional) | Image OCR + captioning |
+| 🎙️ | `transformers` (Whisper) + `librosa` + `soundfile` | Audio transcription |
+| 🔥 | `torch` / `torchvision` | HF model runtime |
+
+### UI & Delivery
+
+| | Library | Purpose |
+|:-:|---------|---------|
+| 🟠 | **Gradio** `>=5.0` | Primary UI with HITL preflight (`app.py`) |
+| 🔴 | **Streamlit** `>=1.40` | Alternate chat-style UI (`streamlitApp.py`) |
+| 🔐 | `google-auth-oauthlib` | Optional Google sign-in for Streamlit |
+| 📝 | `markdown` + `xhtml2pdf` | PDF report export |
+| 🐼 | `pandas` | Evidence table rendering |
+
+### Runtime & Packaging
+
+| | Tool | Purpose |
+|:-:|------|---------|
+| 🐍 | Python `3.11+` | Runtime |
+| 🐳 | **Docker** + `docker-compose` | Reproducible deployment (see `DOCKER.md`) |
+| 🔐 | `python-dotenv` | `.env` config loading |
 
 </div>
 
 ---
 
-## Getting Started
+## 🚀 Getting Started
 
-### 💻 Local Setup
+### 1 · Local Setup
 
 ```bash
-# 1 · Clone the repository
-git clone https://github.com/your-username/researchmind.git
-cd researchmind
+# Clone and enter
+git clone <repo-url>
+cd ai-researcher
 
-# 2 · Python environment
+# Python env
 python3 -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-# 3 · Configure environment variables
+# Configure
 cp .env.example .env
-# Edit .env with your API keys (see Configuration section)
+# Edit .env — at minimum set OPENROUTER_API_KEY (or ANTHROPIC_API_KEY)
 
-# 4 · Start the backend
-python run_pipeline.py
+# Run Gradio (recommended — has HITL preflight)
+python app.py
+# -> open http://localhost:7860
 
-# 5 · Start the frontend (in a new terminal)
-cd client && npm install && npm run dev
+# OR run Streamlit alternative
+streamlit run streamlitApp.py
+```
 
-# 6 · Open in browser
-# http://localhost:5173
+### 2 · Docker
+
+```bash
+docker compose up --build
+# See DOCKER.md for tunneling and deployment notes
 ```
 
 ---
 
-## Configuration
+## ⚙️ Configuration
 
 <div align="center">
 
-| Setting | Required | Purpose | Get it free |
-|---------|:--------:|---------|-------------|
-| `OPENROUTER_API_KEY` | ✅ | LLM access (50+ models) | [openrouter.ai/keys](https://openrouter.ai/keys) |
-| `TAVILY_API_KEY` | Optional | Real-time web search | [app.tavily.com](https://app.tavily.com) |
-| `OPENAI_API_KEY` | Optional | OpenAI embeddings | [platform.openai.com](https://platform.openai.com) |
+| Env var | Required | Purpose |
+|---------|:--------:|---------|
+| `OPENROUTER_API_KEY` | ✅ (or Anthropic) | LLM access via OpenRouter |
+| `ANTHROPIC_API_KEY` | ✅ (or OpenRouter) | Claude Haiku budget tier |
+| `TAVILY_API_KEY` | Optional | Live web search retriever |
+| `LLM_PROVIDER` | Optional | `openrouter` (default) or `anthropic` |
+| `OPENROUTER_MODEL` | Optional | Default `openai/gpt-4o-mini` |
+| `EMBEDDING_MODEL` | Optional | Default `sentence-transformers/all-MiniLM-L6-v2` |
+| `MAX_RESEARCH_ROUNDS` | Optional | 1 (single-pass) or 2 (with follow-up) |
+| `MAX_FOLLOWUP_QUERIES` | Optional | Cap on gap-planner queries (default 6) |
+| `MAX_EVIDENCE_ITEMS` | Optional | Corpus size cap (default 120) |
+| `TOP_K` | Optional | FAISS top-k per subquery (default 4) |
 
 </div>
 
-### Supported AI Models
-
-ResearchMind supports multiple LLMs via OpenRouter — switchable without restart:
-
-<div align="center">
-
-| Tier | Model | Best for |
-|------|-------|---------|
-| 🏆 Recommended | GPT-4o Mini | Balanced speed + quality |
-| 💡 Best accuracy | Claude 3.5 Sonnet | Complex reasoning + report writing |
-| 🧠 Best analysis | GPT-4o | Deep multi-hop reasoning |
-| 💰 Best value | DeepSeek V3 | Cost-effective, high quality |
-| 🆓 Best free | Llama 3.3 70B | Maximum capability at zero cost |
-
-</div>
+Graceful degradation: missing Tavily → web search is simply skipped; missing PDFs → it becomes a web + academic researcher; weak retrieval → the report explicitly flags limited evidence instead of bluffing.
 
 ---
 
-## Project Structure
+## 📁 Project Structure
 
 ```
-researchmind/
+ai-researcher/
+├── app.py                          Gradio UI + HITL preflight + graph.invoke
+├── streamlitApp.py                 Streamlit chat-style UI
+├── streamlit_workflow.py           Streamlit workflow helpers
+├── streamlit_google_auth.py        Optional Google OAuth
+├── requirements.txt
+├── .env.example
+├── Dockerfile · docker-compose.yml · DOCKER.md
+├── ARCHITECTURE.md                 Product architecture
+├── GRAPH.md                        Authoritative LangGraph topology doc
+├── FUNCTIONAL.md                   Functional spec
+├── PHASE2_ROADMAP.md               Development roadmap
 │
-├── 📋 requirements.txt              Python dependencies
-├── 🔧 .env.example                  Environment variable template
-├── 🚀 run_pipeline.py               Entry point — pipeline runner
+├── deep_researcher/                LangGraph core
+│   ├── graph.py                    build_graph() — nodes, edges, routing
+│   ├── models.py                   ResearchState TypedDict + EvidenceItem
+│   ├── retrieval.py                FAISS / Wikipedia / arXiv / Tavily builders
+│   ├── config.py                   Settings dataclass, env loading
+│   └── preflight.py                HITL preflight LLM logic
 │
-├── agents/                          LangGraph agent definitions
-│   ├── state.py                     ResearchState TypedDict — shared agent bus
-│   ├── orchestrator.py              StateGraph definition + parallel execution
-│   ├── input_processor.py           Agent 1 · multi-modal ingestion + chunking
-│   ├── query_planner.py             Agent 2 · query decomposition + sub-queries
-│   ├── contextual_retriever.py      Agent 3 · hybrid RAG retrieval
-│   ├── critical_analyzer.py         Agent 4 · deep content analysis
-│   ├── fact_verifier.py             Agent 5 · cross-source fact checking
-│   ├── contradiction_detector.py    Agent 6 · conflicting claim detection
-│   ├── insight_generator.py         Agent 7 · non-obvious insight synthesis
-│   ├── source_credibility.py        Agent 8 · source authority scoring
-│   ├── citation_manager.py          Agent 9 · citation formatting + tracking
-│   ├── reflection_agent.py          Agent 10 · output quality evaluation
-│   ├── memory_agent.py              Cross-session memory management
-│   └── report_generator.py          Final structured report assembly
+├── docs/
+│   └── images/
+│       ├── langgraph_topology.mmd             Hand-drawn logical layout
+│       ├── langgraph_topology.png             Rendered logical PNG
+│       ├── langgraph_topology_compiled.mmd    Compiled from build_graph()
+│       ├── application_flow_with_hitl.mmd     Gradio + LangGraph overview
+│       └── application_flow_with_hitl.png     Rendered HITL PNG
 │
-├── ingestion/                       Input processing modules
-│   ├── pdf_agent.py                 PDF text + page structure extraction
-│   ├── image_agent.py               OCR + image captioning
-│   ├── audio_agent.py               Whisper speech-to-text
-│   └── text_agent.py                Direct text ingestion
-│
-├── retrieval/                       RAG components
-│   ├── dense_retriever.py           FAISS embedding-based retrieval
-│   ├── sparse_retriever.py          BM25 keyword retrieval
-│   ├── web_search.py                Tavily / SerpAPI integration
-│   ├── reranker.py                  Cross-encoder reranking
-│   └── cache.py                     Redis query result caching
-│
-├── data/
-│   ├── vector_store/                FAISS index storage
-│   ├── metadata_db/                 PostgreSQL connection config
-│   └── sample_inputs/               Sample PDFs + queries for demo
-│
-└── client/src/                      React frontend
-    ├── pages/
-    │   ├── UploadPage.jsx           Multi-modal file upload
-    │   ├── QueryPage.jsx            Query input + configuration
-    │   └── ReportPage.jsx           Structured report visualization
-    └── components/
-        ├── FindingsTab.jsx          Key findings display
-        ├── ContradictionsTab.jsx    Contradiction explorer
-        ├── InsightsTab.jsx          AI-generated insights
-        ├── CitationsTab.jsx         Source citations + credibility
-        └── ConfidenceBar.jsx        Report confidence score
+├── scripts/                        Export / deploy helpers
+├── tests/                          Pytest suite
+├── assets/                         Static UI assets
+├── test-input/                     Sample files for demo
+└── output/                         Generated reports
 ```
 
 ---
 
-## Reliability & Safety
+## ✅ Reliability & Safety
 
-ResearchMind is built with verifiability as a core principle:
-
-- **Hallucination Detection** — The Fact Verifier agent cross-references claims against retrieved sources
-- **Source Validation** — The Source Credibility agent scores each source before inclusion
-- **Citation Enforcement** — Every claim in the final report is traceable to a source
-- **Confidence Scoring** — Reports include an overall confidence score reflecting retrieval quality and agent agreement
-- **Reflection Loop** — The Reflection Agent evaluates output quality and triggers re-retrieval if the threshold is not met
+- **HITL Preflight Gate** — no LLM research spend without explicit user approval after seeing an upload digest + alignment check.
+- **Four-channel Cross-check** — every claim can be traced to a labeled `source_label` (Local / Wikipedia / arXiv / Tavily).
+- **Gap-Aware Follow-up** — `gap_planner` explicitly decides which channels to re-query and why (`gap_round_log`).
+- **Citation Catalog** — the report builder emits a deduplicated citation catalog with stable link labels.
+- **Routing Budgets** — `max_research_rounds`, `max_followup_queries`, `max_evidence_items`, `analyst_evidence_limit` all bound cost and latency.
+- **Parallel Timing Metadata** — every retrieval wave records start/end UTC into the report for observability.
+- **Evidence-Aware Honesty** — if retrieval is weak, the report says so instead of fabricating confidence.
 
 ---
 
-## Development Roadmap
+## 🗺️ Roadmap
 
 | Phase | Status | Description |
 |-------|--------|-------------|
-| Phase 1 | ✅ Planned | Multi-modal ingestion + basic UI |
-| Phase 2 | 🔄 In Progress | Embeddings, FAISS vector store, BM25 retrieval |
-| Phase 3 | 📋 Upcoming | Full multi-agent pipeline with parallel execution |
-| Phase 4 | 📋 Upcoming | Optimization, caching, horizontal scaling |
+| Phase 1 | ✅ Done | Notebook RAG → Gradio app with multi-source retrieval |
+| Phase 2 | ✅ Done | LangGraph StateGraph, parallel fan-out, HITL preflight, multi-modal ingest, follow-up wave |
+| Phase 3 | 📋 Next | Persistent vector index, source quality scoring, analyst personas |
+| Phase 4 | 📋 Future | LangSmith tracing, cloud deploy, long-term memory |
 
-### Future Enhancements
-
-- **Dynamic Agent Creation** — Spawn specialized agents on-demand based on query type
-- **Debate-Based Reasoning** — Agents argue opposing positions to surface stronger conclusions
-- **Knowledge Graph Integration** — Entity linking and relationship mapping across documents
-- **Advanced Visualization** — Interactive concept maps, citation graphs, timeline views
+See [`PHASE2_ROADMAP.md`](./PHASE2_ROADMAP.md) for the full plan.
 
 ---
 
-## Troubleshooting
+## 🛠️ Troubleshooting
 
 <details>
-<summary><b>❌ FAISS index not found on startup</b></summary>
+<summary><b>❌ "OpenRouter is selected but no API key was found"</b></summary>
 
-The vector store hasn't been initialized yet. Ingest at least one document first:
+Set `OPENROUTER_API_KEY` in `.env`, or paste the key directly in the Gradio UI sidebar, or switch `LLM_PROVIDER=anthropic` and set `ANTHROPIC_API_KEY`.
+</details>
 
-```bash
-python run_pipeline.py --ingest --file data/sample_inputs/sample.pdf
-```
+<details>
+<summary><b>❌ Follow-up wave never runs</b></summary>
+
+Check `MAX_RESEARCH_ROUNDS` — it must be `2` for `gap_planner` to be reachable. With `1` the graph goes straight from `critical_analyst` to `insight_direct`.
 </details>
 
 <details>
 <summary><b>❌ Audio transcription failing</b></summary>
 
-Whisper requires `ffmpeg` to be installed on your system:
+Whisper via HF transformers needs `ffmpeg`:
 
 ```bash
-# macOS
-brew install ffmpeg
-
-# Ubuntu / Debian
-sudo apt-get install ffmpeg
+brew install ffmpeg              # macOS
+sudo apt-get install ffmpeg      # Ubuntu
 ```
 </details>
 
 <details>
-<summary><b>❌ "No active endpoints" error from OpenRouter</b></summary>
+<summary><b>❌ LangGraph PNG out of date</b></summary>
 
-The selected free model is temporarily unavailable. Go to **Config → AI Model** and switch to:
-- **GPT-4o Mini** (paid, most reliable)
-- **Llama 3.3 70B** (free, most stable)
+Regenerate from the compiled graph:
+
+```bash
+python scripts/export_langgraph_mermaid.py
+cd docs/images && npx -y @mermaid-js/mermaid-cli -i langgraph_topology_compiled.mmd -o langgraph_topology.png -w 3600 -H 2800 -b white
+```
 </details>
 
 <details>
-<summary><b>❌ Redis connection refused</b></summary>
+<summary><b>❌ Streamlit errors on import of torch / torchvision</b></summary>
 
-Caching requires a running Redis instance:
-
-```bash
-# macOS
-brew install redis && brew services start redis
-
-# Ubuntu / Debian
-sudo apt-get install redis-server && sudo systemctl start redis
-```
-
-Alternatively, set `DISABLE_CACHE=true` in `.env` to run without Redis.
-</details>
-
-<details>
-<summary><b>❌ Python agents not starting</b></summary>
-
-```bash
-# Ensure virtual environment is active
-source .venv/bin/activate       # Windows: .venv\Scripts\activate
-
-# Re-install dependencies
-pip install -r requirements.txt
-
-# Verify Python version (must be 3.11+)
-python3 --version
-```
+Streamlit's file watcher introspects `transformers`, which pulls vision submodules. Ensure `torch` and `torchvision` versions are compatible (see `requirements.txt`).
 </details>
 
 ---
 
 <div align="center">
 
-Built with ❤️ using LangGraph, FAISS, and OpenRouter
+Built with ❤️ using **LangGraph · FAISS · OpenRouter · Gradio**
 
-*Modular · Verifiable · Multi-Modal · Multi-Agent*
+*Local-first · Human-in-the-loop · Parallel · Verifiable*
 
 </div>
