@@ -27,6 +27,9 @@ from typing import Any
 
 import requests
 
+# ── Local HuggingFace RAG (optional — degrades gracefully if not installed) ──
+from rag import RAGIndex, build_rag_index, RAG_AVAILABLE, DEFAULT_EMBED_MODEL
+
 # ── Optional PDF support ──────────────────────────────────────────────────────
 try:
     import pypdf
@@ -241,12 +244,18 @@ class ResearchEngine:
         model: str = "anthropic/claude-sonnet-4.5",
         max_results: int = 7,
         max_tokens: int = 1500,
+        embed_model: str = DEFAULT_EMBED_MODEL,
+        use_local_rag: bool = True,
     ):
         self.or_key = openrouter_key
         self.tv_key = tavily_key
         self.model  = model
-        self.max_results = max_results
-        self.max_tokens  = max_tokens
+        self.max_results   = max_results
+        self.max_tokens    = max_tokens
+        self.embed_model   = embed_model
+        self.use_local_rag = use_local_rag and RAG_AVAILABLE
+        # RAG index is built lazily in run_retriever once PDFs are extracted.
+        self._rag_index: RAGIndex | None = None
 
     # ── Shared LLM call ──────────────────────────────────────────────────────
     def _call(self, system: str, user: str, max_tokens: int | None = None) -> str:
@@ -340,12 +349,39 @@ class ResearchEngine:
                 seen[url] = r
         web_results = sorted(seen.values(), key=lambda r: r.get("score", 0), reverse=True)
 
-        # 1c. Build context blob for LLM
+        # 1c. Build local RAG index from PDF chunks (if enabled + PDFs present)
+        rag_context = ""
+        rag_chunk_count = 0
+        if self.use_local_rag and pdf_texts:
+            try:
+                self._rag_index = build_rag_index(
+                    pdf_texts,
+                    model_name=self.embed_model,
+                    chunk_size=400,
+                    overlap=80,
+                )
+                if self._rag_index and not self._rag_index.is_empty():
+                    rag_chunk_count = self._rag_index.chunk_count
+                    rag_context = self._rag_index.format_context(
+                        query_text=query,
+                        top_k=6,
+                        max_chars=3500,
+                    )
+            except Exception as exc:
+                rag_context = f"[RAG indexing error: {exc}]"
+
+        # 1d. Build context blob for LLM
         web_blob = "\n\n---\n\n".join(
             f"SOURCE [{i+1}]: {r.get('title','')}\nURL: {r.get('url','')}\n{r.get('content','')[:600]}"
             for i, r in enumerate(web_results)
         )
-        pdf_blob = "\n\n---\n\n".join(pdf_texts) if pdf_texts else "No PDFs provided."
+        # Use semantic RAG chunks when available; fall back to full PDF text
+        if rag_context:
+            pdf_section = rag_context
+        elif pdf_texts:
+            pdf_section = "\n\n---\n\n".join(pdf_texts)
+        else:
+            pdf_section = "No PDFs provided."
 
         system_prompt = (
             "You are the Contextual Retriever Agent in a multi-agent research system. "
@@ -357,8 +393,8 @@ class ResearchEngine:
 === WEB SOURCES ===
 {web_blob}
 
-=== PDF DOCUMENTS ===
-{pdf_blob}
+=== PDF CONTEXT ({"semantic RAG — top chunks by similarity" if rag_context else "full text"}) ===
+{pdf_section}
 
 Task: Produce a structured Evidence Digest with:
 1. A 200-word summary of the overall landscape
@@ -370,12 +406,14 @@ Format clearly with markdown headings."""
         digest = self._call(system_prompt, user_prompt, max_tokens=2000)
 
         return {
-            "digest": digest,
-            "web_results": web_results,
-            "pdf_texts": pdf_texts,
-            "web_count": len(web_results),
-            "pdf_count": len(pdf_texts),
-            "raw_query": query,
+            "digest":          digest,
+            "web_results":     web_results,
+            "pdf_texts":       pdf_texts,
+            "web_count":       len(web_results),
+            "pdf_count":       len(pdf_texts),
+            "rag_chunk_count": rag_chunk_count,
+            "rag_model":       self.embed_model if (self.use_local_rag and pdf_texts) else None,
+            "raw_query":       query,
         }
 
     # =========================================================================

@@ -1,7 +1,14 @@
 # Python >= 3.14 required
-# All packages below publish wheels for 3.14; verify with:
-#   pip install --dry-run -r requirements.txt
 
+# Core
 streamlit>=1.40.0
 requests>=2.32.0
 pypdf>=5.1.0
+
+# Local HuggingFace RAG (optional but recommended)
+# Provides semantic PDF retrieval via local embedding models.
+# Models are downloaded once (~80-440 MB) from HuggingFace Hub on first use.
+sentence-transformers>=3.0.0
+faiss-cpu>=1.8.0
+numpy>=1.26.0
+torchvision          # required by sentence-transformers; must be installed explicitly

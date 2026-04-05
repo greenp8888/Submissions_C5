@@ -1,6 +1,7 @@
 import streamlit as st
 from research_engine import ResearchEngine
 from utils import format_report_as_markdown
+from rag import RAG_AVAILABLE, rag_availability_message, AVAILABLE_EMBED_MODELS, DEFAULT_EMBED_MODEL
 
 # ── Page config ──────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -15,111 +16,29 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:ital,wght@0,400;0,500;1,400&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap');
 
-:root {
-    --bg:       #0a0b0f;
-    --surface:  #111318;
-    --border:   #1e2130;
-    --accent:   #e8ff47;
-    --accent2:  #47c8ff;
-    --muted:    #4a5068;
-    --text:     #dde1f0;
-    --danger:   #ff5e6c;
-}
+/* Only custom component styles — no layout/sidebar overrides */
 
-html, body, [data-testid="stAppViewContainer"] {
-    background: var(--bg) !important;
-    color: var(--text) !important;
-    font-family: 'DM Sans', sans-serif;
-}
-
-/* Sidebar */
-[data-testid="stSidebar"] {
-    background: var(--surface) !important;
-    border-right: 1px solid var(--border) !important;
-}
-[data-testid="stSidebar"] * { color: var(--text) !important; }
-
-/* Headings */
-h1, h2, h3 { font-family: 'Syne', sans-serif !important; color: #fff !important; }
-
-/* Inputs */
-.stTextInput > div > div > input,
-.stTextArea > div > div > textarea,
-.stSelectbox > div > div > div {
-    background: var(--surface) !important;
-    border: 1px solid var(--border) !important;
-    color: var(--text) !important;
-    font-family: 'DM Mono', monospace !important;
-    border-radius: 6px !important;
-}
-.stTextInput > div > div > input:focus,
-.stTextArea > div > div > textarea:focus {
-    border-color: var(--accent) !important;
-    box-shadow: 0 0 0 2px rgba(232,255,71,0.15) !important;
-}
-
-/* Buttons */
-.stButton > button {
-    background: var(--accent) !important;
-    color: #0a0b0f !important;
-    font-family: 'Syne', sans-serif !important;
-    font-weight: 700 !important;
-    border: none !important;
-    border-radius: 6px !important;
-    padding: 0.6rem 1.4rem !important;
-    letter-spacing: 0.04em !important;
-    transition: opacity 0.15s !important;
-}
-.stButton > button:hover { opacity: 0.85 !important; }
-.stButton > button:disabled { opacity: 0.35 !important; }
-
-/* File uploader */
-[data-testid="stFileUploader"] {
-    background: var(--surface) !important;
-    border: 1px dashed var(--border) !important;
-    border-radius: 8px !important;
-}
-
-/* Expanders */
-.streamlit-expanderHeader {
-    background: var(--surface) !important;
-    border: 1px solid var(--border) !important;
-    border-radius: 6px !important;
-    font-family: 'Syne', sans-serif !important;
-    color: var(--text) !important;
-}
-.streamlit-expanderContent {
-    background: var(--surface) !important;
-    border: 1px solid var(--border) !important;
-    border-top: none !important;
-}
-
-/* Progress / status */
-.stProgress > div > div > div { background: var(--accent) !important; }
-
-/* Agent log boxes */
 .agent-log {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-left: 3px solid var(--accent);
+    background: #111318;
+    border: 1px solid #2a2f45;
+    border-left: 3px solid #e8ff47;
     border-radius: 6px;
     padding: 0.75rem 1rem;
     margin: 0.4rem 0;
     font-family: 'DM Mono', monospace;
     font-size: 0.82rem;
-    color: var(--text);
+    color: #dde1f0;
 }
-.agent-log.analysis  { border-left-color: var(--accent2); }
-.agent-log.insight   { border-left-color: #b47fff; }
-.agent-log.report    { border-left-color: #47ffb4; }
-.agent-log.error     { border-left-color: var(--danger); }
+.agent-log.analysis { border-left-color: #47c8ff; }
+.agent-log.insight  { border-left-color: #b47fff; }
+.agent-log.report   { border-left-color: #47ffb4; }
+.agent-log.error    { border-left-color: #ff5e6c; }
 
-/* Metric cards */
 .metric-row { display: flex; gap: 1rem; margin: 1rem 0; }
 .metric-card {
     flex: 1;
-    background: var(--surface);
-    border: 1px solid var(--border);
+    background: #111318;
+    border: 1px solid #2a2f45;
     border-radius: 8px;
     padding: 1rem;
     text-align: center;
@@ -128,56 +47,51 @@ h1, h2, h3 { font-family: 'Syne', sans-serif !important; color: #fff !important;
     font-family: 'Syne', sans-serif;
     font-size: 1.8rem;
     font-weight: 800;
-    color: var(--accent);
+    color: #e8ff47;
 }
 .metric-card .lbl {
     font-size: 0.75rem;
-    color: var(--muted);
+    color: #8891aa;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     margin-top: 0.25rem;
 }
 
-/* Report markdown */
 .report-container {
-    background: var(--surface);
-    border: 1px solid var(--border);
+    background: #111318;
+    border: 1px solid #2a2f45;
     border-radius: 10px;
     padding: 2rem;
     line-height: 1.7;
+    color: #dde1f0;
 }
-.report-container h2 { color: var(--accent) !important; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
-.report-container h3 { color: var(--accent2) !important; }
+.report-container h2 { color: #e8ff47 !important; border-bottom: 1px solid #2a2f45; padding-bottom: 0.4rem; }
+.report-container h3 { color: #47c8ff !important; }
 .report-container code { background: #1a1e2e; padding: 2px 6px; border-radius: 3px; font-family: 'DM Mono', monospace; font-size: 0.85em; }
-.report-container blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; color: var(--muted); }
+.report-container blockquote { border-left: 3px solid #e8ff47; padding-left: 1rem; color: #8891aa; }
 
-/* Hero banner */
-.hero {
-    text-align: center;
-    padding: 2.5rem 1rem 1.5rem;
-}
+.hero { text-align: center; padding: 2.5rem 1rem 1.5rem; }
 .hero h1 {
     font-size: clamp(2rem, 5vw, 3.5rem) !important;
     font-weight: 800 !important;
     letter-spacing: -0.02em !important;
     line-height: 1.1 !important;
-    background: linear-gradient(135deg, #fff 30%, var(--accent) 100%);
+    background: linear-gradient(135deg, #fff 30%, #e8ff47 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
 }
 .hero .sub {
-    color: var(--muted);
+    color: #8891aa;
     font-size: 1rem;
     margin-top: 0.5rem;
     font-family: 'DM Mono', monospace;
 }
 
-/* Tag badge */
 .badge {
     display: inline-block;
     background: rgba(232,255,71,0.1);
-    color: var(--accent);
+    color: #e8ff47;
     border: 1px solid rgba(232,255,71,0.3);
     border-radius: 4px;
     font-family: 'DM Mono', monospace;
@@ -186,14 +100,6 @@ h1, h2, h3 { font-family: 'Syne', sans-serif !important; color: #fff !important;
     margin: 2px;
     letter-spacing: 0.05em;
 }
-
-/* Scrollbar */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-
-/* Hide Streamlit chrome */
-#MainMenu, footer, header { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -244,6 +150,33 @@ with st.sidebar:
     if uploaded_pdfs:
         for pdf in uploaded_pdfs:
             st.markdown(f'<span class="badge">📄 {pdf.name}</span>', unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("### 🧠 HuggingFace Local RAG")
+    st.caption(rag_availability_message())
+    use_local_rag = st.toggle(
+        "Enable local RAG",
+        value=RAG_AVAILABLE,
+        disabled=not RAG_AVAILABLE,
+        help="Embeds PDF chunks with a local HuggingFace model and retrieves the most relevant passages semantically.",
+    )
+    embed_model_id = DEFAULT_EMBED_MODEL
+    if RAG_AVAILABLE and use_local_rag:
+        embed_labels = [m["label"] for m in AVAILABLE_EMBED_MODELS]
+        embed_ids    = [m["id"]    for m in AVAILABLE_EMBED_MODELS]
+        chosen_label = st.selectbox(
+            "Embedding model",
+            embed_labels,
+            index=0,
+            help="Runs locally on CPU. Downloaded once (~80–440 MB) from HuggingFace Hub.",
+        )
+        embed_model_id = embed_ids[embed_labels.index(chosen_label)]
+        chosen_meta = next(m for m in AVAILABLE_EMBED_MODELS if m["id"] == embed_model_id)
+        st.caption(chosen_meta["note"])
+        st.slider("Chunk size (words)", 200, 800, 400, step=50, key="chunk_size")
+        st.slider("Chunk overlap (words)", 20, 200, 80, step=20, key="chunk_overlap")
+    else:
+        embed_model_id = DEFAULT_EMBED_MODEL
 
     st.markdown("---")
     st.markdown(
@@ -313,18 +246,22 @@ if run_btn and query.strip():
         model=model_choice,
         max_results=max_search_results,
         max_tokens=max_tokens,
+        embed_model=embed_model_id,
+        use_local_rag=use_local_rag,
     )
 
     try:
         # Step 1 — Retrieval
-        status_box.info("🔍 **Contextual Retriever Agent** · Fetching sources…")
+        rag_note = " + semantic RAG" if (use_local_rag and RAG_AVAILABLE and uploaded_pdfs) else ""
+        status_box.info(f"🔍 **Contextual Retriever Agent** · Fetching sources{rag_note}…")
         progress_bar.progress(10)
         retrieval_result = engine.run_retriever(
             query=query,
             extra_context=extra_context,
             pdf_files=uploaded_pdfs or [],
         )
-        add_log(f"Retrieved {retrieval_result['web_count']} web sources, {retrieval_result['pdf_count']} PDF chunks.", "retriever")
+        rag_info = f", {retrieval_result['rag_chunk_count']} RAG chunks (" + (retrieval_result['rag_model'] or '') + ")" if retrieval_result.get('rag_chunk_count') else ""
+        add_log(f"Retrieved {retrieval_result['web_count']} web sources, {retrieval_result['pdf_count']} PDFs{rag_info}.", "retriever")
         progress_bar.progress(30)
 
         # Step 2 — Critical Analysis
