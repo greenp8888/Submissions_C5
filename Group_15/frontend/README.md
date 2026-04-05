@@ -1,4 +1,4 @@
-# Frontend — Ideascope
+# Frontend — SignalForge
 
 Next.js 14 frontend with streaming SSE support for real-time competitive intelligence reports.
 

@@ -33,8 +33,8 @@ export default function StreamingProgress({ currentNode }: StreamingProgressProp
                   width: 24,
                   height: 1,
                   background: isCompleted
-                    ? "rgba(34,211,238,0.5)"
-                    : "rgba(255,255,255,0.08)",
+                    ? "color-mix(in srgb, var(--accent-cyan) 45%, transparent)"
+                    : "var(--rp-stream-line)",
                   flexShrink: 0,
                 }}
               />
@@ -42,12 +42,12 @@ export default function StreamingProgress({ currentNode }: StreamingProgressProp
             <div className="flex items-center gap-1.5 px-2 py-1 rounded-full"
               style={{
                 background: isActive
-                  ? "rgba(34,211,238,0.12)"
+                  ? "color-mix(in srgb, var(--accent-cyan) 14%, transparent)"
                   : isCompleted
-                  ? "rgba(34,211,238,0.06)"
+                  ? "color-mix(in srgb, var(--accent-cyan) 7%, transparent)"
                   : "transparent",
                 border: isActive
-                  ? "1px solid rgba(34,211,238,0.35)"
+                  ? "1px solid color-mix(in srgb, var(--accent-cyan) 35%, transparent)"
                   : "1px solid transparent",
                 flexShrink: 0,
               }}
@@ -58,11 +58,11 @@ export default function StreamingProgress({ currentNode }: StreamingProgressProp
                   width: 6,
                   height: 6,
                   background: isActive
-                    ? "#22d3ee"
+                    ? "var(--accent-cyan)"
                     : isCompleted
-                    ? "rgba(34,211,238,0.5)"
-                    : "rgba(255,255,255,0.15)",
-                  boxShadow: isActive ? "0 0 8px #22d3ee" : "none",
+                    ? "color-mix(in srgb, var(--accent-cyan) 45%, transparent)"
+                    : "var(--rp-stream-dot-off)",
+                  boxShadow: isActive ? "0 0 8px var(--accent-cyan)" : "none",
                   animation: isActive ? "glowPulse 1.5s ease-in-out infinite" : "none",
                 }}
               />
@@ -72,10 +72,10 @@ export default function StreamingProgress({ currentNode }: StreamingProgressProp
                   fontSize: 11,
                   letterSpacing: "0.04em",
                   color: isActive
-                    ? "#22d3ee"
+                    ? "var(--accent-cyan)"
                     : isCompleted
-                    ? "rgba(226,232,240,0.5)"
-                    : "rgba(226,232,240,0.2)",
+                    ? "var(--rp-stream-text-mid)"
+                    : "var(--rp-stream-text-dim)",
                   fontWeight: isActive ? 600 : 400,
                   whiteSpace: "nowrap",
                 }}

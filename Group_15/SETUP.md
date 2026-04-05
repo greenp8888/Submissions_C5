@@ -1,4 +1,4 @@
-# Ideascope — Setup & Run Guide
+# SignalForge — Setup & Run Guide
 
 ## Prerequisites
 
@@ -62,6 +62,8 @@ npm run dev
 
 Visit `http://localhost:3000`
 
+**If the report page shows 502 / “Cannot reach FastAPI”:** from the same machine, run `curl -s http://localhost:8000/health` — you should see `{"status":"ok"}`. Start uvicorn if not. The Next.js proxy tries both `http://localhost:8000` and `http://127.0.0.1:8000` automatically. If you use Docker for the frontend, set `BACKEND_URL=http://host.docker.internal:8000` in `frontend/.env.local`.
+
 ## Environment Variables
 
 ### Backend `.env`
@@ -82,7 +84,13 @@ PRODUCTHUNT_API_KEY=optional
 
 ### Frontend `.env.local` (optional)
 
+The report page calls FastAPI through **Next.js proxies** at `/api/backend/*` (no browser CORS issues).
+
 ```
+# Where the Next server forwards /api/backend/* (default: http://127.0.0.1:8000)
+BACKEND_URL=http://127.0.0.1:8000
+
+# Optional legacy: only needed if you point the client directly at FastAPI elsewhere
 NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
