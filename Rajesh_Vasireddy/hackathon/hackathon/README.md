@@ -515,7 +515,7 @@ You will also need:
 ### Step 2: Clone the Repository
 
 ```bash
-git clone https://github.com/your-org/devops-incident-suite.git
+git clone https://github.com/eng-accelerator/Submissions_C5/tree/Group_4/Rajesh_Vasireddy/hackathon/hackathon
 cd devops-incident-suite
 ```
 
@@ -571,16 +571,14 @@ Open **two terminal windows**:
 
 **Terminal 1 — Start the FastAPI Backend:**
 ```bash
-make dev-api
-# Equivalent to: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 # Listening at http://localhost:8000
 # API docs available at http://localhost:8000/docs
 ```
 
 **Terminal 2 — Start the Streamlit Frontend:**
 ```bash
-make dev-frontend
-# Equivalent to: streamlit run frontend/app.py --server.port 8501
+streamlit run frontend/app.py --server.port 8501
 # Listening at http://localhost:8501
 ```
 
