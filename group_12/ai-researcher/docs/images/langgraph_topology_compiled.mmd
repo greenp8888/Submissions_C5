@@ -1,0 +1,63 @@
+%% Auto-generated from deep_researcher.graph.build_graph() — do not edit by hand.
+%% Regenerate: python scripts/export_langgraph_mermaid.py
+%% Render PNG: cd docs/images && npx -y @mermaid-js/mermaid-cli -i langgraph_topology_compiled.mmd -o langgraph_topology.png -w 3600 -H 2800 -b white
+
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	planner(planner)
+	prep_retrieval(prep_retrieval)
+	local_media_retriever(local_media_retriever)
+	wikipedia_retriever(wikipedia_retriever)
+	arxiv_retriever(arxiv_retriever)
+	tavily_retriever(tavily_retriever)
+	retriever_merge(retriever_merge)
+	retriever_merge_followup(retriever_merge_followup)
+	local_media_retriever_f(local_media_retriever_f)
+	wikipedia_retriever_f(wikipedia_retriever_f)
+	arxiv_retriever_f(arxiv_retriever_f)
+	tavily_retriever_f(tavily_retriever_f)
+	critical_analyst(critical_analyst)
+	gap_planner(gap_planner)
+	prep_followup(prep_followup)
+	insight_direct(insight_direct)
+	insight_post_gap_skip(insight_post_gap_skip)
+	insight_post_followup(insight_post_followup)
+	report_direct(report_direct)
+	report_post_gap_skip(report_post_gap_skip)
+	report_post_followup(report_post_followup)
+	critical_analyst_followup(critical_analyst_followup)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> planner;
+	arxiv_retriever --> retriever_merge;
+	arxiv_retriever_f --> retriever_merge_followup;
+	critical_analyst -.-> gap_planner;
+	critical_analyst -.-> insight_direct;
+	critical_analyst_followup --> insight_post_followup;
+	gap_planner -.-> insight_post_gap_skip;
+	gap_planner -.-> prep_followup;
+	insight_direct --> report_direct;
+	insight_post_followup --> report_post_followup;
+	insight_post_gap_skip --> report_post_gap_skip;
+	local_media_retriever --> retriever_merge;
+	local_media_retriever_f --> retriever_merge_followup;
+	planner --> prep_retrieval;
+	prep_followup --> arxiv_retriever_f;
+	prep_followup --> local_media_retriever_f;
+	prep_followup --> tavily_retriever_f;
+	prep_followup --> wikipedia_retriever_f;
+	prep_retrieval --> arxiv_retriever;
+	prep_retrieval --> local_media_retriever;
+	prep_retrieval --> tavily_retriever;
+	prep_retrieval --> wikipedia_retriever;
+	retriever_merge --> critical_analyst;
+	retriever_merge_followup --> critical_analyst_followup;
+	tavily_retriever --> retriever_merge;
+	tavily_retriever_f --> retriever_merge_followup;
+	wikipedia_retriever --> retriever_merge;
+	wikipedia_retriever_f --> retriever_merge_followup;
+	report_direct --> __end__;
+	report_post_followup --> __end__;
+	report_post_gap_skip --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc

@@ -2,7 +2,45 @@
 
 This document reflects **`build_graph()`** in [`deep_researcher/graph.py`](./deep_researcher/graph.py): nodes, edges, and routing. For product context see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
-**Rendered PNG (matches the compiled `StateGraph` exactly):**
+**Human-in-the-loop review** (upload digest + LLM alignment, then **Yes / No** before research runs) lives in **Gradio** only: [`app.py`](./app.py) (`run_preflight_review`, `confirm_yes` → `run_research_after_confirm` → `graph.invoke`). It is **not** a LangGraph node, interrupt, or checkpoint, so it does **not** appear on the compiled graph PNG below. For the **full** product flow including that step, see [§0](#0-full-application-flow-gradio--langgraph) and [`docs/images/application_flow_with_hitl.png`](./docs/images/application_flow_with_hitl.png).
+
+---
+
+## 0. Full application flow (Gradio + LangGraph)
+
+```mermaid
+flowchart TB
+    subgraph hitl["Gradio UI — human-in-the-loop (outside LangGraph)"]
+        direction TB
+        U[User: question + optional files]
+        R[1. Review uploads & question]
+        PF[preflight_llm: digest + alignment vs question]
+        H{{2. Human: Yes run research / No cancel}}
+        U --> R
+        R --> PF
+        PF --> H
+        H -->|No — cancel| U
+    end
+
+    H -->|Yes — run full research| INV["app.py: graph.invoke(initial_state)"]
+
+    subgraph lg["LangGraph StateGraph — detail in §1 and langgraph_topology.png"]
+        direction TB
+        INV --> ST([__start__])
+        ST --> P[planner → retrieval → analyst → …]
+        P --> EN([__end__])
+    end
+
+    EN --> OUT[Report, sources, trace in UI]
+```
+
+![Application flow — Gradio preflight then LangGraph](./docs/images/application_flow_with_hitl.png)
+
+_Source: [`docs/images/application_flow_with_hitl.mmd`](./docs/images/application_flow_with_hitl.mmd)._
+
+---
+
+**LangGraph-only PNG** (matches the compiled `StateGraph` exactly — no UI steps):
 
 ![LangGraph topology — Phase 2 deep researcher](./docs/images/langgraph_topology.png)
 
@@ -141,7 +179,8 @@ Each chain runs **`insight_node` / `report_node`** with the same implementation;
 
 ## 6. Rendering diagrams
 
-- **Checked-in PNG:** [`docs/images/langgraph_topology.png`](./docs/images/langgraph_topology.png) (from [`langgraph_topology_compiled.mmd`](./docs/images/langgraph_topology_compiled.mmd); regenerate via [`scripts/export_langgraph_mermaid.py`](./scripts/export_langgraph_mermaid.py) + mermaid-cli as in the figure note).
+- **LangGraph PNG:** [`docs/images/langgraph_topology.png`](./docs/images/langgraph_topology.png) (from [`langgraph_topology_compiled.mmd`](./docs/images/langgraph_topology_compiled.mmd); regenerate via [`scripts/export_langgraph_mermaid.py`](./scripts/export_langgraph_mermaid.py) + mermaid-cli as in the figure note).
+- **Gradio + LangGraph (HITL) PNG:** [`docs/images/application_flow_with_hitl.png`](./docs/images/application_flow_with_hitl.png) from [`application_flow_with_hitl.mmd`](./docs/images/application_flow_with_hitl.mmd): `cd docs/images && npx -y @mermaid-js/mermaid-cli -i application_flow_with_hitl.mmd -o application_flow_with_hitl.png -w 3200 -H 1800 -b white`
 - **GitHub / GitLab:** Mermaid renders in Markdown preview.
 - **VS Code:** “Markdown Preview Mermaid Support” or similar extension.
 - **Export PNG/SVG:** [Mermaid Live Editor](https://mermaid.live) (paste the fenced blocks) or **@mermaid-js/mermaid-cli** as in the note under the figure above.
