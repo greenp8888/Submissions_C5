@@ -2,7 +2,7 @@
 # AI Financial Coach
 
 #### [Technical Documentation](docs/TECHNICAL_DOCUMENTATION.md)
-#### [Demo Link]()
+#### [Demo Link](https://drive.google.com/file/d/1W38glXZE8jbeZAHaY0PT4bHriHP3tHZ6/view?usp=sharing)
 
 This project is an AI-powered financial coach with:
 - structured financial data storage in SQLite
