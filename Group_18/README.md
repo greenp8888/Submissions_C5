@@ -4,6 +4,11 @@
 
 A single-file, production-ready multi-agent AI research assistant built with **LangGraph** and **Streamlit**. Lumeris decomposes complex queries into structured sub-questions, orchestrates parallel tool retrieval across Wikipedia, ArXiv, and the web, performs semantic search over your own PDFs, and synthesises everything into a verified, auditable research report.
 
+You can watch a 5 minute video here: https://www.loom.com/share/45ac86ba8ef44bcab2c911df3e593eed
+(in case if this Video link does not run, the mp4 file for tyhis video is also checked into github repo)
+
+You can play with this application at a publicly hosted link: https://zynn7arrperkxkm4loxwtm.streamlit.app/
+
 ---
 
 ## Table of Contents
