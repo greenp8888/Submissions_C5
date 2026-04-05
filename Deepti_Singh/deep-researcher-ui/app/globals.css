@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-void: #0B0B0F;
+  --color-lime: #CAFF04;
+  --color-uv: #8338EC;
+  --color-surface: #13131A;
+  --color-cborder: #1E1E2A;
+  --color-muted: #6B6B7A;
+  --color-iface: #EAEAEF;
+  --font-sans: var(--font-dm-sans), 'DM Sans', system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), 'JetBrains Mono', ui-monospace, monospace;
+}
+
+:root {
+  --void-black: #0B0B0F;
+  --electric-lime: #CAFF04;
+  --uv-purple: #8338EC;
+  --interface-white: #EAEAEF;
+  --card-surface: #13131A;
+  --card-border: #1E1E2A;
+  --muted-text: #6B6B7A;
+  --lime-dim: rgba(202, 255, 4, 0.12);
+  --purple-dim: rgba(131, 56, 236, 0.15);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--void-black);
+  color: var(--interface-white);
+  font-family: var(--font-dm-sans), 'DM Sans', system-ui, sans-serif;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Noise grain texture overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.035;
+}
+
+/* Custom Scrollbar – Dark Futuristic */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--void-black);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--card-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--uv-purple);
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--card-border) var(--void-black);
+}
