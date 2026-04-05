@@ -2,6 +2,9 @@
 
 **🎬 ZeroDay Armor in Action [Video] (https://drive.google.com/file/d/14r1qBhBQRsKTthfB9SvmrQUeg2M4HEQ3/view)**
 
+**[🎬 ZeroDay Armor in Action Video](https://drive.google.com/file/d/14r1qBhBQRsKTthfB9SvmrQUeg2M4HEQ3/view)**
+
+
 **[Reference Architecture [https://drive.google.com/file/d/14r1qBhBQRsKTthfB9SvmrQUeg2M4HEQ3/view](https://github.com/eng-accelerator/Submissions_C5/blob/Group__14/ZeroDayArmor/CYBERSEC_AI_AGENT/architecture/ZeroDayArmor%20%E2%80%94%20Investor%20One-Pager.pdf)]()**
 
 **[Techinal Architecture ([https://drive.google.com/file/d/14r1qBhBQRsKTthfB9SvmrQUeg2M4HEQ3/view](https://github.com/eng-accelerator/Submissions_C5/blob/Group__14/ZeroDayArmor/CYBERSEC_AI_AGENT/architecture/ZeroDayArmor_pitch_slide.html))]()**
