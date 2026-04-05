@@ -20,6 +20,9 @@ This README is the main project reference for team members, evaluators, and main
 | Rithan Pranaov |
 | Eswer KM |
 
+## Video Link
+https://www.loom.com/share/38b1b14cbbd54edbb38ddf286bb073f0
+
 ## What The Product Does
 
 The application accepts:
