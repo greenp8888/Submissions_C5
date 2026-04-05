@@ -1,0 +1,13 @@
+2024-03-15T16:00:00Z deploy[ci]: INFO Starting deployment of api-service:v2.4.1 to production
+2024-03-15T16:00:05Z kubectl[deploy]: deployment.apps/api-service image updated to registry.example.com/api-service:v2.4.1
+2024-03-15T16:00:30Z kubectl[deploy]: Waiting for rollout to finish: 1 out of 5 new replicas have been updated
+2024-03-15T16:01:00Z kubelet[node-01]: ERROR Failed to pull image "registry.example.com/api-service:v2.4.1": rpc error: code = Unknown desc = failed to pull and unpack image: failed to resolve reference: unexpected status code 401 Unauthorized
+2024-03-15T16:01:01Z kubelet[node-02]: ERROR Failed to pull image "registry.example.com/api-service:v2.4.1": rpc error: code = Unknown desc = failed to pull and unpack image: failed to resolve reference: unexpected status code 401 Unauthorized
+2024-03-15T16:01:05Z kubectl[deploy]: pod/api-service-v2.4.1-7d9f8b-abc12 STATUS: ErrImagePull
+2024-03-15T16:01:06Z kubectl[deploy]: pod/api-service-v2.4.1-7d9f8b-abc12 STATUS: ImagePullBackOff
+2024-03-15T16:02:00Z kubectl[deploy]: error: deployment "api-service" exceeded its progress deadline
+2024-03-15T16:02:01Z deploy[ci]: ERROR Deployment FAILED. Rolling back to api-service:v2.4.0
+2024-03-15T16:02:10Z kubectl[deploy]: Rollback to revision 12 (api-service:v2.4.0) initiated
+2024-03-15T16:02:30Z kubectl[deploy]: Waiting for rollout to finish: 0 out of 5 new replicas have been updated (rollback in progress)
+2024-03-15T16:03:00Z kubectl[deploy]: deployment "api-service" successfully rolled out to revision 12
+2024-03-15T16:03:01Z deploy[ci]: ERROR Root cause: imagePullSecret "registry-credentials" expired or missing in namespace "production"
