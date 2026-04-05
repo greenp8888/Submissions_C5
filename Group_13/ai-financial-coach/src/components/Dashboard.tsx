@@ -19,6 +19,7 @@ import { apiClient } from '../lib/api';
 import { parseExpenses } from '../lib/agents/expenseParser';
 import { parseEquityPL } from '../lib/agents/equityParser';
 import { buildTradePayloadFromParsedTrade } from '../lib/tradeImport';
+import { buildPortfolioSnapshot } from '../lib/portfolioSnapshot';
 
 const currencyFormatter = new Intl.NumberFormat('en-IN', {
   style: 'currency',
@@ -60,24 +61,6 @@ const getInitials = (name?: string | null, email?: string | null) => {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() || '')
     .join('');
-};
-
-const classifyInvestment = (type?: string, assetCategory?: string, commodityType?: string) => {
-  const value = `${type || ''} ${assetCategory || ''} ${commodityType || ''}`.toLowerCase();
-  if (value.includes('insurance')) return 'Protection';
-  if (value.includes('gold')) return 'Gold';
-  if (value.includes('commodity')) return 'Commodities';
-  if (
-    value.includes('fd') ||
-    value.includes('debt') ||
-    value.includes('bond') ||
-    value.includes('ppf') ||
-    value.includes('epf') ||
-    value.includes('nps')
-  ) {
-    return 'Debt';
-  }
-  return 'Equity';
 };
 
 const inferTaxCategoryFromInvestment = (investment: any) => {
@@ -674,18 +657,10 @@ export default function Dashboard() {
     const totalMonthlyEmi = activeLoanBreakdown.reduce((sum, loan) => sum + toNumber(loan.monthly_emi), 0);
     const netWorth = totalPortfolioTrackedValue - totalLoanOutstanding;
 
-    const allocationMap = new Map<string, number>();
-    portfolioInvestments.forEach((investment) => {
-      const bucket = classifyInvestment(investment.investment_type, investment.asset_category, investment.commodity_type);
-      allocationMap.set(bucket, (allocationMap.get(bucket) || 0) + toNumber(investment.principal_amount));
-    });
-    if (activeTradeHoldings.length > 0) {
-      allocationMap.set('Equity', (allocationMap.get('Equity') || 0) + activeTradeHoldings.reduce((sum, item) => sum + item.trackedValue, 0));
-    }
-
-    const allocationData = Array.from(allocationMap.entries()).map(([name, value], index) => ({
-      name,
-      value,
+    const portfolioSnapshot = buildPortfolioSnapshot(investments, equityTrades);
+    const allocationData = portfolioSnapshot.allocationDetails.map((item, index) => ({
+      name: item.assetClass.charAt(0).toUpperCase() + item.assetClass.slice(1),
+      value: item.value,
       color: ASSET_COLORS[index % ASSET_COLORS.length],
     }));
     const allocationTotal = allocationData.reduce((sum, item) => sum + item.value, 0);

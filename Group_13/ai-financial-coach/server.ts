@@ -7,6 +7,11 @@ import { fileURLToPath } from 'url';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
+import { HumanMessage, AIMessage } from '@langchain/core/messages';
+import { appGraph } from './src/lib/graph';
+import { buildDomainSnapshots, buildRagDocuments, ensureRagTables, getRiskProfile, getUserRagIndexState, markUserRagDirty, refreshUserRagIndex, searchUserRagIndex, UserFinancialData } from './src/lib/rag';
+import { documentParserPrompt } from './src/lib/prompts/documentParser.prompt';
+import { invokeOpenRouterJson } from './src/lib/llm';
 
 dotenv.config();
 
@@ -15,6 +20,7 @@ const __dirname = path.dirname(__filename);
 
 const db = new Database('finance.db');
 db.pragma('foreign_keys = OFF');
+ensureRagTables(db);
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key';
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
@@ -436,6 +442,65 @@ const isInsuranceLikeGoal = (goal: any) => {
   return label.includes('emergency');
 };
 
+const getUserFinancialData = (userId: number): UserFinancialData => {
+  const profile = db.prepare('SELECT user_id, email, name, onboarding_completed FROM Users WHERE user_id = ?').get(userId) || null;
+  const latestSalary = db.prepare(`
+    SELECT *
+    FROM SalaryHistory
+    WHERE user_id = ?
+    ORDER BY date(effective_from) DESC, id DESC
+    LIMIT 1
+  `).get(userId) || null;
+  const salaryHistory = db.prepare(`
+    SELECT *
+    FROM SalaryHistory
+    WHERE user_id = ?
+    ORDER BY date(effective_from) DESC, id DESC
+  `).all(userId) as any[];
+  const healthScores = db.prepare(`
+    SELECT *
+    FROM HealthScores
+    WHERE user_id = ?
+    ORDER BY start_date DESC
+  `).all(userId) as any[];
+  const otherIncomes = db.prepare('SELECT * FROM OtherIncomes WHERE user_id = ? ORDER BY date(date_received) DESC, id DESC').all(userId) as any[];
+  const investments = db.prepare('SELECT * FROM FixedInvestments WHERE user_id = ? ORDER BY id DESC').all(userId) as any[];
+  const goals = db.prepare('SELECT * FROM Goals WHERE user_id = ? ORDER BY date(target_date) ASC, id DESC').all(userId) as any[];
+  const taxBenefits = db.prepare('SELECT * FROM TaxBenefitEntries WHERE user_id = ? ORDER BY date(contribution_date) DESC, id DESC').all(userId) as any[];
+  const loans = db.prepare('SELECT * FROM Loans WHERE user_id = ? ORDER BY date(start_date) DESC, id DESC').all(userId) as any[];
+  const trades = db.prepare(`
+    SELECT
+      t.*,
+      s.name AS ticker_name,
+      s.asset_class
+    FROM Trades t
+    LEFT JOIN Securities s ON s.ticker = t.ticker
+    WHERE t.user_id = ?
+    ORDER BY date(t.execution_date) DESC, t.id DESC
+  `).all(userId) as any[];
+  const expenses = db.prepare(`
+    SELECT e.*, c.category_name
+    FROM Expenses e
+    LEFT JOIN ExpenseCategories c ON e.category_id = c.id
+    WHERE e.user_id = ?
+    ORDER BY date(e.transaction_date) DESC, e.id DESC
+  `).all(userId) as any[];
+
+  return {
+    profile,
+    latestSalary,
+    salaryHistory,
+    healthScores,
+    otherIncomes,
+    investments,
+    goals,
+    taxBenefits,
+    loans,
+    trades,
+    expenses,
+  };
+};
+
 ensureColumns('SalaryHistory', [
   { name: 'gross_monthly', type: 'REAL' },
   { name: 'basic_salary', type: 'REAL' },
@@ -485,7 +550,25 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(cors());
-  app.use(express.json());
+  app.use(express.json({ limit: '15mb' }));
+  app.use((err: any, req: any, res: any, next: any) => {
+    if (err?.type === 'request.aborted' || err?.code === 'ECONNABORTED') {
+      console.warn(`Request aborted while reading body: ${req.method} ${req.originalUrl}`);
+      if (!res.headersSent) {
+        return res.status(499).json({ error: 'Request aborted by client.' });
+      }
+      return;
+    }
+
+    if (err?.type === 'entity.parse.failed') {
+      if (!res.headersSent) {
+        return res.status(400).json({ error: 'Invalid JSON request body.' });
+      }
+      return;
+    }
+
+    next(err);
+  });
 
   const buildUpdateStatement = (body: Record<string, any>) => {
     const fields = Object.keys(body).filter((key) => body[key] !== undefined);
@@ -617,6 +700,54 @@ async function startServer() {
     });
   };
 
+  const buildConversationMessages = (history: Array<{ role: string; content: string }> = [], message: string) => {
+    const recentHistory = history
+      .filter((item) => item && typeof item.content === 'string' && item.content.trim())
+      .slice(-6)
+      .map((item) => item.role === 'user'
+        ? new HumanMessage(item.content.trim())
+        : new AIMessage(item.content.trim()));
+
+    return [...recentHistory, new HumanMessage(message.trim())];
+  };
+
+  const writeNdjson = (res: any, payload: Record<string, any>) => {
+    res.write(`${JSON.stringify(payload)}\n`);
+  };
+
+  const buildDocumentParserResponse = (parsed: any) => {
+    let reply = `**Document Parsing Complete**\n\n`;
+    reply += `**Document Type:** ${String(parsed.document_type || 'unknown').replace('_', ' ').toUpperCase()}\n`;
+    if (parsed.account_holder_name) reply += `**Account Holder:** ${parsed.account_holder_name}\n`;
+    if (parsed.document_period?.from && parsed.document_period?.to) {
+      reply += `**Period:** ${parsed.document_period.from} to ${parsed.document_period.to}\n`;
+    }
+    return {
+      reply,
+      routedAgent: 'document_parser_agent',
+      dashboardUpdates: {
+        documentAnalysis: {
+          document_type: parsed.document_type,
+          document_period: parsed.document_period || null,
+          account_holder_name: parsed.account_holder_name,
+          key_summary_figures: parsed.key_summary_figures || {},
+          tables: parsed.tables || [],
+          extraction_notes: parsed.extraction_notes || [],
+        },
+        action_items: [],
+        alerts: parsed.extraction_notes || [],
+        parsedDocument: parsed,
+      },
+      retrievedDocuments: [],
+      vectorDatabase: 'SQLite local hashed vector store in finance.db',
+    };
+  };
+
+  const handleUserDataMutation = (userId: number) => {
+    recalculateHealthScoresForUser(userId);
+    markUserRagDirty(db, userId);
+  };
+
   // Middleware: Auth
   const authenticateToken = (req: any, res: any, next: any) => {
     const authHeader = req.headers['authorization'];
@@ -630,6 +761,129 @@ async function startServer() {
     });
   };
 
+  app.post('/api/chat', authenticateToken, async (req: any, res) => {
+    const message = String(req.body?.message || '').trim();
+    const history = Array.isArray(req.body?.history) ? req.body.history : [];
+    const attachment = req.body?.attachment || null;
+    const wantsStream = String(req.headers.accept || '').includes('application/x-ndjson');
+
+    if (!message) {
+      return res.status(400).json({ error: 'A chat message is required.' });
+    }
+
+    if (wantsStream) {
+      res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('Connection', 'keep-alive');
+      res.flushHeaders?.();
+    }
+
+    const sendStatus = (step: string, label: string, detail?: string) => {
+      if (!wantsStream) return;
+      writeNdjson(res, { type: 'status', step, label, detail });
+    };
+
+    try {
+      if (attachment?.data && attachment?.filename) {
+        sendStatus('loading', 'Preparing uploaded document');
+        sendStatus('analysis', 'Parsing document with the document parser');
+
+        const parsed = attachment.mimeType?.startsWith('image/')
+          ? await invokeOpenRouterJson<any>(
+              documentParserPrompt,
+              [
+                { type: 'text', text: `${message || 'Parse this uploaded financial document and summarize it.'}` },
+                { type: 'image_url', image_url: { url: attachment.data } },
+              ]
+            )
+          : await invokeOpenRouterJson<any>(
+              documentParserPrompt,
+              [
+                { type: 'text', text: `${message || 'Parse this uploaded financial document and summarize it.'}` },
+                { type: 'file', file: { filename: attachment.filename, file_data: attachment.data } },
+              ]
+            );
+
+        const payload = buildDocumentParserResponse(parsed);
+        if (wantsStream) {
+          writeNdjson(res, { type: 'status', step: 'done', label: 'Response ready' });
+          writeNdjson(res, { type: 'result', payload });
+          return res.end();
+        }
+        return res.json(payload);
+      }
+
+      sendStatus('loading', 'Loading your financial records');
+      const data = getUserFinancialData(req.user.user_id);
+
+      sendStatus('health', 'Refreshing derived health metrics');
+      recalculateHealthScoresForUser(req.user.user_id);
+
+      sendStatus('preparing', 'Preparing financial knowledge base');
+      const refreshedData = getUserFinancialData(req.user.user_id);
+      const { documents, summary } = buildRagDocuments(refreshedData);
+      const domainSnapshots = buildDomainSnapshots(refreshedData);
+      const indexState = getUserRagIndexState(db, req.user.user_id);
+      const needsReindex = !indexState || indexState.is_dirty === 1 || indexState.document_count !== documents.length;
+      if (needsReindex) {
+        sendStatus('indexing', 'Updating vector index', `${documents.length} knowledge records`);
+        refreshUserRagIndex(db, req.user.user_id, documents);
+      } else {
+        sendStatus('indexing', 'Vector index already up to date', `${documents.length} knowledge records cached`);
+      }
+
+      sendStatus('retrieval', 'Retrieving the most relevant financial records');
+      const retrievalDocs = searchUserRagIndex(db, req.user.user_id, message, 6);
+
+      sendStatus('routing', 'Routing your request to the best specialist agent');
+      const initialState = {
+        messages: buildConversationMessages(history, message),
+        financialContext: {
+          summaryMetrics: summary,
+          userProfile: refreshedData.profile,
+          riskProfile: getRiskProfile(refreshedData.healthScores),
+          portfolioSnapshot: summary.portfolioSnapshot,
+          domainSnapshots,
+          retrieval: {
+            documents: retrievalDocs,
+            vectorDatabase: 'SQLite local hashed vector store in finance.db',
+          },
+          vectorDatabase: 'SQLite local hashed vector store in finance.db',
+          conversationHistory: history.slice(-6),
+        },
+      };
+
+      sendStatus('analysis', 'Generating your personalized response');
+      const result = await appGraph.invoke(initialState);
+      const payload = {
+        reply: result.finalResponse || 'I processed your request.',
+        routedAgent: result.nextAgent || null,
+        dashboardUpdates: result.dashboardUpdates || {},
+        retrievedDocuments: retrievalDocs.map((doc) => ({
+          title: doc.title,
+          sourceType: doc.sourceType,
+          score: doc.score,
+        })),
+        vectorDatabase: 'SQLite local hashed vector store in finance.db',
+      };
+
+      if (wantsStream) {
+        writeNdjson(res, { type: 'status', step: 'done', label: 'Response ready' });
+        writeNdjson(res, { type: 'result', payload });
+        return res.end();
+      }
+
+      res.json(payload);
+    } catch (error: any) {
+      console.error('Chat pipeline error:', error);
+      if (wantsStream) {
+        writeNdjson(res, { type: 'error', error: error?.message || 'Failed to process chat request.' });
+        return res.end();
+      }
+      res.status(500).json({ error: error?.message || 'Failed to process chat request.' });
+    }
+  });
+
   // Auth Routes
   app.post('/api/auth/register', async (req, res) => {
     const { email, password, name } = req.body;
@@ -641,6 +895,7 @@ async function startServer() {
       const hashedPassword = await bcrypt.hash(password, 10);
       const result = db.prepare('INSERT INTO Users (email, password, name) VALUES (?, ?, ?)')
         .run(normalizedEmail, hashedPassword, name);
+      markUserRagDirty(db, Number(result.lastInsertRowid));
       
       const token = jwt.sign({ user_id: result.lastInsertRowid, email: normalizedEmail }, JWT_SECRET);
       res.json({ token, user: { user_id: result.lastInsertRowid, email: normalizedEmail, name } });
@@ -708,6 +963,7 @@ async function startServer() {
     try {
       db.prepare(`UPDATE Users SET ${setClause} WHERE user_id = ?`)
         .run(...values, req.user.user_id);
+      markUserRagDirty(db, req.user.user_id);
       res.json({ success: true });
     } catch (err: any) {
       console.error('Profile update error:', err);
@@ -802,7 +1058,7 @@ async function startServer() {
       professional_tax || null,
       other_deductions || null
     );
-    recalculateHealthScoresForUser(req.user.user_id);
+    handleUserDataMutation(req.user.user_id);
     res.json({ success: true });
   });
 
@@ -813,7 +1069,7 @@ async function startServer() {
     }
     db.prepare(`UPDATE SalaryHistory SET ${setClause} WHERE id = ? AND user_id = ?`)
       .run(...values, req.params.id, req.user.user_id);
-    recalculateHealthScoresForUser(req.user.user_id);
+    handleUserDataMutation(req.user.user_id);
     res.json({ success: true });
   });
 
@@ -827,7 +1083,7 @@ async function startServer() {
     const { income_source, amount, date_received, is_taxable } = req.body;
     db.prepare('INSERT INTO OtherIncomes (user_id, income_source, amount, date_received, is_taxable) VALUES (?, ?, ?, ?, ?)')
       .run(req.user.user_id, income_source, amount, date_received, is_taxable ? 1 : 0);
-    recalculateHealthScoresForUser(req.user.user_id);
+    handleUserDataMutation(req.user.user_id);
     res.json({ success: true });
   });
 
@@ -851,7 +1107,7 @@ async function startServer() {
     }
     db.prepare('INSERT INTO Expenses (user_id, category_id, amount, transaction_date, description) VALUES (?, ?, ?, ?, ?)')
       .run(req.user.user_id, category.id, amount, transaction_date, description);
-    recalculateHealthScoresForUser(req.user.user_id);
+    handleUserDataMutation(req.user.user_id);
     res.json({ success: true });
   });
 
@@ -873,7 +1129,7 @@ async function startServer() {
     }
     db.prepare(`UPDATE Expenses SET ${setClause} WHERE id = ? AND user_id = ?`)
       .run(...values, req.params.id, req.user.user_id);
-    recalculateHealthScoresForUser(req.user.user_id);
+    handleUserDataMutation(req.user.user_id);
     res.json({ success: true });
   });
 
@@ -936,7 +1192,7 @@ async function startServer() {
         maturity_amount || null,
         tax_exemption_category || null
       );
-    recalculateHealthScoresForUser(req.user.user_id);
+    handleUserDataMutation(req.user.user_id);
     res.json({ success: true });
   });
 
@@ -947,14 +1203,14 @@ async function startServer() {
     }
     db.prepare(`UPDATE FixedInvestments SET ${setClause} WHERE id = ? AND user_id = ?`)
       .run(...values, req.params.id, req.user.user_id);
-    recalculateHealthScoresForUser(req.user.user_id);
+    handleUserDataMutation(req.user.user_id);
     res.json({ success: true });
   });
 
   app.delete('/api/investments/:id', authenticateToken, (req: any, res) => {
     db.prepare('DELETE FROM FixedInvestments WHERE id = ? AND user_id = ?')
       .run(req.params.id, req.user.user_id);
-    recalculateHealthScoresForUser(req.user.user_id);
+    handleUserDataMutation(req.user.user_id);
     res.json({ success: true });
   });
 
@@ -999,7 +1255,7 @@ async function startServer() {
       monthly_contribution || 0,
       notes || null
     );
-    recalculateHealthScoresForUser(req.user.user_id);
+    handleUserDataMutation(req.user.user_id);
     res.json({ success: true });
   });
 
@@ -1010,7 +1266,7 @@ async function startServer() {
     }
     db.prepare(`UPDATE Goals SET ${setClause} WHERE id = ? AND user_id = ?`)
       .run(...values, req.params.id, req.user.user_id);
-    recalculateHealthScoresForUser(req.user.user_id);
+    handleUserDataMutation(req.user.user_id);
     res.json({ success: true });
   });
 
@@ -1044,7 +1300,7 @@ async function startServer() {
       description || null,
       entry_type || 'investment'
     );
-    recalculateHealthScoresForUser(req.user.user_id);
+    handleUserDataMutation(req.user.user_id);
     res.json({ success: true });
   });
 
@@ -1055,7 +1311,7 @@ async function startServer() {
     }
     db.prepare(`UPDATE TaxBenefitEntries SET ${setClause} WHERE id = ? AND user_id = ?`)
       .run(...values, req.params.id, req.user.user_id);
-    recalculateHealthScoresForUser(req.user.user_id);
+    handleUserDataMutation(req.user.user_id);
     res.json({ success: true });
   });
 
@@ -1088,7 +1344,7 @@ async function startServer() {
       tenure_months || null,
       monthly_emi || null
     );
-    recalculateHealthScoresForUser(req.user.user_id);
+    handleUserDataMutation(req.user.user_id);
     res.json({ success: true });
   });
 
@@ -1099,7 +1355,7 @@ async function startServer() {
     }
     db.prepare(`UPDATE Loans SET ${setClause} WHERE id = ? AND user_id = ?`)
       .run(...values, req.params.id, req.user.user_id);
-    recalculateHealthScoresForUser(req.user.user_id);
+    handleUserDataMutation(req.user.user_id);
     res.json({ success: true });
   });
 
@@ -1184,7 +1440,7 @@ async function startServer() {
         existingTrade.id,
         req.user.user_id
       );
-      recalculateHealthScoresForUser(req.user.user_id);
+      handleUserDataMutation(req.user.user_id);
       return res.json({ success: true, action: 'updated' });
     }
 
@@ -1219,7 +1475,7 @@ async function startServer() {
       realized_gain || 0,
       holding_type || null
     );
-    recalculateHealthScoresForUser(req.user.user_id);
+    handleUserDataMutation(req.user.user_id);
     res.json({ success: true, action: 'inserted' });
   });
 
