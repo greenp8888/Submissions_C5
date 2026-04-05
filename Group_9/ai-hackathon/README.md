@@ -1,6 +1,6 @@
 # AI Hackathon Deep Researcher
 
-`ai-hackathon` is the Group 9 implementation of the Multi-Agent AI Deep Researcher described in the submission HLD. It combines a FastAPI backend, a mounted Gradio UI, LangGraph orchestration, local-first document retrieval, public-provider enrichment, transparent credibility scoring, and humanized export into a single runnable app.
+`ai-hackathon` is the Group 9 implementation of the Multi-Agent AI Deep Researcher described in the submission HLD. It combines a FastAPI backend, a React + Vite research dashboard, LangGraph orchestration, local-first document retrieval, public-provider enrichment, transparent credibility scoring, and humanized export into a single runnable app.
 
 ## What This Project Does
 
@@ -20,7 +20,9 @@ The app is designed to keep working even when external API keys are missing or i
 
 - FastAPI backend with research, report, graph, trace, export, and knowledge endpoints
 - provider settings API for OpenRouter and Tavily
-- Gradio UI mounted at the app root
+- React + Vite dashboard served by FastAPI at the app root
+- Tailwind + shadcn-style component system for the frontend shell
+- React Flow graph exploration for investigation entities and relationships
 - LangGraph pipeline with planner -> retrieval -> analysis -> insights -> report
 - Local-first retrieval with PDF/TXT/Markdown ingestion
 - source toggles for Local RAG, Web/Tavily, and arXiv
@@ -67,6 +69,10 @@ ai-hackathon/
 |-- stop.ps1
 |-- start.bat
 |-- stop.bat
+|-- frontend/
+|   |-- package.json
+|   |-- src/
+|   `-- dist/
 |-- prompts/
 |-- src/
 |   `-- ai_app/
@@ -166,6 +172,26 @@ Responsibilities:
 - stops the background process if it still exists
 - removes stale PID files when needed
 
+### React frontend behavior
+
+- the backend now serves the built React dashboard from `frontend/dist`
+- `start.ps1` will build the frontend automatically if `frontend/dist/index.html` is missing
+- to force a rebuild, use:
+
+```powershell
+.\start.ps1 -BuildFrontend
+```
+
+### Frontend development
+
+```powershell
+cd E:\hackathon-project\Submissions_C5\Group_9\ai-hackathon\frontend
+npm install
+npm run dev
+```
+
+The Vite dev server proxies `/api` and `/health` to `http://127.0.0.1:8000`.
+
 ### Batch wrappers
 
 - `start.bat`
@@ -237,16 +263,16 @@ Notes:
 ### From the UI
 
 1. Open the app root URL in the browser.
-2. Configure OpenRouter and Tavily keys from the provider settings panel if you want live LLM or web retrieval.
+2. Configure OpenRouter and Tavily keys from the Settings page if you want live LLM or web retrieval.
 3. Enter a research question, or switch to batch mode and enter one topic per line.
 4. Choose which sources to use: Local RAG, Web/Tavily, and/or arXiv.
 5. Apply a quick date preset or set an explicit `start_date` and `end_date`.
 6. Select `quick`, `standard`, or `deep`.
-7. Upload local files if you want local-first evidence, and optionally refresh collections to reuse an indexed set.
+7. Upload local files if you want local-first evidence, and optionally select indexed collections.
 8. Start research.
-9. Inspect the progress timeline, long-form report, references, confidence table, graph, and trace tabs.
+9. Inspect the live progress feed, long-form report, references, confidence table, graph, and trace tabs.
 10. Use Dig Deeper with a finding, claim, or insight target when needed.
-11. Export markdown or PDF from the UI.
+11. Export markdown or PDF from the session actions.
 
 ### From the API
 
@@ -292,6 +318,8 @@ The current implementation has been validated with:
 - `python -m compileall Group_9\ai-hackathon\src Group_9\ai-hackathon\ui`
 - editable install via `pip install -e Group_9\ai-hackathon`
 - app import smoke test
+- React frontend build via `npm run build`
+- FastAPI root route smoke test serving the built SPA
 - fallback research run without provider keys
 - local-first ingestion and retrieval smoke test
 - PDF ingestion smoke test confirming filename and page-number carry-through

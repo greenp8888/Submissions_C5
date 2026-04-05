@@ -45,6 +45,8 @@ Implement the `Group_9/ai-hackathon` MVP described by the revised HLD and produc
 - Expanded report sections to include methodology, source strategy, credibility evaluation, limitations, RAG references, and comprehensive bibliography
 - Upgraded PDF export to a formatted narrative document instead of a raw markdown dump
 - Simplified the Gradio UI into a production-style research console with setup, live progress, report, references, confidence, graph, trace, dig-deeper, and export areas
+- Replaced the Gradio root UI with a React + Vite dashboard served by FastAPI static assets
+- Added a frontend app shell, route-driven session pages, knowledge page, settings page, and React Flow graph view
 
 ## Notes
 - Assumption: API credentials may be added later, so provider integrations must degrade gracefully when keys are missing.

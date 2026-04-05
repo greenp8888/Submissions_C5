@@ -1,7 +1,8 @@
 param(
     [string]$BindHost = "127.0.0.1",
     [int]$Port = 8000,
-    [switch]$Reload
+    [switch]$Reload,
+    [switch]$BuildFrontend
 )
 
 $ErrorActionPreference = "Stop"
@@ -11,6 +12,8 @@ $runtimeDir = Join-Path $root ".runtime"
 $pidFile = Join-Path $runtimeDir "server.pid"
 $outLog = Join-Path $runtimeDir "server.out.log"
 $errLog = Join-Path $runtimeDir "server.err.log"
+$frontendDir = Join-Path $root "frontend"
+$frontendDist = Join-Path $frontendDir "dist\index.html"
 
 New-Item -ItemType Directory -Force -Path $runtimeDir | Out-Null
 
@@ -51,6 +54,37 @@ if (Test-PythonModule -PythonPath $venvPython -ModuleName "uvicorn") {
     Write-Host "Virtual environment Python is missing 'uvicorn'. Falling back to system Python: $pythonExe"
 } else {
     throw "Could not find a Python interpreter with 'uvicorn' installed. Run 'pip install -e .' in the app root first."
+}
+
+if ((Test-Path $frontendDir) -and ($BuildFrontend -or -not (Test-Path $frontendDist))) {
+    $npmCommand = Get-Command npm -ErrorAction SilentlyContinue
+    if (-not $npmCommand) {
+        throw "Node.js/npm is required to build the React frontend. Install Node.js or build the frontend manually in '$frontendDir'."
+    }
+
+    if (-not (Test-Path (Join-Path $frontendDir "node_modules"))) {
+        Write-Host "Installing frontend dependencies..."
+        Push-Location $frontendDir
+        try {
+            & $npmCommand.Source install
+            if ($LASTEXITCODE -ne 0) {
+                throw "npm install failed for the frontend."
+            }
+        } finally {
+            Pop-Location
+        }
+    }
+
+    Write-Host "Building React frontend..."
+    Push-Location $frontendDir
+    try {
+        & $npmCommand.Source run build
+        if ($LASTEXITCODE -ne 0) {
+            throw "npm run build failed for the frontend."
+        }
+    } finally {
+        Pop-Location
+    }
 }
 
 $arguments = @(

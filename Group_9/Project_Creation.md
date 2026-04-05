@@ -55,6 +55,7 @@ Upgrade `Group_9/ai-hackathon` with:
 | Validate arXiv and dig-deeper fixes | Re-run compile, import, dig-deeper, and direct academic retrieval checks | 900 | 320 | 49430 |
 | Upgrade report depth and citation quality | Add linked references, richer progress, and comprehensive report sections | 2100 | 900 | 52430 |
 | Full implementation uplift | Add source toggles, date-range controls, batch input, credibility methodology, and production-style UX | 2600 | 1100 | 56130 |
+| React dashboard rebuild | Replace Gradio with React + Vite, static serving, typed API integration, and frontend validation | 3200 | 1400 | 60730 |
 
 ## Notes
 - Token counts are estimated for project management only.
@@ -76,3 +77,5 @@ Upgrade `Group_9/ai-hackathon` with:
   - PDF ingestion smoke test confirming filename and page-number carry-through into RAG references
   - humanized PDF export smoke test
   - request and coordinator smoke test for batch mode plus quick date preset expansion
+  - `npm install` and `npm run build` in `Group_9\\ai-hackathon\\frontend`
+  - FastAPI `TestClient` smoke test for `/` serving the built SPA and `/health` remaining healthy

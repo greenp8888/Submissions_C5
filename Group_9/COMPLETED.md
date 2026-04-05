@@ -46,3 +46,8 @@
 - Reworked PDF export into a formatted narrative document instead of a plain markdown line dump
 - Simplified the Gradio UI into a more production-style research console with setup, progress, report, references, confidence, graph, trace, dig-deeper, and export panels
 - Validated compile, app creation, local-only run, PDF page-reference carry-through, provider-settings routing, humanized PDF export, and batch/date contract behavior
+- Rebuilt the primary UI as a React + Vite research dashboard with route-driven pages for research, sessions, knowledge, and settings
+- Added Tailwind-based dashboard styling and React Flow graph rendering
+- Replaced Gradio root mounting with FastAPI static serving plus SPA fallback routing
+- Updated startup workflow so `start.ps1` can build the frontend when needed
+- Validated the React frontend build and backend root-route delivery
