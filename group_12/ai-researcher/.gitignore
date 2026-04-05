@@ -1,0 +1,111 @@
+# ai-researcher — Python / Gradio / LangGraph deep researcher
+
+# --- Secrets (never commit) ---
+.env
+.env.*
+!.env.example
+
+# --- Virtual environments ---
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+*.egg
+MANIFEST
+pip-log.txt
+pip-delete-this-directory.txt
+
+# --- Testing / coverage ---
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pytype/
+.pyre/
+.ruff_cache/
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# --- Packaging / build ---
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.manifest
+*.spec
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+
+# --- Gradio / local UI ---
+.gradio/
+*.gradio*
+
+# --- ML / Hugging Face (if caches or weights land inside the repo) ---
+.cache/
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+# Uncomment if you vendor large HF snapshots under a fixed folder:
+# models/
+# huggingface/
+
+# --- Logs & temp ---
+*.log
+logs/
+tmp/
+temp/
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# --- IDEs ---
+.idea/
+.vscode/
+
+# --- Cursor (sensitive / local AI context) ---
+.cursorignore
+.cursorindexingignore
+
+# --- Misc Python tooling ---
+.pdm.toml
+.pdm-python
+.pdm-build/
+__pypackages__/
+.pypirc
+cython_debug/
+
+# --- SSL / keys (Gradio or tunnels) ---
+*.pem
+*.key
+secrets.json

@@ -1,0 +1,17 @@
+# group_12 — submission folder (applies to this tree)
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editor swap / backup
+*~
+*.swp
+*.swo
+
+# Accidental local env or secrets at group root (per-subproject rules live in subfolders)
+.env
+.env.local
+.venv/
+venv/
