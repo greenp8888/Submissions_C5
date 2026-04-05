@@ -1,3 +1,5 @@
+<<<<<<< HEAD
+=======
 # Python runtime dependencies for the AI Hackathon Deep Researcher backend.
 # Install with:
 #   pip install -r requirements.txt
@@ -19,3 +21,4 @@ numpy>=1.26,<3.0
 pypdf>=4.2,<5.0
 reportlab>=4.2,<5.0
 sentence-transformers>=3.3,<4.0
+>>>>>>> 8f62e600b9c3b155ab5707957c1eba5973a4d534
