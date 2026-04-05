@@ -17,7 +17,7 @@ import streamlit as st
 
 # ─── Page config must be first ────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Research Intelligence System",
+    page_title="Lumeris",
     page_icon="🔬",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -162,9 +162,18 @@ html, body, [class*="css"] {
     font-family: 'DM Serif Display', serif;
     font-size: 2.8rem;
     letter-spacing: -0.02em;
-    line-height: 1;
+    line-height: 1.1;
     color: var(--ink);
     margin: 0;
+}
+.ris-tagline {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem;
+    color: var(--slate);
+    margin-left: 0.75rem;
+    font-weight: 400;
+    font-style: italic;
+    vertical-align: middle;
 }
 .ris-subtitle {
     font-family: 'DM Mono', monospace;
@@ -1126,7 +1135,7 @@ for key, default in [
 # ─── UI Layout ────────────────────────────────────────────────────────────────
 st.markdown("""
 <div class="ris-header">
-  <div class="ris-title">Research Intelligence System</div>
+  <div class="ris-title">Lumeris <span class="ris-tagline">— Illuminating the path from data to discovery</span></div>
   <div class="ris-subtitle">Multi-Agent · LangGraph Orchestration · Transparent Reasoning</div>
 </div>
 """, unsafe_allow_html=True)
