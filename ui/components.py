@@ -12,25 +12,31 @@ def inject_theme():
 def severity_badge(severity: str) -> str:
     color, _ = SEVERITY_COLORS.get(severity, ("#8b949e", "low"))
     return (
-        f'<span style="background:{color}33; color:{color}; '
-        f'padding:2px 8px; border-radius:10px; font-size:12px; '
-        f'font-weight:bold;">{severity}</span>'
+        f'<span style="background:{color}22; color:{color}; '
+        f'padding:3px 10px; border-radius:12px; font-size:12px; '
+        f'font-weight:600; letter-spacing:0.03em; '
+        f'border:1px solid {color}44;">{severity}</span>'
     )
 
 
-def log_card(entry: dict):
+def log_card(entry: dict, index: int = 0):
     severity = entry.get("severity", "LOW")
     _, css_class = SEVERITY_COLORS.get(severity, ("#8b949e", "low"))
+    color, _ = SEVERITY_COLORS.get(severity, ("#8b949e", "low"))
+    category = entry.get("category", "unknown")
     st.markdown(
         f"""<div class="severity-{css_class}">
-            <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
-                {severity_badge(severity)}
-                <span style="color:#484f58; font-size:12px;">{entry.get('timestamp', '')}</span>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    {severity_badge(severity)}
+                    <span style="color:#b0bec8; font-size:13px; font-weight:500;">{category}</span>
+                </div>
+                <span style="color:#6e7f90; font-size:12px; font-family:'Fira Code',monospace;">{entry.get('timestamp', '')}</span>
             </div>
-            <div style="color:#c9d1d9; font-size:14px; margin-bottom:4px;">
-                <strong>{entry.get('category', '')}</strong> — {entry.get('summary', '')}
+            <div style="color:#e6edf3; font-size:14px; margin-bottom:8px; line-height:1.6;">
+                {entry.get('summary', '')}
             </div>
-            <code>{entry.get('raw_line', '')}</code>
+            <code style="font-family:'Fira Code',monospace;">{entry.get('raw_line', '')}</code>
         </div>""",
         unsafe_allow_html=True,
     )

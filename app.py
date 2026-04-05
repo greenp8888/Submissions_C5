@@ -111,11 +111,76 @@ if analyze_button:
         st.error("Please upload a file or paste log content.")
     else:
         st.session_state.is_running = True
-        with st.spinner("Analyzing logs with multi-agent pipeline..."):
-            graph = build_graph()
-            initial_state = make_initial_state(raw_logs)
-            result = graph.invoke(initial_state)
-            st.session_state.analysis_state = result
+
+        # Agent display names and descriptions
+        agent_info = {
+            "classifier": ("Log Classifier", "Parsing and classifying log entries by severity..."),
+            "remediation": ("Remediation Engine", "Analyzing root causes and generating fixes..."),
+            "cookbook": ("Cookbook Synthesizer", "Building incident response runbook..."),
+            "slack_notifier": ("Slack Notifier", "Sending alerts to Slack channel..."),
+            "jira_ticket": ("JIRA Ticket Creator", "Generating JIRA tickets for critical issues..."),
+        }
+
+        graph = build_graph()
+        initial_state = make_initial_state(raw_logs)
+        result = initial_state
+
+        with st.status("Running multi-agent analysis pipeline...", expanded=True) as status:
+            st.write(f"Loaded **{len(raw_logs.splitlines())}** lines of logs")
+
+            for event in graph.stream(initial_state):
+                for node_name, node_output in event.items():
+                    display_name, description = agent_info.get(node_name, (node_name, "Processing..."))
+
+                    # Get timing from trace
+                    traces = node_output.get("agent_trace", [])
+                    duration = ""
+                    if traces:
+                        t = traces[-1]
+                        d = t.get("end_time", 0) - t.get("start_time", 0)
+                        duration = f" ({d:.1f}s)"
+                        node_status = t.get("status", "completed")
+                    else:
+                        node_status = "completed"
+
+                    icon = {"completed": "\u2705", "skipped": "\u26aa", "failed": "\u274c"}.get(node_status, "\u2705")
+
+                    # Show what this agent produced
+                    summary_parts = []
+                    if "classified_entries" in node_output:
+                        summary_parts.append(f"{len(node_output['classified_entries'])} entries classified")
+                    if "remediations" in node_output:
+                        summary_parts.append(f"{len(node_output['remediations'])} remediations generated")
+                    if "cookbook" in node_output and node_output["cookbook"]:
+                        summary_parts.append("Runbook generated")
+                    if "slack_notifications" in node_output:
+                        sent = sum(1 for n in node_output["slack_notifications"] if n["status"] == "sent")
+                        failed = sum(1 for n in node_output["slack_notifications"] if n["status"] == "failed")
+                        if sent:
+                            summary_parts.append(f"{sent} Slack message(s) sent")
+                        if failed:
+                            summary_parts.append(f"{failed} Slack message(s) failed")
+                    if "jira_tickets" in node_output:
+                        summary_parts.append(f"{len(node_output['jira_tickets'])} JIRA tickets created")
+
+                    summary_text = " | ".join(summary_parts) if summary_parts else "Done"
+                    st.write(f"{icon} **{display_name}**{duration} \u2014 {summary_text}")
+
+                    # Merge into result
+                    result = {**result, **node_output}
+                    # Accumulate trace entries
+                    if "agent_trace" in node_output:
+                        existing_trace = result.get("_all_traces", [])
+                        existing_trace.extend(node_output["agent_trace"])
+                        result["_all_traces"] = existing_trace
+
+            # Finalize trace
+            if "_all_traces" in result:
+                result["agent_trace"] = result.pop("_all_traces")
+
+            status.update(label="Analysis complete!", state="complete", expanded=False)
+
+        st.session_state.analysis_state = result
         st.session_state.is_running = False
         st.rerun()
 
