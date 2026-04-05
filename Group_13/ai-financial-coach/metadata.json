@@ -1,0 +1,5 @@
+{
+  "name": "AI Financial Coach",
+  "description": "An AI Financial Coach that routes queries to specialist agents and synthesizes responses.",
+  "requestFramePermissions": []
+}
