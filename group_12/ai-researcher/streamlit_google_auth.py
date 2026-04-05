@@ -140,5 +140,5 @@ def read_oauth_settings_from_env() -> tuple[str, str, str]:
     """Returns (client_id, client_secret, redirect_uri)."""
     cid = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
     sec = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET", "").strip()
-    redir = os.environ.get("GOOGLE_OAUTH_REDIRECT_URI", "http://localhost:8501/").strip()
+    redir = os.environ.get("GOOGLE_OAUTH_REDIRECT_URI", "http://localhost:9501/").strip()
     return cid, sec, redir

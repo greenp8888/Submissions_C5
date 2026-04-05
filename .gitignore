@@ -141,5 +141,8 @@ secrets.json
 
 # Streamlit config folders (anywhere in project)
 .streamlit/
+# Track NovaMind project default server port (overrides ignore above)
+!group_12/ai-researcher/.streamlit/
+!group_12/ai-researcher/.streamlit/config.toml
 .gradio-venv/
 *.gradio*

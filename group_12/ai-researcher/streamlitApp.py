@@ -10,6 +10,8 @@ Run from the ``ai-researcher`` directory::
     which streamlit
     streamlit run streamlitApp.py
 
+Default URL: ``http://localhost:9501`` (see ``.streamlit/config.toml``).
+
 Both ``which`` paths must live under ``.venv/``. Run only the shell commands above; do not
 paste explanatory words from docs as extra lines (the shell will report "command not found").
 
@@ -348,7 +350,7 @@ def _render_oauth_disabled_login_screen() -> None:
         with st.expander("Production OAuth setup"):
             st.markdown(
                 "Set **GOOGLE_OAUTH_CLIENT_ID** and **GOOGLE_OAUTH_CLIENT_SECRET**. "
-                "Optionally **GOOGLE_OAUTH_REDIRECT_URI** (default `http://localhost:8501/`). "
+                "Optionally **GOOGLE_OAUTH_REDIRECT_URI** (default `http://localhost:9501/`). "
                 "Register the redirect URI under *Authorized redirect URIs* in Google Cloud Console."
             )
 
@@ -866,7 +868,7 @@ def render_report_download_buttons() -> None:
 def main() -> None:
     st.set_page_config(page_title="NovaMind Research", layout="wide", initial_sidebar_state="expanded")
     _hydrate_google_env_from_streamlit_secrets()
-    _ruri = os.environ.get("GOOGLE_OAUTH_REDIRECT_URI", "http://localhost:8501/")
+    _ruri = os.environ.get("GOOGLE_OAUTH_REDIRECT_URI", "http://localhost:9501/")
     if _ruri.startswith("http://") and ("localhost" in _ruri or "127.0.0.1" in _ruri):
         os.environ.setdefault("OAUTHLIB_INSECURE_TRANSPORT", "1")
     oauth_pair = _build_oauth_client_pair()

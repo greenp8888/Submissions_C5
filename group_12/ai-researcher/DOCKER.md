@@ -6,7 +6,7 @@ This app is the **Streamlit** UI (`streamlitApp.py`). Images are **large** (~sev
 
 | File | Purpose |
 |------|---------|
-| `Dockerfile` | Image build: Python 3.11, system libs, `pip install`, Streamlit on port **8501** |
+| `Dockerfile` | Image build: Python 3.11, system libs, `pip install`, Streamlit on port **9501** |
 | `docker-compose.yml` | Service **novamind**, ports, volumes, `.env` |
 | `scripts/docker-deploy.sh` | Convenience commands: `build`, `up`, `down`, `logs`, etc. |
 | `.dockerignore` | Keeps secrets and bulky local paths out of the build context |
@@ -41,7 +41,7 @@ chmod +x scripts/docker-deploy.sh
 ./scripts/docker-deploy.sh up
 ```
 
-Open **http://127.0.0.1:8501** (or your host IP).
+Open **http://127.0.0.1:9501** (or your host IP).
 
 The `up` command creates `.env` from `.env.example` if `.env` is missing.
 
@@ -58,10 +58,10 @@ docker compose -f docker-compose.yml up -d
 docker compose logs -f
 ```
 
-Custom host port:
+Map a different **host** port to the container (Streamlit still listens on **9501** inside the image):
 
 ```bash
-STREAMLIT_PORT=9000 docker compose up -d
+STREAMLIT_PORT=8080 docker compose up -d
 ```
 
 ---

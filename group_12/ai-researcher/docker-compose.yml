@@ -11,7 +11,7 @@ services:
     image: novamind-ai-researcher:latest
     container_name: novamind-ai-researcher
     ports:
-      - "${STREAMLIT_PORT:-8501}:8501"
+      - "${STREAMLIT_PORT:-9501}:9501"
     # Create `.env` from `.env.example` before first run (see DOCKER.md).
     env_file:
       - .env

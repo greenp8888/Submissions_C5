@@ -1,0 +1,3 @@
+# Project default port (keep in sync with Dockerfile, docker-compose, .env.example).
+[server]
+port = 9501

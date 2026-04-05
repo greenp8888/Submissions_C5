@@ -446,8 +446,9 @@ cp .env.example .env
 python app.py
 # -> open http://localhost:7860
 
-# OR run Streamlit alternative
+# OR run Streamlit alternative (default port 9501 — .streamlit/config.toml)
 streamlit run streamlitApp.py
+# -> http://localhost:9501
 ```
 
 ### 2 · Docker

@@ -27,7 +27,7 @@ Commands:
   push-image     Tag and push image (requires DOCKER_REGISTRY, optional IMAGE_TAG)
 
 Environment:
-  STREAMLIT_PORT       Host port (default 8501)
+  STREAMLIT_PORT       Host port (default 9501)
   COMPOSE_FILE         Alternate compose file path
   DOCKER_REGISTRY      e.g. ghcr.io/myorg  (for push-image)
   IMAGE_TAG            default: latest
@@ -59,7 +59,7 @@ case "$cmd" in
   up)
     ensure_env_file
     docker compose -f "$COMPOSE_FILE" up -d "$@"
-    echo "[docker-deploy] Open http://127.0.0.1:${STREAMLIT_PORT:-8501}"
+    echo "[docker-deploy] Open http://127.0.0.1:${STREAMLIT_PORT:-9501}"
     ;;
   down)
     docker compose -f "$COMPOSE_FILE" down "$@"

@@ -29,13 +29,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY . .
 
-EXPOSE 8501
+EXPOSE 9501
 
 # Streamlit health (1.28+)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=5)" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9501/_stcore/health', timeout=5)" || exit 1
 
 CMD ["streamlit", "run", "streamlitApp.py", \
      "--server.address=0.0.0.0", \
-     "--server.port=8501", \
+     "--server.port=9501", \
      "--server.fileWatcherType=none"]
