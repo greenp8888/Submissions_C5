@@ -1,6 +1,12 @@
 # 🛡️ ZeroDay Armor - Cyber Security AI Agent
 
-**[🎬 Project Demo Video (Click Here)]()**
+**[🎬 Project Demo Video (https://drive.google.com/file/d/14r1qBhBQRsKTthfB9SvmrQUeg2M4HEQ3/view)]()**
+
+**[Reference Architecture ([https://drive.google.com/file/d/14r1qBhBQRsKTthfB9SvmrQUeg2M4HEQ3/view](https://github.com/eng-accelerator/Submissions_C5/blob/Group__14/ZeroDayArmor/CYBERSEC_AI_AGENT/architecture/ZeroDayArmor%20%E2%80%94%20Investor%20One-Pager.pdf))]()**
+
+**[Techinal Architecture ([https://drive.google.com/file/d/14r1qBhBQRsKTthfB9SvmrQUeg2M4HEQ3/view](https://github.com/eng-accelerator/Submissions_C5/blob/Group__14/ZeroDayArmor/CYBERSEC_AI_AGENT/architecture/ZeroDayArmor_pitch_slide.html))]()**
+
+**[ Tutorial (https://github.com/eng-accelerator/Submissions_C5/blob/Group__14/ZeroDayArmor/CYBERSEC_AI_AGENT/architecture/ZeroArmor.pdf)]()**
 
 **ZeroDay Armor** is a smart, proactive Generative AI-powered Security Operations Dashboard built specifically to help Threat Intelligence analysts mitigate vulnerabilities, scan for network threats, process incident responses, ensure compliance policies, and automatically analyze advanced phishing payloads through multi-modal Vision capabilities.
 
