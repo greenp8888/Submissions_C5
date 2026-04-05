@@ -20,3 +20,9 @@ yfinance>=0.2.36
 httpx>=0.26.0
 python-dotenv>=1.0.0
 openpyxl
+langchain-community
+sentence-transformers
+faiss-cpu
+mcp
+mcp[cli]
+pywin32
