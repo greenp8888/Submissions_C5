@@ -1,0 +1,866 @@
+[
+  {
+    "timestamp": "2026-04-05T00:01:05.112Z",
+    "level": "INFO",
+    "tag": "AppLifecycle",
+    "pid": 4821,
+    "tid": 4821,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Application started",
+    "details": {
+      "launch_type": "cold_start",
+      "duration_ms": 834,
+      "activity": "MainActivity"
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:05.301Z",
+    "level": "INFO",
+    "tag": "AuthManager",
+    "pid": 4821,
+    "tid": 4835,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "User session restored from keystore",
+    "details": {
+      "user_id": "u_98234",
+      "session_token": "tok_***redacted***",
+      "expires_in_sec": 3600
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:05.489Z",
+    "level": "INFO",
+    "tag": "NetworkManager",
+    "pid": 4821,
+    "tid": 4836,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Network connectivity confirmed",
+    "details": {
+      "network_type": "WIFI",
+      "ssid": "***redacted***",
+      "signal_strength_dbm": -52,
+      "internet_available": true
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:06.001Z",
+    "level": "INFO",
+    "tag": "APIClient",
+    "pid": 4821,
+    "tid": 4837,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "API request successful",
+    "details": {
+      "endpoint": "/api/v2/user/profile",
+      "method": "GET",
+      "http_status": 200,
+      "response_time_ms": 213,
+      "bytes_received": 1042
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:06.345Z",
+    "level": "INFO",
+    "tag": "RoomDatabase",
+    "pid": 4821,
+    "tid": 4838,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Local database opened successfully",
+    "details": {
+      "db_name": "app_local.db",
+      "db_version": 9,
+      "migration": "none",
+      "tables_loaded": 14
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:07.012Z",
+    "level": "INFO",
+    "tag": "UIRenderer",
+    "pid": 4821,
+    "tid": 4821,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Fragment rendered successfully",
+    "details": {
+      "fragment": "HomeFragment",
+      "render_time_ms": 38,
+      "frame_drops": 0
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:07.580Z",
+    "level": "INFO",
+    "tag": "PushNotification",
+    "pid": 4821,
+    "tid": 4840,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "FCM token refreshed and synced",
+    "details": {
+      "token_prefix": "fYz3A***",
+      "sync_status": "success",
+      "server_ack": true
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:08.214Z",
+    "level": "INFO",
+    "tag": "APIClient",
+    "pid": 4821,
+    "tid": 4837,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "API request successful",
+    "details": {
+      "endpoint": "/api/v2/feed/home",
+      "method": "GET",
+      "http_status": 200,
+      "response_time_ms": 345,
+      "bytes_received": 8741
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:09.001Z",
+    "level": "INFO",
+    "tag": "ImageLoader",
+    "pid": 4821,
+    "tid": 4842,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Image loaded from cache",
+    "details": {
+      "url_hash": "a3f9c1b2",
+      "source": "disk_cache",
+      "size_kb": 84,
+      "duration_ms": 12
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:09.723Z",
+    "level": "INFO",
+    "tag": "RoomDatabase",
+    "pid": 4821,
+    "tid": 4838,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Query executed successfully",
+    "details": {
+      "query": "SELECT * FROM bookmarks WHERE user_id = ?",
+      "rows_returned": 23,
+      "duration_ms": 8
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:10.445Z",
+    "level": "INFO",
+    "tag": "LocationService",
+    "pid": 4821,
+    "tid": 4843,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Location update received",
+    "details": {
+      "provider": "fused",
+      "accuracy_m": 14.2,
+      "latitude": "***redacted***",
+      "longitude": "***redacted***"
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:11.190Z",
+    "level": "INFO",
+    "tag": "AnalyticsManager",
+    "pid": 4821,
+    "tid": 4844,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Analytics event dispatched",
+    "details": {
+      "event": "screen_view",
+      "screen_name": "HomeFragment",
+      "batch_size": 4,
+      "status": "queued"
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:12.034Z",
+    "level": "INFO",
+    "tag": "APIClient",
+    "pid": 4821,
+    "tid": 4837,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "API request successful",
+    "details": {
+      "endpoint": "/api/v2/notifications/list",
+      "method": "GET",
+      "http_status": 200,
+      "response_time_ms": 189,
+      "bytes_received": 3210
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:12.801Z",
+    "level": "INFO",
+    "tag": "UIRenderer",
+    "pid": 4821,
+    "tid": 4821,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "RecyclerView adapter bound successfully",
+    "details": {
+      "fragment": "NotificationsFragment",
+      "item_count": 18,
+      "render_time_ms": 22
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:13.512Z",
+    "level": "INFO",
+    "tag": "BatteryMonitor",
+    "pid": 4821,
+    "tid": 4845,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Battery status checked",
+    "details": {
+      "level_pct": 78,
+      "charging": false,
+      "temperature_c": 32.1,
+      "health": "good"
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:14.234Z",
+    "level": "INFO",
+    "tag": "RoomDatabase",
+    "pid": 4821,
+    "tid": 4838,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Transaction committed successfully",
+    "details": {
+      "operation": "INSERT",
+      "table": "cached_feed",
+      "rows_affected": 15,
+      "duration_ms": 19
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:15.001Z",
+    "level": "INFO",
+    "tag": "ImageLoader",
+    "pid": 4821,
+    "tid": 4842,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Image downloaded and cached",
+    "details": {
+      "url_hash": "d8e2f4a1",
+      "source": "network",
+      "size_kb": 132,
+      "duration_ms": 411
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:15.780Z",
+    "level": "INFO",
+    "tag": "APIClient",
+    "pid": 4821,
+    "tid": 4837,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "API request successful",
+    "details": {
+      "endpoint": "/api/v2/settings/preferences",
+      "method": "GET",
+      "http_status": 200,
+      "response_time_ms": 97,
+      "bytes_received": 512
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:16.490Z",
+    "level": "INFO",
+    "tag": "PreferenceManager",
+    "pid": 4821,
+    "tid": 4846,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "User preferences loaded from SharedPreferences",
+    "details": {
+      "theme": "dark",
+      "language": "en-IN",
+      "notifications_enabled": true,
+      "keys_loaded": 22
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:17.201Z",
+    "level": "INFO",
+    "tag": "WorkManager",
+    "pid": 4821,
+    "tid": 4847,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Background sync job enqueued",
+    "details": {
+      "job_id": "sync_feed_periodic",
+      "interval_min": 15,
+      "constraints": "network_connected",
+      "status": "enqueued"
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:18.034Z",
+    "level": "INFO",
+    "tag": "UIRenderer",
+    "pid": 4821,
+    "tid": 4821,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Fragment rendered successfully",
+    "details": {
+      "fragment": "ProfileFragment",
+      "render_time_ms": 29,
+      "frame_drops": 0
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:18.812Z",
+    "level": "INFO",
+    "tag": "RoomDatabase",
+    "pid": 4821,
+    "tid": 4838,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Query executed successfully",
+    "details": {
+      "query": "SELECT * FROM user_activity ORDER BY created_at DESC LIMIT 50",
+      "rows_returned": 50,
+      "duration_ms": 14
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:19.601Z",
+    "level": "INFO",
+    "tag": "MediaPlayer",
+    "pid": 4821,
+    "tid": 4848,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Media playback started",
+    "details": {
+      "media_id": "vid_44821",
+      "format": "mp4",
+      "resolution": "1080p",
+      "buffering_ms": 540
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:20.334Z",
+    "level": "INFO",
+    "tag": "AnalyticsManager",
+    "pid": 4821,
+    "tid": 4844,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Analytics batch flushed to server",
+    "details": {
+      "events_flushed": 9,
+      "endpoint": "/analytics/ingest",
+      "http_status": 200,
+      "duration_ms": 154
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:21.102Z",
+    "level": "INFO",
+    "tag": "APIClient",
+    "pid": 4821,
+    "tid": 4837,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "API request successful",
+    "details": {
+      "endpoint": "/api/v2/search?q=android",
+      "method": "GET",
+      "http_status": 200,
+      "response_time_ms": 278,
+      "bytes_received": 11430
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:22.780Z",
+    "level": "WARNING",
+    "tag": "MemoryMonitor",
+    "pid": 4821,
+    "tid": 4849,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "High memory usage detected",
+    "details": {
+      "heap_used_mb": 187.4,
+      "heap_max_mb": 256.0,
+      "heap_used_pct": 73.2,
+      "threshold_pct": 70.0,
+      "largest_allocations": ["ImageCache: 54MB", "FeedAdapter: 38MB", "VideoBuffer: 29MB"],
+      "suggestion": "Consider releasing ImageCache for off-screen items to avoid potential OOM condition"
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:23.490Z",
+    "level": "INFO",
+    "tag": "ImageLoader",
+    "pid": 4821,
+    "tid": 4842,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Image loaded from cache",
+    "details": {
+      "url_hash": "b7c3d9e5",
+      "source": "memory_cache",
+      "size_kb": 67,
+      "duration_ms": 3
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:24.201Z",
+    "level": "INFO",
+    "tag": "RoomDatabase",
+    "pid": 4821,
+    "tid": 4838,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Transaction committed successfully",
+    "details": {
+      "operation": "UPDATE",
+      "table": "bookmarks",
+      "rows_affected": 1,
+      "duration_ms": 7
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:25.012Z",
+    "level": "INFO",
+    "tag": "WorkManager",
+    "pid": 4821,
+    "tid": 4847,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Background sync job completed",
+    "details": {
+      "job_id": "sync_feed_periodic",
+      "records_synced": 42,
+      "duration_ms": 1820,
+      "status": "success"
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:25.801Z",
+    "level": "INFO",
+    "tag": "APIClient",
+    "pid": 4821,
+    "tid": 4837,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "API request successful",
+    "details": {
+      "endpoint": "/api/v2/comments?post_id=88210",
+      "method": "GET",
+      "http_status": 200,
+      "response_time_ms": 202,
+      "bytes_received": 4980
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:26.589Z",
+    "level": "ERROR",
+    "tag": "APIClient",
+    "pid": 4821,
+    "tid": 4837,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "API request failed with server error",
+    "details": {
+      "endpoint": "/api/v2/user/upload_avatar",
+      "method": "POST",
+      "http_status": 500,
+      "error_code": "INTERNAL_SERVER_ERROR",
+      "error_message": "Upstream storage service timeout after 5000ms",
+      "retry_attempt": 3,
+      "retry_exhausted": true,
+      "bytes_sent": 204800,
+      "action": "Upload aborted. User notified via snackbar."
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:27.301Z",
+    "level": "INFO",
+    "tag": "UIRenderer",
+    "pid": 4821,
+    "tid": 4821,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Error state rendered to user",
+    "details": {
+      "component": "AvatarUploadView",
+      "error_displayed": "Upload failed. Please try again.",
+      "action_available": "Retry"
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:28.012Z",
+    "level": "INFO",
+    "tag": "RoomDatabase",
+    "pid": 4821,
+    "tid": 4838,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Query executed successfully",
+    "details": {
+      "query": "SELECT COUNT(*) FROM cached_feed WHERE expires_at < ?",
+      "rows_returned": 1,
+      "duration_ms": 5
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:28.801Z",
+    "level": "INFO",
+    "tag": "CacheManager",
+    "pid": 4821,
+    "tid": 4850,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Expired cache entries purged",
+    "details": {
+      "entries_removed": 31,
+      "space_freed_kb": 2048,
+      "duration_ms": 34
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:29.590Z",
+    "level": "INFO",
+    "tag": "LocationService",
+    "pid": 4821,
+    "tid": 4843,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Geofence entry detected",
+    "details": {
+      "geofence_id": "gf_home_zone",
+      "transition": "ENTER",
+      "dwell_time_ms": 0
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:30.312Z",
+    "level": "INFO",
+    "tag": "APIClient",
+    "pid": 4821,
+    "tid": 4837,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "API request successful",
+    "details": {
+      "endpoint": "/api/v2/feed/recommended",
+      "method": "GET",
+      "http_status": 200,
+      "response_time_ms": 319,
+      "bytes_received": 9820
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:31.102Z",
+    "level": "INFO",
+    "tag": "UIRenderer",
+    "pid": 4821,
+    "tid": 4821,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Fragment rendered successfully",
+    "details": {
+      "fragment": "SearchResultsFragment",
+      "render_time_ms": 41,
+      "frame_drops": 0
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:31.890Z",
+    "level": "INFO",
+    "tag": "PushNotification",
+    "pid": 4821,
+    "tid": 4840,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Push notification received and displayed",
+    "details": {
+      "notification_id": "notif_77342",
+      "type": "promotional",
+      "channel": "general",
+      "displayed": true
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:32.601Z",
+    "level": "INFO",
+    "tag": "RoomDatabase",
+    "pid": 4821,
+    "tid": 4838,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Transaction committed successfully",
+    "details": {
+      "operation": "INSERT",
+      "table": "user_activity",
+      "rows_affected": 1,
+      "duration_ms": 6
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:33.312Z",
+    "level": "INFO",
+    "tag": "AnalyticsManager",
+    "pid": 4821,
+    "tid": 4844,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Analytics event dispatched",
+    "details": {
+      "event": "button_click",
+      "screen_name": "SearchResultsFragment",
+      "element_id": "btn_filter",
+      "batch_size": 2,
+      "status": "queued"
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:34.012Z",
+    "level": "INFO",
+    "tag": "NetworkManager",
+    "pid": 4821,
+    "tid": 4836,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Network latency check passed",
+    "details": {
+      "host": "api.appservice.io",
+      "latency_ms": 64,
+      "packet_loss_pct": 0.0
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:34.801Z",
+    "level": "INFO",
+    "tag": "MediaPlayer",
+    "pid": 4821,
+    "tid": 4848,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Media playback completed",
+    "details": {
+      "media_id": "vid_44821",
+      "duration_played_sec": 74,
+      "completion_pct": 100
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:35.590Z",
+    "level": "INFO",
+    "tag": "APIClient",
+    "pid": 4821,
+    "tid": 4837,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "API request successful",
+    "details": {
+      "endpoint": "/api/v2/user/activity",
+      "method": "POST",
+      "http_status": 201,
+      "response_time_ms": 177,
+      "bytes_sent": 340
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:36.301Z",
+    "level": "INFO",
+    "tag": "RoomDatabase",
+    "pid": 4821,
+    "tid": 4838,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Database WAL checkpoint completed",
+    "details": {
+      "pages_checkpointed": 84,
+      "duration_ms": 48,
+      "db_size_kb": 3412
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:37.012Z",
+    "level": "INFO",
+    "tag": "ImageLoader",
+    "pid": 4821,
+    "tid": 4842,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Image loaded from cache",
+    "details": {
+      "url_hash": "f1a2c8d7",
+      "source": "disk_cache",
+      "size_kb": 91,
+      "duration_ms": 10
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:37.801Z",
+    "level": "CRITICAL",
+    "tag": "AuthManager",
+    "pid": 4821,
+    "tid": 4835,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Authentication token tampered or corrupted — forced logout initiated",
+    "details": {
+      "user_id": "u_98234",
+      "error_code": "TOKEN_INTEGRITY_FAILURE",
+      "error_message": "HMAC signature mismatch on session token. Token may have been modified outside the application.",
+      "keystore_status": "valid",
+      "action_taken": "Session invalidated, all stored tokens wiped from keystore, user redirected to LoginActivity",
+      "security_event_logged": true,
+      "alert": "IMMEDIATE REVIEW REQUIRED — Potential session hijacking attempt. Correlate with server-side auth logs for user u_98234."
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:38.534Z",
+    "level": "INFO",
+    "tag": "AuthManager",
+    "pid": 4821,
+    "tid": 4835,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Keystore tokens wiped successfully",
+    "details": {
+      "tokens_removed": 3,
+      "keystore_cleared": true
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:39.201Z",
+    "level": "INFO",
+    "tag": "UIRenderer",
+    "pid": 4821,
+    "tid": 4821,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Fragment rendered successfully",
+    "details": {
+      "fragment": "LoginFragment",
+      "render_time_ms": 31,
+      "frame_drops": 0
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:39.912Z",
+    "level": "INFO",
+    "tag": "WorkManager",
+    "pid": 4821,
+    "tid": 4847,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "All user-bound background jobs cancelled",
+    "details": {
+      "cancelled_jobs": ["sync_feed_periodic", "upload_retry_queue", "location_poll"],
+      "reason": "user_session_invalidated"
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:40.601Z",
+    "level": "INFO",
+    "tag": "AnalyticsManager",
+    "pid": 4821,
+    "tid": 4844,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "Security event recorded in analytics pipeline",
+    "details": {
+      "event": "forced_logout",
+      "reason": "token_integrity_failure",
+      "user_id_hash": "sha256:c3ab8ff1",
+      "status": "sent"
+    }
+  },
+  {
+    "timestamp": "2026-04-05T00:01:41.312Z",
+    "level": "INFO",
+    "tag": "AppLifecycle",
+    "pid": 4821,
+    "tid": 4821,
+    "device": "Pixel 7 Pro",
+    "os_version": "Android 14",
+    "app_version": "3.5.2",
+    "message": "App moved to background",
+    "details": {
+      "activity": "LoginActivity",
+      "reason": "user_pressed_home",
+      "uptime_sec": 216
+    }
+  }
+]
