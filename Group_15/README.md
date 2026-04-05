@@ -100,6 +100,9 @@ npm run dev
 ### Architecture
 
 ```
+Source:
+YC-OSS (GitHub): A popular project that provides JSON endpoints for almost all YC companies, categorized by batch, industry, and founder demographics: https://yc-oss.github.io/api/companies/all.json
+
 YC API (5,690 companies)
          ↓
    Download JSON (one-time)
