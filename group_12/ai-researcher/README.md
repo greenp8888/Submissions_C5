@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🔬 ResearchMind — Local Multi-Agent Deep Researcher
+# 🔬 NovaMind — Local Multi-Agent Deep Researcher
 
 ### A Gradio + LangGraph research assistant with human-in-the-loop preflight, parallel retrieval, and a cited markdown report
 
@@ -21,9 +21,9 @@
 
 ---
 
-## What is ResearchMind?
+## What is NovaMind?
 
-ResearchMind turns a research question into a **cited markdown report** by orchestrating a deterministic **LangGraph StateGraph**. It accepts multi-modal local media (PDFs, images, audio) and cross-checks claims across four retrieval channels — **local FAISS**, **Wikipedia**, **arXiv**, and **Tavily web search** — in parallel. A **Critical Analyst** agent critiques the first wave, a **Gap Planner** decides whether a focused follow-up wave is needed, and an **Insight Generator** + **Report Builder** assemble the final artifact.
+NovaMind turns a research question into a **cited markdown report** by orchestrating a deterministic **LangGraph StateGraph**. It accepts multi-modal local media (PDFs, images, audio) and cross-checks claims across four retrieval channels — **local FAISS**, **Wikipedia**, **arXiv**, and **Tavily web search** — in parallel. A **Critical Analyst** agent critiques the first wave, a **Gap Planner** decides whether a focused follow-up wave is needed, and an **Insight Generator** + **Report Builder** assemble the final artifact.
 
 Before any LLM research spend happens, a **Gradio human-in-the-loop (HITL) preflight** summarizes the uploads and checks them against the question. The user must explicitly click **Yes** to proceed.
 
