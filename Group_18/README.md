@@ -283,7 +283,7 @@ streamlit run lumeris.py
 
 The app will open at `http://localhost:8501` by default.
 
-The app is also available at https://iznmy5gqkrbkpdnfsaq9rj.streamlit.app/
+The app is also available at https://zynn7arrperkxkm4loxwtm.streamlit.app/
 
 ---
 
