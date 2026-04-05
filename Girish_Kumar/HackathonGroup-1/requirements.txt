@@ -1,0 +1,7 @@
+# Python >= 3.14 required
+# All packages below publish wheels for 3.14; verify with:
+#   pip install --dry-run -r requirements.txt
+
+streamlit>=1.40.0
+requests>=2.32.0
+pypdf>=5.1.0
