@@ -68,6 +68,10 @@ wheels/
 .gradio/
 *.gradio*
 
+# --- Streamlit chat persistence ---
+streamlit_chats/
+user-data/
+
 # --- ML / Hugging Face (if caches or weights land inside the repo) ---
 .cache/
 checkpoints/

@@ -1,4 +1,10 @@
 gradio>=5.0.0
+streamlit>=1.40.0
+google-auth-oauthlib>=1.2.0
+google-auth>=2.0.0
+requests>=2.27.0
+markdown>=3.5.0
+xhtml2pdf>=0.2.15
 langgraph>=0.2.0
 langchain>=0.3.0
 langchain-openai>=0.2.0
@@ -20,3 +26,6 @@ librosa>=0.10.0
 soundfile>=0.12.0
 transformers>=4.40.0
 torch>=2.0.0
+# Streamlit's file watcher introspects `transformers` and triggers vision submodules that import torchvision.
+# BLIP and other image pipelines also need it. Keep versions compatible with your torch build.
+torchvision>=0.15.0

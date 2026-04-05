@@ -10,7 +10,6 @@ import wikipedia
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from .models import EvidenceItem
@@ -320,6 +319,13 @@ def build_local_media_evidence(
     if not all_docs:
         return [], "no documents extracted" + ("; " + "; ".join(notes) if notes else "")
 
+    try:
+        from langchain_huggingface import HuggingFaceEmbeddings
+    except ImportError as exc:
+        raise RuntimeError(
+            "Missing optional dependency `langchain-huggingface` (HuggingFaceEmbeddings). "
+            "Install the full stack in your active environment: pip install -r requirements.txt"
+        ) from exc
     embeddings = HuggingFaceEmbeddings(model_name=embedding_model)
     vectorstore = FAISS.from_documents(all_docs, embeddings)
     retriever = vectorstore.as_retriever(search_kwargs={"k": top_k})
