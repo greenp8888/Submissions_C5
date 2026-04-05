@@ -1,4 +1,3 @@
-import os
 from utils.http import get_client
 from utils.llm import call_llm
 from graph.state import RepoItem

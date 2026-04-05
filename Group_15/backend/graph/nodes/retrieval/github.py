@@ -1,8 +1,7 @@
 import os
-from datetime import datetime
 from utils.http import get_client
 from utils.llm import call_llm
-from graph.state import GraphState, RepoItem
+from graph.state import RepoItem
 from prompts.micro_summarize import micro_summarize_prompt
 
 
