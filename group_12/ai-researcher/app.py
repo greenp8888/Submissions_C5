@@ -8,7 +8,32 @@ import gradio as gr
 import pandas as pd
 
 from deep_researcher.config import Settings
-from deep_researcher.graph import build_graph
+from deep_researcher.graph import build_graph, normalize_excerpt_whitespace
+
+# ChatGPT-style rounded chips for inline markdown links in the report tab (Gradio renders `<a href>`).
+REPORT_CITATION_CSS = """
+.report-citations-prose a {
+    display: inline-flex;
+    align-items: center;
+    background: linear-gradient(180deg, #f6f6f7 0%, #ececef 100%);
+    padding: 0.15rem 0.55rem 0.18rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: #374151 !important;
+    text-decoration: none !important;
+    border: 1px solid #e5e7eb;
+    margin: 0 0.12rem;
+    vertical-align: 0.08em;
+    line-height: 1.25;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.05);
+}
+.report-citations-prose a:hover {
+    background: linear-gradient(180deg, #eeeef1 0%, #e2e2e8 100%);
+    border-color: #d1d5db;
+}
+.report-citations-prose { line-height: 1.65; max-width: 100%; }
+"""
 
 
 def trace_to_markdown(trace: list[str], retrieval_log: list[str] | None = None) -> str:
@@ -46,7 +71,7 @@ def evidence_to_dataframe(evidence: list[dict], excerpt_max: int = 320) -> pd.Da
 
     rows = []
     for item in evidence:
-        ex = (item.get("excerpt") or "").replace("\n", " ").strip()
+        ex = normalize_excerpt_whitespace(item.get("excerpt") or "")
         if len(ex) > excerpt_max:
             ex = ex[: excerpt_max - 1] + "…"
         rows.append(
@@ -171,13 +196,15 @@ def run_research(
 
 
 def build_ui() -> gr.Blocks:
-    with gr.Blocks(title="Local Multi-Agent Deep Researcher") as demo:
+    with gr.Blocks(title="Local Multi-Agent Deep Researcher", css=REPORT_CITATION_CSS) as demo:
         gr.Markdown(
             """
 # Local Multi-Agent Deep Researcher
 A local-first, LangGraph-based research assistant derived from your original RAG notebook.
 
-**Phase 2:** Up to **2 analyst passes** — pass 2 runs an optional **gap planner**, **follow-up retrieval**, merge, and a second critical analysis (higher latency/cost).
+Reports lead with a **detailed narrative** with **inline, clickable citations** (styled as chips in the Report tab). Full references and per-channel notes follow below that.
+
+**Phase 2:** Up to **2 analyst passes** — pass 2 adds **gap planner**, **follow-up retrieval**, and a second critical analysis (higher latency/cost).
 """
         )
 
@@ -246,10 +273,15 @@ A local-first, LangGraph-based research assistant derived from your original RAG
             with gr.Column(scale=4):
                 with gr.Tabs():
                     with gr.Tab("Report"):
-                        report = gr.Markdown()
-                        gr.Markdown("**Contradictions**")
-                        contradictions = gr.Markdown()
-                        download_report = gr.File(label="Download markdown report")
+                        with gr.Column(elem_classes=["report-citations-prose"]):
+                            gr.Markdown(
+                                "_Inline source links use rounded chips (hover to read the domain). "
+                                "Scroll past the narrative for the numbered **References** list and appendix._"
+                            )
+                            report = gr.Markdown()
+                            gr.Markdown("**Contradictions**")
+                            contradictions = gr.Markdown()
+                            download_report = gr.File(label="Download markdown report")
                     with gr.Tab("Sources"):
                         gr.Markdown("Evidence catalog includes a truncated **excerpt** per row. Full snippets below.")
                         evidence_table = gr.Dataframe(label="Evidence catalog", interactive=False)

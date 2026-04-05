@@ -108,6 +108,8 @@ This solution preserves those strengths while replacing the top-level single-age
 +------------------------------+
 ```
 
+**Current LangGraph (Phase 2):** conditional routing, follow-up retrieval, and duplicate terminal chains are **not** shown in the sketch above. For an accurate node/edge diagram, see **[GRAPH.md](./GRAPH.md)** (Mermaid).
+
 ---
 
 ## 5. Agent Responsibilities

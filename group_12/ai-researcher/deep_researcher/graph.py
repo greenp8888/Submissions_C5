@@ -5,6 +5,7 @@ import re
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import urlparse
 
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
@@ -67,6 +68,86 @@ def _safe_json_loads(text: str) -> Any:
         return json.loads(_strip_code_fences(text))
     except Exception:
         return None
+
+
+def normalize_excerpt_whitespace(text: str) -> str:
+    """Collapse whitespace and line breaks (typical PDF extract junk) into single spaces for display/prompts."""
+    return re.sub(r"\s+", " ", (text or "").strip())
+
+
+def _dedupe_evidence_for_citations(evidence: list[EvidenceItem]) -> list[EvidenceItem]:
+    seen: set[tuple[str, str, str]] = set()
+    out: list[EvidenceItem] = []
+    for item in evidence:
+        label = (item.get("source_label") or "").strip()
+        title = (item.get("title") or "").strip()
+        url = (item.get("url") or "").strip()
+        key = (label, title, url)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(item)
+    return out
+
+
+def citation_link_label(item: EvidenceItem) -> str:
+    """Short label for inline [text](url) links (ChatGPT-style source chips)."""
+    url = (item.get("url") or "").strip()
+    title = (item.get("title") or "").strip()
+    label = (item.get("source_label") or "").strip()
+    if not url:
+        t = title if title else "Local upload"
+        return (t[:42] + "…") if len(t) > 42 else t
+    u = url.lower()
+    if "wikipedia.org" in u:
+        return "Wikipedia"
+    if "arxiv.org" in u:
+        return "arXiv"
+    if "youtube.com" in u or "youtu.be" in u:
+        return "YouTube"
+    if "linkedin.com" in u:
+        return "LinkedIn"
+    if "medium.com" in u:
+        return "Medium"
+    try:
+        net = urlparse(url).netloc.replace("www.", "")
+        parts = [p for p in net.split(".") if p and p.lower() not in ("com", "org", "net", "co", "io")]
+        if parts:
+            return parts[-1].replace("-", " ").title()[:32]
+    except Exception:
+        pass
+    base = title or label or "Source"
+    return (base[:36] + "…") if len(base) > 36 else base
+
+
+def build_citation_catalog_for_prompt(evidence: list[EvidenceItem], max_items: int = 36) -> str:
+    """Numbered list the report LLM must use for inline markdown links."""
+    rows = _dedupe_evidence_for_citations(evidence)[:max_items]
+    if not rows:
+        return "(No evidence items — state that clearly in the report.)"
+
+    lines: list[str] = []
+    for i, item in enumerate(rows, start=1):
+        link_text = citation_link_label(item)
+        url = (item.get("url") or "").strip()
+        title = (item.get("title") or "Untitled").strip()
+        label = (item.get("source_label") or "").strip()
+        hint = normalize_excerpt_whitespace(item.get("excerpt") or "")[:180]
+        if url:
+            lines.append(
+                f'{i}. **Use this exact pattern when citing this source:** `[{link_text}]({url})`  \n'
+                f"   - Title: {title}  \n"
+                f"   - Channel: {label}  \n"
+                f"   - Excerpt hint: {hint or '_(none)_'}"
+            )
+        else:
+            lines.append(
+                f"{i}. **Local / no URL** — after claims from this source, write: "
+                f"`_(uploaded: {title})_` (no link).  \n"
+                f"   - Channel: {label}  \n"
+                f"   - Excerpt hint: {hint or '_(none)_'}"
+            )
+    return "\n\n".join(lines)
 
 
 def _evidence_dedupe_key(item: EvidenceItem) -> tuple[Any, ...]:
@@ -148,7 +229,7 @@ def _bundle_excerpts_for_summary_prompt(evidence: list[EvidenceItem], max_items_
             continue
         for i, item in enumerate(items[:max_items_per_tool], start=1):
             title = (item.get("title") or "Untitled").strip()
-            excerpt = (item.get("excerpt") or "").strip()[:650]
+            excerpt = normalize_excerpt_whitespace(item.get("excerpt") or "")[:650]
             parts.append(f"{i}. Title: {title}\n   Excerpt: {excerpt}")
         if len(items) > max_items_per_tool:
             parts.append(f"... and {len(items) - max_items_per_tool} more item(s) omitted here.")
@@ -157,7 +238,8 @@ def _bundle_excerpts_for_summary_prompt(evidence: list[EvidenceItem], max_items_
     for lb in sorted(other):
         parts.append(f"### Other: {lb}")
         for i, item in enumerate(groups[lb][:5], start=1):
-            parts.append(f"{i}. {(item.get('title') or '')[:120]} — {(item.get('excerpt') or '')[:400]}")
+            ex = normalize_excerpt_whitespace(item.get("excerpt") or "")[:400]
+            parts.append(f"{i}. {(item.get('title') or '')[:120]} — {ex}")
         parts.append("")
     return "\n".join(parts).strip()
 
@@ -284,8 +366,8 @@ def markdown_detailed_extracts_from_evidence(evidence: list[EvidenceItem]) -> st
         for idx, item in enumerate(items, start=1):
             title = (item.get("title") or "Untitled").strip()
             url = (item.get("url") or "").strip()
-            excerpt = (item.get("excerpt") or "").strip()
-            query = (item.get("query_used") or "").strip()
+            excerpt = normalize_excerpt_whitespace(item.get("excerpt") or "")
+            query = normalize_excerpt_whitespace(item.get("query_used") or "")
             head = f"{idx}. **{title}**"
             if url:
                 head += f" — [link]({url})"
@@ -336,7 +418,7 @@ def markdown_sources_analysis_only(
     summaries: dict[str, str],
     timings: dict[str, dict[str, str] | None],
 ) -> str:
-    """Sources section for the main report: per-tool ~100-word analysis only (no row-level extracts)."""
+    """Legacy full header; prefer markdown_sources_appendix for final report ordering."""
     analysis = format_per_tool_analysis_markdown(summaries, timings)
     return "\n\n".join(
         [
@@ -345,6 +427,24 @@ def markdown_sources_analysis_only(
             analysis,
             "",
             "_Row-level **Detailed extracts** also appear in the **Sources** tab in the Gradio UI._",
+        ]
+    ).strip()
+
+
+def markdown_sources_appendix(
+    evidence: list[EvidenceItem],
+    summaries: dict[str, str],
+    timings: dict[str, dict[str, str] | None],
+) -> str:
+    """Per-tool summaries placed after references so the narrative stays primary."""
+    analysis = format_per_tool_analysis_markdown(summaries, timings)
+    return "\n\n".join(
+        [
+            "## Appendix: Per-channel retrieval notes",
+            "",
+            "_Extended notes by tool. The main report above is the primary read; snippets also live in the **Sources** tab._",
+            "",
+            analysis,
         ]
     ).strip()
 
@@ -702,7 +802,7 @@ def analyst_node(state: ResearchState, settings: Settings) -> dict:
             (
                 f"[{idx}] {item['source_label']} | {item['title']}\n"
                 f"URL: {item['url'] or 'n/a'}\n"
-                f"Excerpt: {item['excerpt']}"
+                f"Excerpt: {normalize_excerpt_whitespace(item.get('excerpt') or '')}"
             )
             for idx, item in enumerate(window, start=1)
         ]
@@ -979,12 +1079,7 @@ def report_node(state: ResearchState, settings: Settings) -> dict:
     llm = get_llm(settings, temperature=0.2)
 
     evidence = state.get("evidence", [])
-    evidence_catalog = "\n".join(
-        [
-            f"- {item['source_label']}: {item['title']} ({item['url'] or 'no external URL'})"
-            for item in evidence[:25]
-        ]
-    ) or "- No evidence collected"
+    citation_catalog = build_citation_catalog_for_prompt(evidence, max_items=36)
 
     insights_block = "\n".join(f"- {x}" for x in state.get("insights", []) or ["No insights generated"])
     contradictions_block = "\n".join(
@@ -995,47 +1090,52 @@ def report_node(state: ResearchState, settings: Settings) -> dict:
     multi_pass_note = ""
     if analyst_passes > 1:
         multi_pass_note = (
-            f"\nThe pipeline completed **{analyst_passes} critical-analyst passes** with optional "
-            "follow-up retrieval between passes. Add a concise subsection **Multi-pass research** "
-            "stating that a second evidence wave was merged when applicable and how that changed confidence "
-            "or coverage (or say follow-up added no new material if that fits the evidence).\n"
+            "\n- Mention briefly in **Method** that multiple analyst passes and follow-up retrieval ran "
+            "when relevant; keep it to one short paragraph.\n"
         )
 
     prompt = f"""
-You are the Report Builder agent in a multi-agent deep research system.
+You are the Report Builder for a deep research assistant. Your output is the **main document** users read.
+It must read like a substantive research brief (similar to a strong ChatGPT research answer): **answers first**,
+**specific claims**, and **clickable source chips** inline — not a bibliography-first resource dump.
 
-The final document already begins with **Sources and extracted information** (~100-word analyses per tool
-only; full row-level extracts are optional in the UI) and ends with **References (all search sources)**.
-Do not paste long excerpts, duplicate the reference list, or re-hash the per-tool analysis paragraphs.
+## Citation rules (mandatory)
+1. Use the **numbered catalog** below. For every substantive claim, statistic, definition, or quote grounded
+   in retrieved evidence, place **one or more inline markdown links** immediately after the claim, using the
+   **exact** `[link text](url)` pattern given for that source number. Example: `Prices vary by region ([Indian Express](https://example.com/...)).`
+2. For **local uploads** (no URL in catalog), use the exact fallback shown: `_(uploaded: …)_` with no fake links.
+3. Do **not** invent URLs. Do **not** use bare URLs; always use markdown link syntax when a URL exists.
+4. Aim for **dense but readable** citation: most paragraphs that state facts should include at least one inline link.
+5. Do **not** repeat the full numbered reference list in your answer (it will be appended automatically).
 
-Write a polished markdown report (this part sits **between** those blocks) with these sections only:
-1. Research Question
-2. Research Plan
-3. Evidence Collected (thematic synthesis — no long quotes)
-4. Critical Findings
-5. Contradictions / Caveats
-6. Insights / Hypotheses
-7. Conclusion
-{multi_pass_note}
-The report must be practical, honest about uncertainty, and easy to demo.
+## Structure (use `##` headings)
+1. **Executive summary** — 2 tight paragraphs answering the question; heavy inline citations.
+2. **Detailed findings** — several subsections as needed (compare, tradeoffs, mechanisms, etc.); **paragraphs**, not bullet lists of URLs; cite continuously.
+3. **Method & limitations** — how evidence was gathered, gaps, contradictions; cite where relevant.
+4. **Recommendations / next steps** — practical, cited where possible.
+5. **Conclusion** — short synthesis.
+
+Write in **markdown** only. Be **detailed** (this section should be the longest part of the final document).
+No section that is only a list of sources without synthesis.
 
 Research question:
 {state["question"]}
 
-Subquestions:
+Planner subquestions (for coverage):
 {chr(10).join(f"- {x}" for x in state.get("subquestions", []))}
 
-Evidence catalog:
-{evidence_catalog}
+## Numbered citation catalog (use these patterns verbatim when citing each source)
+{citation_catalog}
 
-Critical findings:
+## Analyst synthesis (ground your narrative in this; still cite via catalog above)
 {state.get("analysis_summary", "")}
 
-Contradictions:
+## Contradictions / caveats
 {contradictions_block}
 
-Insights:
+## Insights to weave in (expand with evidence; cite)
 {insights_block}
+{multi_pass_note}
 """.strip()
 
     response = llm.invoke(prompt)
@@ -1050,24 +1150,25 @@ Insights:
         "tavily_web": state.get("retrieval_timing_tavily"),
         "google_search": None,
     }
-    sources_block = markdown_sources_analysis_only(evidence, per_tool, retrieval_timings)
+    appendix_block = markdown_sources_appendix(evidence, per_tool, retrieval_timings)
     detailed_md = markdown_detailed_extracts_from_evidence(evidence)
     references_block = markdown_references_all_sources(evidence)
 
+    # Narrative first so the UI opens on research, not channel summaries; references + appendix follow.
     final_report = "\n\n".join(
         [
-            sources_block,
-            "---",
             narrative,
             "---",
             references_block,
+            "---",
+            appendix_block,
         ]
     )
 
     return {
         "final_report": final_report,
         "detailed_extracts_markdown": detailed_md,
-        "trace": _append_trace(state, "Report Builder assembled the final markdown report."),
+        "trace": _append_trace(state, "Report Builder assembled citation-forward markdown report."),
     }
 
 

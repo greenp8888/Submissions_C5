@@ -1,0 +1,47 @@
+%% Local Multi-Agent Deep Researcher — compiled LangGraph (Phase 2)
+%% Render: npx -y @mermaid-js/mermaid-cli -i langgraph_topology.mmd -o langgraph_topology.png -w 3200 -H 2400 -b white
+
+flowchart TB
+    START([START]) --> planner[planner]
+    planner --> prep[prep_retrieval]
+
+    subgraph wave1["Initial retrieval — parallel fan-out"]
+        prep --> L[local_media_retriever]
+        prep --> W[wikipedia_retriever]
+        prep --> A[arxiv_retriever]
+        prep --> T[tavily_retriever]
+        L --> M1[retriever_merge]
+        W --> M1
+        A --> M1
+        T --> M1
+    end
+
+    M1 --> CA[critical_analyst]
+
+    CA -->|single-pass or done| ID[insight_direct]
+    CA -->|multi-pass wave 1| GP[gap_planner]
+
+    GP -->|no follow-up queries| IGS[insight_post_gap_skip]
+    GP -->|follow-up queries| PF[prep_followup]
+
+    subgraph wave2["Follow-up retrieval — parallel"]
+        PF --> Lf[local_media_retriever_f]
+        PF --> Wf[wikipedia_retriever_f]
+        PF --> Af[arxiv_retriever_f]
+        PF --> Tf[tavily_retriever_f]
+        Lf --> M2[retriever_merge_followup]
+        Wf --> M2
+        Af --> M2
+        Tf --> M2
+    end
+
+    M2 --> CAF[critical_analyst_followup]
+    CAF --> IPF[insight_post_followup]
+
+    ID --> RD[report_direct]
+    IGS --> RGS[report_post_gap_skip]
+    IPF --> RPF[report_post_followup]
+
+    RD --> END([END])
+    RGS --> END
+    RPF --> END
