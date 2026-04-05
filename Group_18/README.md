@@ -35,6 +35,11 @@ Lumeris wraps a full research workflow — from initial query decomposition thro
 
 When LangGraph is available, the compiled state machine executes the full pipeline automatically. If LangGraph is not installed, the agents fall back to sequential manual execution with the same result.
 
+You can watch a 5 minute video here: https://www.loom.com/share/45ac86ba8ef44bcab2c911df3e593eed
+(in case if this Video link does not run, the mp4 file for tyhis video is also checked into github repo)
+
+You can play with this application at a publicly hosted link: https://zynn7arrperkxkm4loxwtm.streamlit.app/
+
 ---
 
 ## Key Features
