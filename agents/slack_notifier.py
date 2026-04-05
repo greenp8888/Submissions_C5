@@ -57,15 +57,10 @@ def send_slack_notifications(state: IncidentState) -> dict:
 
     logger.info("Sending Slack notifications for %d remediations", len(state.get("remediations", [])))
 
-    # Read from .env directly to avoid Streamlit env var issues
-    from pathlib import Path
-    from dotenv import dotenv_values
-    env_path = Path(__file__).resolve().parent.parent / ".env"
-    config = dotenv_values(env_path) if env_path.exists() else {}
-
-    token = config.get("SLACK_BOT_TOKEN", "") or os.environ.get("SLACK_BOT_TOKEN", "")
-    channel = config.get("SLACK_CHANNEL", "") or os.environ.get("SLACK_CHANNEL", "#incident-alerts")
-    if not channel.startswith("#"):
+    # Env vars are set by app.py at startup (supports both .env and Streamlit Cloud)
+    token = os.environ.get("SLACK_BOT_TOKEN", "")
+    channel = os.environ.get("SLACK_CHANNEL", "#incident-alerts")
+    if channel and not channel.startswith("#"):
         channel = f"#{channel}"
     client = WebClient(token=token)
 

@@ -3,16 +3,30 @@ from pathlib import Path
 import streamlit as st
 from dotenv import load_dotenv
 
-# Load .env from the same directory as this script
+# Load .env for local dev; on Streamlit Cloud, secrets come from dashboard
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
+# Support both local .env and Streamlit Cloud secrets
+def _get_secret(key: str, default: str = "") -> str:
+    """Read from env vars first (local .env), fall back to st.secrets (Cloud)."""
+    val = os.environ.get(key, "")
+    if not val:
+        try:
+            val = st.secrets.get(key, default)
+        except Exception:
+            val = default
+    return val
+
 # Map OpenRouter credentials to OpenAI env vars before any LLM imports
-_key = os.environ.get("OPENROUTER_API_KEY", "")
+_key = _get_secret("OPENROUTER_API_KEY")
 if not _key:
-    st.error("OPENROUTER_API_KEY not found in .env file. Please add your API key.")
+    st.error("OPENROUTER_API_KEY not found. Add it to .env (local) or Streamlit secrets (Cloud).")
     st.stop()
 os.environ["OPENAI_API_KEY"] = _key
 os.environ["OPENAI_BASE_URL"] = "https://openrouter.ai/api/v1"
+os.environ["LLM_MODEL"] = _get_secret("LLM_MODEL", "openai/gpt-4o")
+os.environ["SLACK_BOT_TOKEN"] = _get_secret("SLACK_BOT_TOKEN")
+os.environ["SLACK_CHANNEL"] = _get_secret("SLACK_CHANNEL", "#incident-alerts")
 
 from orchestrator.graph import build_graph
 from orchestrator.state import make_initial_state
