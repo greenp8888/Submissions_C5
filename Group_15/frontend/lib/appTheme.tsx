@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
 } from "react";
@@ -21,6 +22,9 @@ type ThemeContextValue = {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
+const useIsoLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
 function readStoredIsDark(): boolean {
   if (typeof window === "undefined") return true;
   try {
@@ -34,7 +38,7 @@ export function AppThemeProvider({ children }: { children: React.ReactNode }) {
   const [isDark, setIsDarkState] = useState(true);
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
+  useIsoLayoutEffect(() => {
     setIsDarkState(readStoredIsDark());
     setMounted(true);
   }, []);

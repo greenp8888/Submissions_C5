@@ -63,17 +63,6 @@ const TL_META = {
 };
 
 /* ─── SVG Icons ──────────────────────────────────────────────────── */
-const SunIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }} aria-hidden="true">
-    <circle cx="12" cy="12" r="4" />
-    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
-  </svg>
-);
-const MoonIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }} aria-hidden="true">
-    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-  </svg>
-);
 const ArrowLeftIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }} aria-hidden="true">
     <path d="M19 12H5M12 5l-7 7 7 7" />
@@ -133,7 +122,7 @@ function KpiCard({ label, value, sub, accent }: { label: string; value: React.Re
 /* ─── Page ───────────────────────────────────────────────────────── */
 export default function ReportPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { isDark, toggleTheme, mounted } = useAppTheme();
+  const { isDark, setIsDark, mounted } = useAppTheme();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [currentNode, setCurrentNode] = useState("input");
@@ -243,12 +232,12 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
     minHeight: "100vh",
   };
 
-  const themeClass = isDark ? "" : "theme-light";
+  const reportTheme = isDark ? "dark" : "light";
 
   /* ── Error ── */
   if (error) {
     return (
-      <div className={themeClass} data-report-page style={{ ...pageShell, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div data-report-page data-theme={reportTheme} style={{ ...pageShell, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
         <div style={{ textAlign: "center" }}>
           <h1 style={{ fontSize: 28, fontWeight: 800, color: "var(--rp-heading)", marginBottom: 8 }}>Error</h1>
           <p style={{ color: "var(--rp-muted)" }}>{error}</p>
@@ -263,7 +252,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
     : 0;
 
   return (
-    <div className={themeClass} style={pageShell} data-report-page>
+    <div data-report-page data-theme={reportTheme} style={pageShell}>
       {/* ── Header ── */}
       <div className="no-print" style={{ borderBottom: "1px solid var(--rp-header-border)", padding: "10px 20px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         {/* Logo */}
@@ -283,37 +272,90 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
         {!loading && !report && <span style={{ flex: 1 }} />}
 
         {/* Action buttons */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
           {mounted && (
-            <button
-              type="button"
-              onClick={toggleTheme}
-              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 34,
-                height: 34,
-                borderRadius: 8,
-                border: "1px solid var(--rp-btn-border)",
-                background: "var(--rp-card)",
-                color: "var(--rp-muted)",
-                cursor: "pointer",
-                transition: "all 0.15s ease",
-                flexShrink: 0,
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.borderColor = "var(--accent-cyan)";
-                (e.currentTarget as HTMLElement).style.color = "var(--accent-cyan)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.borderColor = "var(--rp-btn-border)";
-                (e.currentTarget as HTMLElement).style.color = "var(--rp-muted)";
-              }}
+            <div
+              className="no-print"
+              role="group"
+              aria-label="Theme"
+              style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}
             >
-              {isDark ? <SunIcon /> : <MoonIcon />}
-            </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    color: "var(--rp-muted)",
+                    fontFamily: "var(--font-mono)",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Theme
+                </span>
+                <div
+                  style={{
+                    display: "flex",
+                    borderRadius: 8,
+                    border: "1px solid var(--rp-border)",
+                    overflow: "hidden",
+                    background: "var(--rp-inset)",
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setIsDark(true)}
+                    aria-pressed={isDark}
+                    style={{
+                      padding: "6px 12px",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      border: "none",
+                      cursor: "pointer",
+                      fontFamily: "var(--font-display, system-ui), sans-serif",
+                      background: isDark ? "color-mix(in srgb, var(--accent-cyan) 18%, var(--rp-inset))" : "transparent",
+                      color: isDark ? "var(--accent-cyan)" : "var(--rp-muted)",
+                      boxShadow: isDark ? "inset 0 0 0 1px color-mix(in srgb, var(--accent-cyan) 35%, transparent)" : "none",
+                    }}
+                  >
+                    Dark
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsDark(false)}
+                    aria-pressed={!isDark}
+                    style={{
+                      padding: "6px 12px",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      border: "none",
+                      borderLeft: "1px solid var(--rp-border)",
+                      cursor: "pointer",
+                      fontFamily: "var(--font-display, system-ui), sans-serif",
+                      background: !isDark ? "color-mix(in srgb, var(--accent-cyan) 18%, var(--rp-inset))" : "transparent",
+                      color: !isDark ? "var(--accent-cyan)" : "var(--rp-muted)",
+                      boxShadow: !isDark ? "inset 0 0 0 1px color-mix(in srgb, var(--accent-cyan) 35%, transparent)" : "none",
+                    }}
+                  >
+                    Light
+                  </button>
+                </div>
+              </div>
+              <span
+                style={{
+                  fontSize: 10,
+                  color: "var(--rp-faint)",
+                  fontFamily: "var(--font-mono)",
+                  letterSpacing: "0.02em",
+                  maxWidth: 200,
+                  textAlign: "right",
+                  lineHeight: 1.35,
+                }}
+              >
+                Same as home — saved on this device
+              </span>
+            </div>
           )}
 
           {/* Back to Home */}
