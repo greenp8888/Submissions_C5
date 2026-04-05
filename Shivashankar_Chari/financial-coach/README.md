@@ -1,3 +1,5 @@
+Demo Link : https://drive.google.com/file/d/1xwPgUWSAiLag3ra8LjcVGEankPZ-w-O4/view?usp=sharing
+
 # 💰 AI Financial Coach
 
 **Agentic, RAG-powered, MCP-enabled Financial Intelligence Platform**
@@ -199,3 +201,5 @@ After analysis, users can trigger an email workflow via n8n:
          └────────────┬──────┴──────┬────────────┘
                       ▼             ▼
                Final Insights + Dashboard
+
+
