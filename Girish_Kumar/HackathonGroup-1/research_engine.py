@@ -11,9 +11,18 @@ Python 3.14+ compatible:
   - X | Y union syntax used directly (valid since 3.10, no shim needed).
   - No mutable default arguments.
   - typing.Any retained (still the correct spelling for untyped positions).
+
+Concurrency model (Agent 1):
+  - The main query is decomposed into 3 angle-based sub-queries.
+  - All sub-queries are submitted to Tavily simultaneously via
+    ThreadPoolExecutor, alongside all PDF extractions.
+  - Results are merged and deduplicated by URL before the LLM synthesis step.
+  - Wall-clock time for Agent 1 drops from O(N) to O(1) relative to the
+    number of searches, bounded only by the slowest individual request.
 """
 
 import re
+import concurrent.futures
 from typing import Any
 
 import requests
@@ -24,6 +33,10 @@ try:
     PDF_SUPPORT = True
 except ImportError:
     PDF_SUPPORT = False
+
+# Maximum worker threads for concurrent I/O.  Tavily + PDF tasks are all
+# network/disk-bound so a generous thread count is safe.
+_MAX_WORKERS = 10
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -63,7 +76,11 @@ def _llm(
 
 
 def _tavily_search(query: str, tavily_key: str, max_results: int = 7) -> list[dict[str, Any]]:
-    """Search Tavily and return a list of result dicts."""
+    """
+    Search Tavily for a single query and return a list of result dicts.
+    Tavily's synthesised answer (if present) is prepended as a pseudo-result
+    so downstream agents can reference it.
+    """
     resp = requests.post(
         "https://api.tavily.com/search",
         json={
@@ -78,19 +95,91 @@ def _tavily_search(query: str, tavily_key: str, max_results: int = 7) -> list[di
     )
     resp.raise_for_status()
     data = resp.json()
-    results = data.get("results", [])
-    # Attach Tavily's synthesized answer as first pseudo-result
+    results: list[dict[str, Any]] = data.get("results", [])
     if data.get("answer"):
         results.insert(0, {
-            "title": "Tavily Synthesized Answer",
-            "url": "tavily://answer",
+            "title": f"Tavily Answer — {query[:60]}",
+            "url": f"tavily://answer/{query[:40].replace(' ', '-')}",
             "content": data["answer"],
             "score": 1.0,
         })
     return results
 
 
-def _extract_pdf_text(file_obj) -> str:
+def _tavily_search_concurrent(
+    queries: list[str],
+    tavily_key: str,
+    max_results_per_query: int = 7,
+) -> list[dict[str, Any]]:
+    """
+    Fire all *queries* against Tavily simultaneously using a thread pool.
+
+    Returns a deduplicated, score-sorted list of results.  URLs that appear
+    in more than one query's results are kept only once (highest-score copy).
+
+    Args:
+        queries:               List of search strings to run in parallel.
+        tavily_key:            Tavily API key.
+        max_results_per_query: Max results requested per individual query.
+
+    Returns:
+        Merged, deduplicated list sorted by score descending.
+    """
+    all_results: list[dict[str, Any]] = []
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=_MAX_WORKERS) as pool:
+        future_to_query = {
+            pool.submit(_tavily_search, q, tavily_key, max_results_per_query): q
+            for q in queries
+        }
+        for future in concurrent.futures.as_completed(future_to_query):
+            query = future_to_query[future]
+            try:
+                results = future.result()
+                # Tag each result with which sub-query produced it
+                for r in results:
+                    r.setdefault("_source_query", query)
+                all_results.extend(results)
+            except Exception as exc:
+                # Partial failure: record a placeholder so the digest mentions
+                # the failed sub-query rather than silently dropping it.
+                all_results.append({
+                    "title": f"[Search failed] {query[:80]}",
+                    "url": "tavily://error",
+                    "content": f"Search error for query '{query}': {exc}",
+                    "score": 0.0,
+                    "_source_query": query,
+                })
+
+    # Deduplicate by URL, keeping the highest-score entry for each URL.
+    seen: dict[str, dict[str, Any]] = {}
+    for r in all_results:
+        url = r.get("url", "")
+        if url not in seen or r.get("score", 0) > seen[url].get("score", 0):
+            seen[url] = r
+
+    return sorted(seen.values(), key=lambda r: r.get("score", 0), reverse=True)
+
+
+def _build_sub_queries(query: str, extra_context: str) -> list[str]:
+    """
+    Decompose the user query into 3 complementary search angles:
+      1. The query as-is (or with extra context appended).
+      2. A "latest research / recent developments" variant.
+      3. A "criticism / challenges / limitations" variant.
+
+    Running these concurrently gives broader coverage than a single search
+    without requiring an extra LLM call to plan the queries.
+    """
+    base = f"{query}. {extra_context[:200]}" if extra_context else query
+    return [
+        base,
+        f"{query} latest research recent developments 2024 2025",
+        f"{query} challenges limitations criticism controversies",
+    ]
+
+
+def _extract_pdf_text(file_obj: Any) -> str:
     """Extract text from a PDF file-like object using pypdf."""
     if not PDF_SUPPORT:
         return "[PDF support unavailable — install pypdf]"
@@ -100,6 +189,40 @@ def _extract_pdf_text(file_obj) -> str:
         return "\n\n".join(pages)[:8000]  # cap to avoid context overflow
     except Exception as exc:
         return f"[Error reading PDF: {exc}]"
+
+
+def _extract_pdfs_concurrent(pdf_files: list[Any]) -> list[str]:
+    """
+    Extract text from all PDFs simultaneously via a thread pool.
+
+    Each PDF is opened in its own thread.  The GIL is not a bottleneck here
+    because pypdf spends most of its time in I/O and byte-decoding.
+
+    Returns a list of non-empty extracted text strings, one per PDF.
+    """
+    if not pdf_files:
+        return []
+
+    results: list[str] = []
+
+    def _extract_one(pdf: Any) -> str | None:
+        text = _extract_pdf_text(pdf)
+        name = getattr(pdf, "name", "document")
+        if text.strip():
+            return f"[PDF: {name}]\n{text}"
+        return None
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=_MAX_WORKERS) as pool:
+        futures = [pool.submit(_extract_one, pdf) for pdf in pdf_files]
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                result = future.result()
+                if result:
+                    results.append(result)
+            except Exception as exc:
+                results.append(f"[PDF extraction error: {exc}]")
+
+    return results
 
 
 def _count_re(pattern: str, text: str) -> int:
@@ -145,23 +268,77 @@ class ResearchEngine:
         pdf_files: list[Any] | None = None,
     ) -> dict[str, Any]:
         """
-        Fetches web results via Tavily, extracts PDF text, then uses the LLM
-        to produce a structured evidence digest.
+        Fetches web results via Tavily and extracts PDF text concurrently,
+        then uses the LLM to produce a structured evidence digest.
+
+        Concurrency strategy
+        --------------------
+        Three complementary Tavily sub-queries (base, recent-developments,
+        criticisms) and all PDF extractions are submitted to a shared
+        ThreadPoolExecutor simultaneously.  Results arrive as each future
+        completes; the slowest individual request determines the wall-clock
+        wait, not the sum of all requests.
+
+          Before:  N serial requests  → total ≈ N × avg_latency
+          After:   N parallel requests → total ≈ max(individual latencies)
         """
         pdf_files = pdf_files or []
 
-        # 1a. Web search
-        search_query = query
-        if extra_context:
-            search_query = f"{query}. Context: {extra_context[:300]}"
-        web_results = _tavily_search(search_query, self.tv_key, self.max_results)
+        # 1a. Decompose query into 3 complementary search angles
+        sub_queries = _build_sub_queries(query, extra_context)
 
-        # 1b. PDF extraction
+        # 1b. Fire all Tavily searches AND all PDF extractions concurrently
+        #     in a single shared thread pool.
+        raw_web: list[dict[str, Any]] = []
         pdf_texts: list[str] = []
-        for pdf in pdf_files:
-            text = _extract_pdf_text(pdf)
-            if text.strip():
-                pdf_texts.append(f"[PDF: {getattr(pdf, 'name', 'document')}]\n{text}")
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=_MAX_WORKERS) as pool:
+            # Submit all Tavily sub-queries
+            search_futures: dict[concurrent.futures.Future[list[dict[str, Any]]], str] = {
+                pool.submit(_tavily_search, q, self.tv_key, self.max_results): q
+                for q in sub_queries
+            }
+            # Submit all PDF extractions alongside the searches
+            pdf_futures: dict[concurrent.futures.Future[str], Any] = {
+                pool.submit(_extract_pdf_text, pdf): pdf
+                for pdf in pdf_files
+            }
+
+            # Collect Tavily results as they arrive
+            for future in concurrent.futures.as_completed(search_futures):
+                sq = search_futures[future]
+                try:
+                    results = future.result()
+                    for r in results:
+                        r.setdefault("_source_query", sq)
+                    raw_web.extend(results)
+                except Exception as exc:
+                    raw_web.append({
+                        "title": f"[Search failed] {sq[:80]}",
+                        "url": "tavily://error",
+                        "content": f"Search error for '{sq}': {exc}",
+                        "score": 0.0,
+                        "_source_query": sq,
+                    })
+
+            # Collect PDF results as they arrive
+            for future in concurrent.futures.as_completed(pdf_futures):
+                pdf = pdf_futures[future]
+                try:
+                    text = future.result()
+                    name = getattr(pdf, "name", "document")
+                    if text.strip():
+                        pdf_texts.append(f"[PDF: {name}]\n{text}")
+                except Exception as exc:
+                    pdf_texts.append(f"[PDF extraction error: {exc}]")
+
+        # Deduplicate web results by URL, keeping the highest-score copy
+        seen: dict[str, dict[str, Any]] = {}
+        for r in raw_web:
+            url = r.get("url", "")
+            if url not in seen or r.get("score", 0) > seen[url].get("score", 0):
+                seen[url] = r
+        web_results = sorted(seen.values(), key=lambda r: r.get("score", 0), reverse=True)
 
         # 1c. Build context blob for LLM
         web_blob = "\n\n---\n\n".join(
