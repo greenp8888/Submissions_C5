@@ -9,6 +9,15 @@
 
 > **From raw ops logs to remediation runbooks, Slack alerts, and JIRA tickets — fully automated by AI agents.**
 
+Team Members:
+
+- Ujwala B    ujwala.bheema@gmail.com
+- Nagaraju Siddam	nagaraju.siddam@gmail.com
+- Rajesh	vrajesh.myreg@gmail.com
+- Ravindranath Reddy	ravindra.rdy@gmail.com
+- Devu Pai	devuapai@gmail.com
+- Balaji Haridass	balaji.haridass.learn@gmail.com
+- Aesha
 ---
 
 ## Table of Contents
