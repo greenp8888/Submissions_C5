@@ -74,13 +74,34 @@ def build_upload_digest(local_paths: list[str]) -> str:
     return "\n".join(blocks).strip()
 
 
-def human_preflight_markdown(question: str, local_paths: list[str], settings: Settings) -> str:
-    """Full preflight panel: upload digest + LLM alignment note + prompt for Yes/No."""
+def assemble_preflight_markdown(digest: str, analysis: str) -> str:
+    return "\n\n".join(
+        [
+            "## Human review (before full research)",
+            "",
+            digest,
+            "",
+            "---",
+            "",
+            analysis.strip(),
+            "",
+            "---",
+            "",
+            "### Continue?",
+            "**Do you want to run the full deep research pipeline now?**",
+            "",
+            "- Click **Yes — run full research** to start planning, retrieval, analysis, and the report.",
+            "- Click **No — cancel** to stay on this page and change your question or files (then review again).",
+        ]
+    ).strip()
+
+
+def llm_preflight_analysis(question: str, digest: str, settings: Settings) -> str:
+    """LLM alignment section only (caller may run after streaming a digest-building step)."""
     q = (question or "").strip()
     if not q:
         raise ValueError("Research question is empty.")
 
-    digest = build_upload_digest(local_paths)
     llm = get_llm(settings, temperature=0.15)
     prompt = f"""
 You are helping a researcher decide whether to start an **expensive multi-agent deep research run**.
@@ -109,24 +130,15 @@ Keep a practical tone. Do not invent file contents not shown above.
 """.strip()
 
     response = llm.invoke(prompt)
-    analysis = getattr(response, "content", str(response)).strip()
+    return getattr(response, "content", str(response)).strip()
 
-    return "\n\n".join(
-        [
-            "## Human review (before full research)",
-            "",
-            digest,
-            "",
-            "---",
-            "",
-            analysis.strip(),
-            "",
-            "---",
-            "",
-            "### Continue?",
-            "**Do you want to run the full deep research pipeline now?**",
-            "",
-            "- Click **Yes — run full research** to start planning, retrieval, analysis, and the report.",
-            "- Click **No — cancel** to stay on this page and change your question or files (then review again).",
-        ]
-    ).strip()
+
+def human_preflight_markdown(question: str, local_paths: list[str], settings: Settings) -> str:
+    """Full preflight panel: upload digest + LLM alignment note + prompt for Yes/No."""
+    q = (question or "").strip()
+    if not q:
+        raise ValueError("Research question is empty.")
+
+    digest = build_upload_digest(local_paths)
+    analysis = llm_preflight_analysis(q, digest, settings)
+    return assemble_preflight_markdown(digest, analysis)

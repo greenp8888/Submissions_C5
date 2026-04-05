@@ -10,7 +10,7 @@ import pandas as pd
 
 from deep_researcher.config import ANTHROPIC_BUDGET_MODELS, LLM_PROVIDER_ANTHROPIC, LLM_PROVIDER_OPENROUTER, Settings
 from deep_researcher.graph import build_graph, normalize_excerpt_whitespace
-from deep_researcher.preflight import human_preflight_markdown
+from deep_researcher.preflight import assemble_preflight_markdown, build_upload_digest, llm_preflight_analysis
 from deep_researcher.retrieval import _classify_local_paths
 
 # Common OpenRouter model ids (custom values allowed in the dropdown).
@@ -29,31 +29,212 @@ OPENROUTER_MODEL_PRESETS: list[str] = [
 # Tab order (left to right): Human review → Report → Sources → Trace & gaps
 TAB_HUMAN, TAB_REPORT, TAB_SOURCES, TAB_TRACE = 0, 1, 2, 3
 
-# ChatGPT-style rounded chips for inline markdown links in the report tab (Gradio renders `<a href>`).
-REPORT_CITATION_CSS = """
+_APP_DIR = Path(__file__).resolve().parent
+LOGO_PATH = _APP_DIR / "assets" / "novamind-logo.png"
+
+# NovaMind design system — see docs/images/novamind_design_system.md
+# Avoid @import of Google Fonts here: it blocks first paint and can make the UI feel frozen on load.
+NOVAMIND_CSS = """
+:root {
+  --nm-bg-deep: #080a0f;
+  --nm-bg: #0c0e14;
+  --nm-surface: #12161f;
+  --nm-elevated: #181e2a;
+  --nm-border: rgba(100, 180, 255, 0.14);
+  --nm-text: #e8edf7;
+  --nm-muted: #8b9cb3;
+  --nm-accent: #22d3ee;
+  --nm-accent-dim: rgba(34, 211, 238, 0.12);
+  --nm-violet: #a78bfa;
+  --nm-r: 14px;
+  --nm-rs: 10px;
+}
+
+.gradio-container {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+  background: var(--nm-bg-deep) !important;
+  color: var(--nm-text) !important;
+}
+
+.nm-wrap { max-width: 1320px; margin: 0 auto; padding: 0.35rem 0 2.5rem; }
+
+.nm-hero {
+  background: linear-gradient(165deg, var(--nm-surface) 0%, rgba(24, 30, 42, 0.55) 100%);
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-r);
+  padding: 1.35rem 1.5rem 1.2rem;
+  margin-bottom: 1.2rem;
+}
+.nm-hero-top {
+  display: flex !important; flex-wrap: wrap; align-items: flex-start; justify-content: space-between;
+  gap: 1.15rem; margin-bottom: 0.85rem;
+}
+.nm-hero-left { display: flex !important; gap: 1rem; align-items: flex-start; flex: 1 1 280px; min-width: 0; }
+.nm-brand-logo-wrap { flex-shrink: 0; }
+.nm-brand-logo-wrap img, .nm-brand-logo-wrap .image-container img {
+  width: 64px !important; height: 64px !important; object-fit: contain !important;
+  border-radius: 14px !important; background: rgba(255,255,255,0.04) !important;
+}
+.nm-connect-compact {
+  flex: 0 0 auto !important; align-self: flex-start !important;
+  display: flex !important; flex-direction: row !important; align-items: center !important;
+  justify-content: flex-end !important; gap: 0.45rem !important;
+  background: var(--nm-elevated); border: 1px solid var(--nm-border);
+  border-radius: 999px; padding: 0.28rem 0.5rem 0.28rem 0.85rem;
+}
+.nm-connect-chip-wrap { flex: 1 1 auto !important; min-width: 0 !important; margin: 0 !important; }
+.nm-connect-chip-wrap .markdown, .nm-connect-chip-wrap p { margin: 0 !important; }
+.nm-connect-chip { margin: 0 !important; font-size: 0.88rem !important; font-weight: 500 !important; color: var(--nm-text) !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: min(42vw, 22rem); }
+.nm-connect-chip code { font-size: 0.84rem !important; color: var(--nm-accent) !important; background: rgba(0,0,0,0.25) !important; padding: 0.12rem 0.4rem !important; border-radius: 6px !important; border: 1px solid var(--nm-border) !important; }
+.nm-icon-btn {
+  min-width: 2.25rem !important; max-width: 2.25rem !important; height: 2.25rem !important; padding: 0 !important;
+  font-size: 1.15rem !important; line-height: 1 !important; border-radius: 999px !important;
+  background: transparent !important; border: 1px solid var(--nm-border) !important; color: var(--nm-text) !important;
+}
+.nm-icon-btn:hover { border-color: var(--nm-accent) !important; background: var(--nm-accent-dim) !important; }
+.nm-connect-popover {
+  position: fixed !important; top: 4.5rem !important; right: max(1rem, 2vw) !important;
+  width: min(440px, calc(100vw - 2rem)) !important; max-height: min(640px, 85vh) !important;
+  overflow-y: auto !important; z-index: 10000 !important;
+  background: var(--nm-surface) !important; border: 1px solid var(--nm-border) !important;
+  border-radius: var(--nm-r) !important; box-shadow: 0 28px 90px rgba(0,0,0,0.75) !important;
+  padding: 1rem 1.15rem 1.1rem !important;
+}
+.nm-connect-popover .markdown, .nm-connect-popover p, .nm-connect-popover label span { color: var(--nm-text) !important; }
+
+.nm-brand-row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.25rem; }
+/* Solid wordmark — gradient clip often disappears in some browsers / themes */
+.nm-wordmark {
+  font-size: 1.48rem; font-weight: 700; letter-spacing: -0.03em; color: #f1f5f9 !important;
+  text-shadow: 0 0 24px rgba(34, 211, 238, 0.15);
+}
+.nm-logo-gradient {
+  font-size: 1.48rem; font-weight: 700; letter-spacing: -0.03em;
+  background: linear-gradient(135deg, #5eead4, #a78bfa);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.nm-hero-more {
+  margin-top: 0.35rem !important;
+  border: 1px solid var(--nm-border) !important;
+  border-radius: var(--nm-rs) !important;
+  background: rgba(0,0,0,0.15) !important;
+  overflow: hidden;
+}
+.nm-hero-more details { border: none !important; background: transparent !important; padding: 0 !important; }
+.nm-hero-more summary { cursor: pointer; font-size: 0.84rem !important; color: var(--nm-muted) !important; list-style: none; }
+.nm-hero-more summary::-webkit-details-marker { display: none; }
+.nm-hero-more .prose, .nm-hero-more .markdown {
+  margin-top: 0.5rem !important; font-size: 0.88rem !important; line-height: 1.55 !important; color: var(--nm-muted) !important;
+}
+.nm-hero-more strong { color: var(--nm-text) !important; }
+.nm-hero-more code { color: var(--nm-accent) !important; }
+.nm-badge {
+  font-size: 0.62rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--nm-accent); border: 1px solid var(--nm-border); padding: 0.22rem 0.6rem; border-radius: 999px;
+  background: var(--nm-accent-dim);
+}
+.nm-tagline { font-size: 1.02rem; font-weight: 500; color: var(--nm-muted); margin: 0.45rem 0 0.35rem 0; }
+.nm-connect-hint { font-size: 0.8rem; color: var(--nm-muted); margin: 0.4rem 0 0 0; line-height: 1.45; }
+
+.nm-workspace { gap: 1.25rem !important; align-items: flex-start !important; }
+.nm-sidebar { display: flex; flex-direction: column; gap: 0.95rem !important; }
+.nm-main { display: flex; flex-direction: column; gap: 0.95rem !important; min-width: 0; }
+
+.nm-card {
+  background: var(--nm-surface) !important;
+  border: 1px solid var(--nm-border) !important;
+  border-radius: var(--nm-r) !important;
+  padding: 0.95rem 1.05rem !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+.nm-card h1, .nm-card h2, .nm-card h3 {
+  font-size: 0.66rem !important; font-weight: 600 !important; letter-spacing: 0.11em !important;
+  text-transform: uppercase !important; color: var(--nm-muted) !important;
+  margin: 0 0 0.75rem 0 !important; border: none !important;
+}
+
+.nm-status-strip {
+  background: var(--nm-elevated) !important;
+  border: 1px solid var(--nm-border) !important;
+  border-radius: var(--nm-rs) !important;
+  padding: 0.65rem 0.95rem !important;
+  font-size: 0.88rem;
+  color: var(--nm-text) !important;
+}
+.nm-status-strip .markdown, .nm-status-strip p, .nm-status-strip li, .nm-status-strip strong {
+  color: var(--nm-text) !important;
+}
+.nm-status-strip em { color: var(--nm-muted) !important; }
+
+/* Gradio markdown / prose: force readable foreground on dark shell */
+.gradio-container .markdown-body, .gradio-container .prose, .gradio-container .prose p,
+.gradio-container .prose li, .gradio-container .prose strong { color: var(--nm-text) !important; }
+.gradio-container .prose em, .gradio-container .markdown em { color: var(--nm-muted) !important; }
+.gradio-container .prose code { color: var(--nm-accent) !important; background: var(--nm-elevated) !important; }
+
+.nm-file-hint .markdown, .nm-file-hint p { color: var(--nm-muted) !important; }
+.nm-file-hint strong { color: var(--nm-text) !important; }
+
+.nm-tabs-shell {
+  background: var(--nm-surface) !important;
+  border: 1px solid var(--nm-border) !important;
+  border-radius: var(--nm-r) !important;
+  padding: 0.5rem 0.65rem 1rem !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.gradio-tabs { margin-top: 0 !important; }
+.gradio-tab-nav { gap: 0.35rem !important; border-bottom: 1px solid var(--nm-border) !important; padding-bottom: 0.45rem !important; margin-bottom: 0.65rem !important; flex-wrap: wrap !important; }
+.gradio-tab-nav button {
+  /* Slightly brighter than body muted text so inactive tabs stay readable on dark chrome */
+  color: #aebccf !important; border: none !important; background: transparent !important;
+  font-weight: 500 !important; font-size: 0.84rem !important; padding: 0.4rem 0.8rem !important; border-radius: 8px !important;
+  opacity: 1 !important;
+}
+.gradio-tab-nav button.selected { color: var(--nm-text) !important; background: var(--nm-accent-dim) !important; box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.35) !important; }
+/* While a job runs, Gradio may add .pending or disable tab controls — avoid unreadable dimming.
+   Do NOT use :has() on .gradio-container — it forces constant descendant scans and can freeze the tab. */
+.gradio-container.pending .gradio-tab-nav button:not(.selected),
+.gradio-tab-nav button:disabled {
+  color: #c5d0df !important; opacity: 0.95 !important;
+}
+
+.gradio-container textarea, .gradio-container input[type="text"], .gradio-container input[type="password"] {
+  background: var(--nm-elevated) !important; border: 1px solid var(--nm-border) !important;
+  color: var(--nm-text) !important; border-radius: var(--nm-rs) !important;
+}
+.gradio-container textarea:focus, .gradio-container input:focus { border-color: var(--nm-accent) !important; box-shadow: 0 0 0 2px var(--nm-accent-dim) !important; }
+
+.gradio-container label span, .gradio-container .label-wrap span { color: var(--nm-muted) !important; font-size: 0.82rem !important; }
+
+.gradio-container button.primary {
+  background: linear-gradient(135deg, #06b6d4, #6366f1) !important; color: #041014 !important;
+  font-weight: 600 !important; border: none !important; border-radius: var(--nm-rs) !important;
+}
+.gradio-container button.secondary {
+  background: transparent !important; color: var(--nm-text) !important;
+  border: 1px solid var(--nm-border) !important; border-radius: var(--nm-rs) !important;
+}
+
+.gradio-container .slider_input_container input { background: var(--nm-elevated) !important; }
+
+#nm-trace-panel, #nm-gaps-panel {
+  font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace !important;
+  font-size: 0.82rem !important; line-height: 1.5 !important;
+  color: var(--nm-text) !important;
+}
+#nm-trace-panel em, #nm-gaps-panel em { color: var(--nm-muted) !important; }
+
+.report-citations-prose { line-height: 1.65; max-width: 100%; color: var(--nm-text); }
 .report-citations-prose a {
-    display: inline-flex;
-    align-items: center;
-    background: linear-gradient(180deg, #f6f6f7 0%, #ececef 100%);
-    padding: 0.15rem 0.55rem 0.18rem;
-    border-radius: 999px;
-    font-size: 0.78rem;
-    font-weight: 500;
-    color: #374151 !important;
-    text-decoration: none !important;
-    border: 1px solid #e5e7eb;
-    margin: 0 0.12rem;
-    vertical-align: 0.08em;
-    line-height: 1.25;
-    box-shadow: 0 1px 0 rgba(0,0,0,0.05);
+  display: inline-flex; align-items: center; background: var(--nm-elevated);
+  padding: 0.15rem 0.55rem 0.18rem; border-radius: 999px; font-size: 0.78rem; font-weight: 500;
+  color: var(--nm-accent) !important; text-decoration: none !important;
+  border: 1px solid rgba(34, 211, 238, 0.35); margin: 0 0.12rem; vertical-align: 0.08em; line-height: 1.25;
 }
-.report-citations-prose a:hover {
-    background: linear-gradient(180deg, #eeeef1 0%, #e2e2e8 100%);
-    border-color: #d1d5db;
-}
-.report-citations-prose { line-height: 1.65; max-width: 100%; }
-/* Make Gradio’s in-flight progress ring a bit more noticeable on dense layouts */
-.gradio-container .pending { opacity: 0.92; }
+.report-citations-prose a:hover { border-color: var(--nm-accent); background: var(--nm-accent-dim); }
+
+.gradio-container .pending { opacity: 0.9; }
 """
 
 
@@ -152,12 +333,10 @@ def format_objective_markdown(objective: str | None) -> str:
 
 
 def on_files_updated(files):
-    """After upload/change: show a loading line, then classified file summary (PDF / image / audio)."""
-    yield "_⏳ **Loading files…** Resolving paths and detecting types (PDF, image, audio)…_"
+    """Summarize staged uploads after File changes (keep sync + single UI update — no streaming)."""
     paths = collect_upload_paths(files)
     if not paths:
-        yield "_No files attached. Upload PDFs, images, or audio when you are ready._"
-        return
+        return "_No files attached. Upload PDFs, images, or audio when you are ready._"
     pdfs, images, audios, skipped = _classify_local_paths(paths)
     names = [Path(p).name for p in paths[:12]]
     more = " …" if len(paths) > 12 else ""
@@ -169,8 +348,11 @@ def on_files_updated(files):
         f"_Files: {', '.join(names)}{more}_",
     ]
     if skipped:
-        lines.append(f"\n_Unclassified (could not sniff type): {len(skipped)} — check extensions or try another format._")
-    yield "\n".join(lines)
+        lines.append(
+            "\n_Unclassified (could not detect type from extension or file header): "
+            f"{len(skipped)} — check the file or try another format._"
+        )
+    return "\n".join(lines)
 
 
 def collect_upload_paths(files) -> list[str]:
@@ -285,7 +467,8 @@ def run_preflight_review(
     )
 
     try:
-        steps.append("Calling the model for upload ↔ question alignment…")
+        digest = build_upload_digest(paths)
+        steps.append("Digest ready — calling the model for upload ↔ question alignment…")
         yield (
             gr.skip(),
             gr.update(visible=False),
@@ -293,7 +476,8 @@ def run_preflight_review(
             gr.update(selected=TAB_TRACE),
             _preflight_trace_block(steps),
         )
-        md = human_preflight_markdown(q, paths, settings)
+        analysis = llm_preflight_analysis(q, digest, settings)
+        md = assemble_preflight_markdown(digest, analysis)
     except ValueError as exc:
         raise gr.Error(str(exc)) from exc
     except Exception as exc:
@@ -444,160 +628,255 @@ def run_research_after_confirm(
     )
 
 
-def _app_ready_message():
-    return "_UI loaded. Pick an LLM backend, add files, then **Review** or run research — buttons show a spinner while work is in progress._"
+def _app_ready_message() -> str:
+    return (
+        "**Workspace ready.** Stage **Corpus**, set your **Question**, then **Review**. "
+        "Model and provider are shown top-right; use **⚙** for API keys and options."
+    )
+
+
+def format_connect_chip(
+    llm_provider: str,
+    _openrouter_key: str,
+    openrouter_model: str,
+    _anthropic_key: str,
+    anthropic_model: str,
+) -> str:
+    """Single-line chat-style chip: provider · model (no secrets)."""
+    p = (llm_provider or "").strip()
+    if p == LLM_PROVIDER_ANTHROPIC:
+        prov = "Anthropic"
+        model = (anthropic_model or "").strip() or ANTHROPIC_BUDGET_MODELS[0]
+    else:
+        prov = "OpenRouter"
+        model = (openrouter_model or "").strip() or "openai/gpt-4o-mini"
+    return f'<p class="nm-connect-chip"><code>{prov}</code> · <code>{model}</code></p>'
+
+
+def _refresh_connect_chip(
+    llm_provider: str,
+    openrouter_key: str,
+    openrouter_model: str,
+    anthropic_key: str,
+    anthropic_model: str,
+) -> str:
+    return format_connect_chip(
+        llm_provider, openrouter_key, openrouter_model, anthropic_key, anthropic_model
+    )
 
 
 def build_ui() -> gr.Blocks:
-    with gr.Blocks(title="Local Multi-Agent Deep Researcher", css=REPORT_CITATION_CSS) as demo:
-        gr.Markdown(
-            """
-# Local Multi-Agent Deep Researcher
-A local-first, LangGraph-based research assistant derived from your original RAG notebook.
-
-Reports lead with a **detailed narrative** with **inline, clickable citations** (styled as chips in the Report tab). Full references and per-channel notes follow below that.
-
-**Human in the loop:** Click **Review uploads & question** first. The **Trace** tab opens immediately and logs each preflight step; your digest and alignment note appear under **Human review**. After **Yes — run full research**, the Trace tab streams **live pipeline progress** until the **Report** tab opens with results.
-
-**LLM backend:** Choose **OpenRouter** or **Anthropic** below, paste the matching API key, then pick a model. OpenRouter exposes many providers; Anthropic lists **Haiku-only** (cheapest) Claude models. You can also set `LLM_PROVIDER` and keys in `.env`.
-
-**Phase 2:** Up to **2 analyst passes** — pass 2 adds **gap planner**, **follow-up retrieval**, and a second critical analysis (higher latency/cost).
-"""
-        )
-
-        with gr.Row():
-            with gr.Column(scale=3):
-                with gr.Accordion("LLM provider & API key", open=False):
-                    llm_provider = gr.Radio(
-                        label="1. Choose backend",
-                        choices=[
-                            ("OpenRouter — many models via one gateway", LLM_PROVIDER_OPENROUTER),
-                            ("Anthropic — Claude Haiku only (cheapest tier)", LLM_PROVIDER_ANTHROPIC),
-                        ],
-                        value=LLM_PROVIDER_OPENROUTER,
-                    )
-                    gr.Markdown("_2. Paste the API key for the backend you selected (or rely on `.env`). 3. Pick a model._")
-                    with gr.Column(visible=True) as openrouter_panel:
-                        openrouter_key = gr.Textbox(
-                            label="OpenRouter API key",
-                            type="password",
-                            placeholder="sk-or-… (empty → OPENROUTER_API_KEY from environment)",
-                        )
-                        openrouter_model = gr.Dropdown(
-                            label="OpenRouter model",
-                            choices=OPENROUTER_MODEL_PRESETS,
-                            value="openai/gpt-4o-mini",
-                            allow_custom_value=True,
-                        )
-                    with gr.Column(visible=False) as anthropic_panel:
-                        anthropic_key = gr.Textbox(
-                            label="Anthropic API key",
-                            type="password",
-                            placeholder="sk-ant-… (empty → ANTHROPIC_API_KEY from environment)",
-                        )
-                        anthropic_model = gr.Dropdown(
-                            label="Claude model (budget / Haiku only)",
-                            choices=list(ANTHROPIC_BUDGET_MODELS),
-                            value=ANTHROPIC_BUDGET_MODELS[0],
-                        )
-                question = gr.Textbox(
-                    label="Research question",
-                    lines=5,
-                    placeholder="Example: Compare how RAG and agentic retrieval differ in enterprise research workflows, using my uploaded PDFs plus current external evidence.",
+    with gr.Blocks(title="NovaMind · Deep Researcher") as demo:
+        with gr.Column(elem_classes=["nm-wrap"]):
+            with gr.Column(visible=False, elem_classes=["nm-connect-popover"]) as connect_popover:
+                gr.Markdown("### Settings")
+                gr.HTML(
+                    "<p class='nm-connect-hint'>API keys stay in the browser until you run Review or Research. "
+                    "Leave empty to use the server <code>.env</code>.</p>"
                 )
-                files = gr.File(
-                    label="Upload PDF, image, or audio files",
-                    file_count="multiple",
-                    file_types=[
-                        ".pdf",
-                        ".png",
-                        ".jpg",
-                        ".jpeg",
-                        ".webp",
-                        ".gif",
-                        ".bmp",
-                        ".tif",
-                        ".tiff",
-                        ".mp3",
-                        ".wav",
-                        ".m4a",
-                        ".flac",
-                        ".ogg",
-                        ".webm",
+                llm_provider = gr.Radio(
+                    label="LLM backend",
+                    choices=[
+                        ("OpenRouter (multi-model gateway)", LLM_PROVIDER_OPENROUTER),
+                        ("Anthropic — Claude Haiku (budget)", LLM_PROVIDER_ANTHROPIC),
                     ],
-                    type="filepath",
+                    value=LLM_PROVIDER_OPENROUTER,
                 )
-                file_upload_status = gr.Markdown(
-                    value="_No files yet. After you choose files, this row shows a **loading** state, then a short readiness summary._"
-                )
-                planner_objective = gr.Markdown(value="_Run a research job to show the planner objective._")
-
-                enable_web_search = gr.Checkbox(
-                    label="Enable web search via Tavily (recommended if key is configured)",
-                    value=True,
-                )
-
-                with gr.Row():
-                    top_k = gr.Slider(
-                        label="Top-K local retrieval (FAISS)",
-                        minimum=2,
-                        maximum=8,
-                        step=1,
-                        value=4,
+                with gr.Column(visible=True) as openrouter_panel:
+                    openrouter_key = gr.Textbox(
+                        label="OpenRouter API key",
+                        type="password",
+                        placeholder="sk-or-… → OPENROUTER_API_KEY",
                     )
-                    web_results_per_query = gr.Slider(
-                        label="Web results per query",
-                        minimum=1,
-                        maximum=5,
-                        step=1,
-                        value=3,
+                    openrouter_model = gr.Dropdown(
+                        label="Model",
+                        choices=OPENROUTER_MODEL_PRESETS,
+                        value="openai/gpt-4o-mini",
+                        allow_custom_value=True,
                     )
-
-                max_research_rounds = gr.Slider(
-                    label="Max analyst passes (1 = single pass; 2 = gap planner + follow-up retrieval + 2nd analyst)",
-                    minimum=1,
-                    maximum=2,
-                    step=1,
-                    value=1,
-                )
-
-                review_button = gr.Button("1. Review uploads & question", variant="primary")
-                with gr.Row():
-                    confirm_yes = gr.Button(
-                        "2. Yes — run full research", variant="primary", visible=False
+                with gr.Column(visible=False) as anthropic_panel:
+                    anthropic_key = gr.Textbox(
+                        label="Anthropic API key",
+                        type="password",
+                        placeholder="sk-ant-… → ANTHROPIC_API_KEY",
                     )
-                    confirm_no = gr.Button("No — cancel", variant="secondary", visible=False)
+                    anthropic_model = gr.Dropdown(
+                        label="Haiku model",
+                        choices=list(ANTHROPIC_BUDGET_MODELS),
+                        value=ANTHROPIC_BUDGET_MODELS[0],
+                    )
+                connect_done_btn = gr.Button("Done", variant="primary")
 
-            with gr.Column(scale=4):
-                ui_ready_md = gr.Markdown(value="_Loading interface…_")
-                gr.Markdown(
-                    "_Use the **Human review** tab for captions, PDF excerpts, and alignment after you click **Review**._"
-                )
-                with gr.Tabs(selected=TAB_HUMAN) as main_tabs:
-                    with gr.Tab("Human review"):
-                        human_review_md = gr.Markdown(
-                            value=(
-                                "_Click **1. Review uploads & question** to see image captions, PDF excerpts, "
-                                "and an alignment check. Then confirm with **2. Yes — run full research**._"
+            with gr.Column(elem_classes=["nm-hero"]):
+                with gr.Row(elem_classes=["nm-hero-top"]):
+                    with gr.Row(elem_classes=["nm-hero-left"]):
+                        if LOGO_PATH.is_file():
+                            gr.Image(
+                                value=str(LOGO_PATH),
+                                label="",
+                                show_label=False,
+                                height=72,
+                                width=72,
+                                interactive=False,
+                                container=False,
+                                elem_classes=["nm-brand-logo-wrap"],
                             )
+                        else:
+                            gr.HTML(
+                                "<div style='width:72px;height:72px;border-radius:14px;"
+                                "background:#181e2a;border:1px solid rgba(100,180,255,0.2);'></div>"
+                            )
+                        with gr.Column(scale=4):
+                            gr.HTML(
+                                """
+<div class="nm-brand-row">
+  <span class="nm-wordmark" aria-label="NovaMind">NovaMind</span>
+  <span class="nm-badge">Deep Research</span>
+</div>
+<p class="nm-tagline">Synthesize evidence. Trace every step.</p>
+"""
+                            )
+                            _HERO_MORE = (
+                                "Local-first LangGraph pipeline: human review of uploads, multi-source retrieval "
+                                "(files, Wikipedia, arXiv, Tavily), critical analysis, and a citation-forward report. "
+                                "The **Trace** tab streams orchestration as it runs. Use the **⚙** control "
+                                "(top right) for provider, model, and API keys — or set `LLM_PROVIDER` and keys "
+                                "in `.env` on the server."
+                            )
+                            with gr.Accordion("Show more", open=False, elem_classes=["nm-hero-more"]):
+                                gr.Markdown(_HERO_MORE)
+
+                    with gr.Row(elem_classes=["nm-connect-compact"]):
+                        connect_chip_md = gr.Markdown(
+                            value=format_connect_chip(
+                                LLM_PROVIDER_OPENROUTER,
+                                "",
+                                "openai/gpt-4o-mini",
+                                "",
+                                ANTHROPIC_BUDGET_MODELS[0],
+                            ),
+                            elem_classes=["nm-connect-chip-wrap"],
                         )
-                    with gr.Tab("Report"):
-                        with gr.Column(elem_classes=["report-citations-prose"]):
-                            gr.Markdown(
-                                "_Inline source links use rounded chips (hover to read the domain). "
-                                "Scroll past the narrative for the numbered **References** list and appendix._"
+                        settings_btn = gr.Button(
+                            "⚙",
+                            variant="secondary",
+                            elem_classes=["nm-icon-btn"],
+                            min_width=44,
+                            scale=0,
+                        )
+
+            with gr.Row(elem_classes=["nm-workspace"]):
+                with gr.Column(scale=5, elem_classes=["nm-sidebar"]):
+                    with gr.Column(elem_classes=["nm-card"]):
+                        gr.Markdown("### Corpus")
+                        files = gr.File(
+                            label="Uploads",
+                            file_count="multiple",
+                            file_types=[
+                                ".pdf",
+                                ".png",
+                                ".jpg",
+                                ".jpeg",
+                                ".webp",
+                                ".gif",
+                                ".bmp",
+                                ".tif",
+                                ".tiff",
+                                ".mp3",
+                                ".wav",
+                                ".m4a",
+                                ".flac",
+                                ".ogg",
+                                ".webm",
+                            ],
+                            type="filepath",
+                        )
+                        file_upload_status = gr.Markdown(
+                            value="_No files staged. On upload, NovaMind validates types (PDF / image / audio)._",
+                            elem_classes=["nm-file-hint"],
+                        )
+
+                    with gr.Column(elem_classes=["nm-card"]):
+                        gr.Markdown("### Question")
+                        question = gr.Textbox(
+                            label="Research question",
+                            lines=5,
+                            placeholder="What should the agents investigate? Mention constraints, time range, or required sources.",
+                        )
+
+                    with gr.Column(elem_classes=["nm-card"]):
+                        gr.Markdown("### Retrieval")
+                        enable_web_search = gr.Checkbox(
+                            label="Tavily web search",
+                            value=True,
+                        )
+                        with gr.Row():
+                            top_k = gr.Slider(
+                                label="Top-K (FAISS)",
+                                minimum=2,
+                                maximum=8,
+                                step=1,
+                                value=4,
                             )
-                            report = gr.Markdown()
-                            gr.Markdown("**Contradictions**")
-                            contradictions = gr.Markdown()
-                            download_report = gr.File(label="Download markdown report")
-                    with gr.Tab("Sources"):
-                        gr.Markdown("Evidence catalog includes a truncated **excerpt** per row. Full snippets below.")
-                        evidence_table = gr.Dataframe(label="Evidence catalog", interactive=False)
-                        sources_detail_md = gr.Markdown(value="_Detailed extracts appear after a run._")
-                    with gr.Tab("Trace & gaps"):
-                        gaps_panel = gr.Markdown(value="_Gap planner output appears when using 2 analyst passes._")
-                        trace_md = gr.Markdown()
+                            web_results_per_query = gr.Slider(
+                                label="Web hits / query",
+                                minimum=1,
+                                maximum=5,
+                                step=1,
+                                value=3,
+                            )
+                        max_research_rounds = gr.Slider(
+                            label="Analyst passes (2 = gap planner + follow-up wave)",
+                            minimum=1,
+                            maximum=2,
+                            step=1,
+                            value=1,
+                        )
+
+                    with gr.Column(elem_classes=["nm-card"]):
+                        gr.Markdown("### Run")
+                        review_button = gr.Button("Review uploads & question", variant="primary")
+                        with gr.Row():
+                            confirm_yes = gr.Button(
+                                "Run full research", variant="primary", visible=False
+                            )
+                            confirm_no = gr.Button("Cancel", variant="secondary", visible=False)
+
+                with gr.Column(scale=8, elem_classes=["nm-main"]):
+                    with gr.Column(elem_classes=["nm-status-strip"]):
+                        ui_ready_md = gr.Markdown(value=_app_ready_message())
+                        planner_objective = gr.Markdown(
+                            value="_Planner objective appears after a research run._"
+                        )
+
+                    with gr.Column(elem_classes=["nm-tabs-shell"]):
+                        with gr.Tabs(selected=TAB_HUMAN) as main_tabs:
+                            with gr.Tab("Human review"):
+                                human_review_md = gr.Markdown(
+                                    value=(
+                                        "_Run **Review uploads & question** to see captions, PDF excerpts, "
+                                        "and alignment with your goal. Then confirm **Run full research**._"
+                                    )
+                                )
+                            with gr.Tab("Report"):
+                                with gr.Column(elem_classes=["report-citations-prose"]):
+                                    gr.Markdown(
+                                        "_Narrative first, with inline source chips. References and appendix follow._"
+                                    )
+                                    report = gr.Markdown()
+                                    gr.Markdown("**Contradictions**")
+                                    contradictions = gr.Markdown()
+                                    download_report = gr.File(label="Download report (.md)")
+                            with gr.Tab("Sources"):
+                                gr.Markdown("_Evidence catalog (truncated excerpts). Detailed extracts below._")
+                                evidence_table = gr.Dataframe(label="Evidence", interactive=False)
+                                sources_detail_md = gr.Markdown(value="_No extracts yet._")
+                            with gr.Tab("Trace & gaps"):
+                                gaps_panel = gr.Markdown(
+                                    elem_id="nm-gaps-panel",
+                                    value="_Gap planner output when analyst passes = 2._",
+                                )
+                                trace_md = gr.Markdown(elem_id="nm-trace-panel", value="_Pipeline trace will stream here._")
 
         llm_inputs = [
             llm_provider,
@@ -607,32 +886,60 @@ Reports lead with a **detailed narrative** with **inline, clickable citations** 
             anthropic_model,
         ]
 
+        def _on_llm_provider_change(
+            p: str, ok: str, om: str, ak: str, am: str
+        ) -> tuple:
+            u1, u2 = _toggle_provider_panels(p)
+            return u1, u2, format_connect_chip(p, ok, om, ak, am)
+
         llm_provider.change(
-            fn=_toggle_provider_panels,
-            inputs=[llm_provider],
-            outputs=[openrouter_panel, anthropic_panel],
-            show_progress="minimal",
+            fn=_on_llm_provider_change,
+            inputs=llm_inputs,
+            outputs=[openrouter_panel, anthropic_panel, connect_chip_md],
+            show_progress=False,
+        )
+        for _conn_comp in (openrouter_key, openrouter_model, anthropic_key, anthropic_model):
+            _conn_comp.change(
+                fn=_refresh_connect_chip,
+                inputs=llm_inputs,
+                outputs=[connect_chip_md],
+                show_progress=False,
+            )
+
+        settings_btn.click(
+            lambda: gr.update(visible=True),
+            inputs=[],
+            outputs=[connect_popover],
+            show_progress=False,
+        )
+        connect_done_btn.click(
+            lambda: gr.update(visible=False),
+            inputs=[],
+            outputs=[connect_popover],
+            show_progress=False,
         )
 
         files.change(
             fn=on_files_updated,
             inputs=[files],
             outputs=[file_upload_status],
-            show_progress="full",
+            # Avoid full-screen progress overlay during uploads (blocks the whole UI while Gradio streams).
+            show_progress=False,
         )
 
         review_button.click(
             fn=run_preflight_review,
             inputs=[question, files, *llm_inputs],
             outputs=[human_review_md, confirm_yes, confirm_no, main_tabs, trace_md],
-            show_progress="full",
+            # Full-screen progress freezes the tab bar and shows a stuck 0.0s timer during long BLIP/LLM work.
+            show_progress=False,
         )
 
         confirm_no.click(
             fn=cancel_preflight_review,
             inputs=[],
             outputs=[human_review_md, confirm_yes, confirm_no],
-            show_progress="minimal",
+            show_progress=False,
         )
 
         confirm_yes.click(
@@ -659,14 +966,7 @@ Reports lead with a **detailed narrative** with **inline, clickable citations** 
                 confirm_no,
                 main_tabs,
             ],
-            show_progress="full",
-        )
-
-        demo.load(
-            fn=_app_ready_message,
-            inputs=[],
-            outputs=[ui_ready_md],
-            show_progress="minimal",
+            show_progress=False,
         )
 
     return demo
@@ -679,4 +979,9 @@ if __name__ == "__main__":
     server_port = int(os.getenv("GRADIO_SERVER_PORT", "7860"))
 
     app = build_ui()
-    app.launch(server_name=server_name, server_port=server_port, share=True)
+    app.launch(
+        server_name=server_name,
+        server_port=server_port,
+        share=True,
+        css=NOVAMIND_CSS,
+    )

@@ -30,29 +30,57 @@ _BLIP_PIPE: Any = None
 _ASR_PIPES: dict[str, Any] = {}
 
 
-def _path_looks_like_image(path: str) -> bool:
+def _sniff_file_category(path: str) -> str | None:
+    """Classify as pdf / image / audio from a small prefix read only.
+
+    Gradio temp uploads often have no extension. PIL ``Image.open().load()`` and
+    ``librosa.load()`` decode real media and can freeze the UI when ``File.change``
+    runs on large files — use magic bytes instead.
+    """
     try:
-        from PIL import Image
-
-        with Image.open(path) as im:
-            im.load()
-        return True
-    except Exception:
-        return False
-
-
-def _path_looks_like_audio(path: str) -> bool:
-    try:
-        import librosa
-
-        librosa.load(path, sr=8000, duration=0.5)
-        return True
-    except Exception:
-        return False
+        with open(path, "rb") as f:
+            head = f.read(8192)
+    except OSError:
+        return None
+    if len(head) < 4:
+        return None
+    if head.startswith(b"%PDF"):
+        return "pdf"
+    if head.startswith(b"\xff\xd8\xff"):
+        return "image"
+    if head.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image"
+    if head.startswith((b"GIF87a", b"GIF89a")):
+        return "image"
+    if len(head) >= 12 and head.startswith(b"RIFF") and head[8:12] == b"WEBP":
+        return "image"
+    if head.startswith(b"BM"):
+        return "image"
+    if head.startswith((b"II*\x00", b"MM\x00*")):
+        return "image"
+    # Matroska / WebM (EBML)
+    if head.startswith(b"\x1a\x45\xdf\xa3"):
+        return "audio"
+    if head.startswith(b"OggS"):
+        return "audio"
+    if head.startswith(b"fLaC"):
+        return "audio"
+    if len(head) >= 12 and head.startswith(b"RIFF") and head[8:12] == b"WAVE":
+        return "audio"
+    if head.startswith(b"ID3"):
+        return "audio"
+    if head[0] == 0xFF and (head[1] & 0xE0) == 0xE0:
+        return "audio"
+    if len(head) >= 12 and head[4:8] == b"ftyp":
+        brand = head[8:12]
+        if brand in (b"M4A ", b"M4B ", b"mp4a", b"isom", b"mp41", b"mp42", b"qt  ", b"3gp6"):
+            return "audio"
+        return None
+    return None
 
 
 def _classify_local_paths(paths: list[str]) -> tuple[list[str], list[str], list[str], list[str]]:
-    """Classify by extension; Gradio temp files often have no suffix — sniff bytes with PIL/librosa."""
+    """Classify by extension; Gradio temp files often have no suffix — sniff a few bytes only."""
     pdfs, images, audios, skipped = [], [], [], []
     for raw in paths:
         p = _safe_text(raw)
@@ -65,10 +93,13 @@ def _classify_local_paths(paths: list[str]) -> tuple[list[str], list[str], list[
             images.append(p)
         elif ext in AUDIO_EXT:
             audios.append(p)
-        elif ext == "" or ext not in (PDF_EXT | IMAGE_EXT | AUDIO_EXT):
-            if _path_looks_like_image(p):
+        else:
+            kind = _sniff_file_category(p)
+            if kind == "pdf":
+                pdfs.append(p)
+            elif kind == "image":
                 images.append(p)
-            elif _path_looks_like_audio(p):
+            elif kind == "audio":
                 audios.append(p)
             else:
                 skipped.append(p)
