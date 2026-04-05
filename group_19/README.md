@@ -8,15 +8,17 @@
 
 [![Live App](https://img.shields.io/badge/🚀_Live_App-Open_Now-6366f1?style=for-the-badge)](https://ptotic-bernita-unpresciently.ngrok-free.dev/)
 &nbsp;
+[![Demo](https://img.shields.io/badge/🎥_Demo-Watch_Now-61DAFB?style=for-the-badge&logo=loom&logoColor=white)](https://www.loom.com/share/fb1c5a9d85f7496594eb7f1b34910ad2)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
-[![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
+[![React](https://img.shields.io/badge/React-18-FF0000?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
 [![LangGraph](https://img.shields.io/badge/LangGraph-Multi--Agent-FF6B35?style=for-the-badge)](https://langchain-ai.github.io/langgraph/)
 [![OpenRouter](https://img.shields.io/badge/OpenRouter-50%2B_Models-8B5CF6?style=for-the-badge)](https://openrouter.ai)
 
 ---
 
-**[Try Live Demo](https://ptotic-bernita-unpresciently.ngrok-free.dev/)** · **[Report Bug](https://github.com/PavithraRajasekar/FinancialAdvisor/issues)** · **[Request Feature](https://github.com/PavithraRajasekar/FinancialAdvisor/issues)**
+**[Try our hosted app](https://ptotic-bernita-unpresciently.ngrok-free.dev/)** .
+**[Checkout our video demo](https://www.loom.com/share/fb1c5a9d85f7496594eb7f1b34910ad2)** · **[Report Bug](https://github.com/PavithraRajasekar/FinancialAdvisor/issues)** · **[Request Feature](https://github.com/PavithraRajasekar/FinancialAdvisor/issues)**
 
 </div>
 
@@ -24,7 +26,7 @@
 
 ## What is FinanceIQ?
 
-FinanceIQ ingests any CSV or Excel bank export and runs it through a **6-agent LangGraph pipeline** — each agent a specialist that builds on the last. You get a complete financial health picture in real-time, powered by the AI model of your choice.
+FinanceIQ ingests any CSV or Excel bank export and runs it through a **6-agent LangGraph pipeline**. Each agent is a specialist that builds on the last. Powered by a multi-agent RAG (Retrieval-Augmented Generation) framework, each stage retrieves relevant financial context, enriches it with domain-specific reasoning, and passes structured insights downstream. The result is a continuously refined, end-to-end financial health analysis delivered in real time, using the AI model of your choice.
 
 <div align="center">
 
@@ -37,6 +39,10 @@ FinanceIQ ingests any CSV or Excel bank export and runs it through a **6-agent L
 ---
 
 ## System Architecture
+
+<div align="center">
+  <img src="docImage/financeiq_architecture_v2.svg" alt="FinanceIQ System Architecture" width="100%">
+</div>
 
 ```mermaid
 graph TB
