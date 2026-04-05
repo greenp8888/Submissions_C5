@@ -116,6 +116,24 @@ _LOGOUT_KEYS = frozenset(
         "anthropic_model",
     }
 )
+UPLOAD_FILE_TYPES: list[str] = [
+    "pdf",
+    "png",
+    "jpg",
+    "jpeg",
+    "webp",
+    "gif",
+    "bmp",
+    "tif",
+    "tiff",
+    "mp3",
+    "wav",
+    "m4a",
+    "flac",
+    "ogg",
+    "webm",
+]
+
 OPENROUTER_MODEL_PRESETS: list[str] = [
     "openai/gpt-4o-mini",
     "openai/gpt-4o",
@@ -433,6 +451,34 @@ def _inject_layout_css() -> None:
     color: var(--secondary-text-color, #6b7280);
     margin: 0.1rem 0 0 0;
   }
+  /* Compact main column */
+  section.main div[data-testid="stVerticalBlock"] > div[data-testid="element-container"] {
+    margin-bottom: 0.35rem;
+  }
+  section.main .nm-composer-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--secondary-text-color, #6b7280);
+    margin: 0.15rem 0 0.35rem 0;
+  }
+  /* Research composer textarea (main column) */
+  section.main [data-testid="stTextArea"] textarea {
+    border-radius: 22px !important;
+    padding: 0.65rem 1rem !important;
+    min-height: 2.75rem !important;
+    line-height: 1.45 !important;
+  }
+  section.main [data-testid="stTextArea"] [data-baseweb="textarea"] {
+    border-radius: 22px !important;
+  }
+  section.main div[data-testid="stPopover"] button {
+    border-radius: 999px !important;
+    min-height: 2.5rem;
+    font-size: 1.15rem;
+    font-weight: 500;
+  }
 </style>
         """,
         unsafe_allow_html=True,
@@ -631,50 +677,69 @@ def main() -> None:
         st.caption("Leave keys empty to use `.env` on the server.")
 
     with col_main:
-        st.session_state["question"] = st.text_area(
-            "Research question",
-            value=st.session_state.get("question", ""),
-            height=120,
-            placeholder="What should the agents investigate?",
-        )
-
-        fu = st.file_uploader(
-            "➕ Add files",
-            type=["pdf", "png", "jpg", "jpeg", "webp", "gif", "bmp", "tif", "tiff", "mp3", "wav", "m4a", "flac", "ogg", "webm"],
-            accept_multiple_files=True,
-            label_visibility="collapsed",
-        )
-
-        paths = persist_uploads(st.session_state["id"], fu or [])
-        if fu:
-            st.session_state["uploaded_paths"] = paths
-            save_chat(session_chat_dict())
-
-        if st.session_state.get("uploaded_paths"):
-            with st.expander("Uploaded file paths", expanded=False):
-                for p in st.session_state["uploaded_paths"]:
-                    st.code(p, language=None)
-
-        c_prev, c_run, c_cancel = st.columns([1, 1, 1])
-        preview_clicked = c_prev.button("Preview (human review)", use_container_width=True)
-        run_clicked = c_run.button("Run full research", use_container_width=True, disabled=st.session_state.get("status") != "preview_ready")
-        cancel_clicked = c_cancel.button("Cancel", use_container_width=True)
-
-        st.session_state["enable_web_search"] = st.checkbox(
-            "Tavily web search", value=st.session_state.get("enable_web_search", True)
-        )
-        c1, c2, c3 = st.columns(3)
-        st.session_state["top_k"] = c1.slider("Top-K (FAISS)", 2, 8, int(st.session_state.get("top_k", 4)))
-        st.session_state["web_results_per_query"] = c2.slider("Web hits / query", 1, 5, int(st.session_state.get("web_results_per_query", 3)))
-        st.session_state["max_research_rounds"] = c3.slider("Analyst passes", 1, 2, int(st.session_state.get("max_research_rounds", 1)))
-
         msgs = st.session_state.get("messages") or []
-        _exp_open = bool(msgs)
-        with st.expander("Conversation", expanded=_exp_open):
+        _conv_open = bool(msgs)
+        with st.expander("Conversation", expanded=_conv_open):
             if msgs:
                 render_chat_messages()
             else:
                 st.caption("Preview and research replies will show here.")
+
+        st.markdown('<p class="nm-composer-label">Composer</p>', unsafe_allow_html=True)
+        st.caption("Type below · **＋** uploads files (ChatGPT-style)")
+
+        fu: list | tuple | None = None
+        ac, ic = st.columns([1, 14], gap="small")
+        with ac:
+            with st.popover("＋", use_container_width=True):
+                st.caption("Upload photos & files")
+                fu = st.file_uploader(
+                    "Attachments",
+                    type=UPLOAD_FILE_TYPES,
+                    accept_multiple_files=True,
+                    label_visibility="collapsed",
+                )
+        with ic:
+            st.session_state["question"] = st.text_area(
+                "Research question",
+                value=st.session_state.get("question", ""),
+                height=90,
+                placeholder="Ask anything…",
+                label_visibility="collapsed",
+            )
+
+        paths = persist_uploads(st.session_state["id"], list(fu or []))
+        if fu:
+            st.session_state["uploaded_paths"] = paths
+            save_chat(session_chat_dict())
+
+        ups = st.session_state.get("uploaded_paths") or []
+        if ups:
+            chip = " · ".join(Path(p).name for p in ups)
+            st.caption(f"**Attached:** {chip}")
+            with st.expander("Uploaded file paths", expanded=False):
+                for p in ups:
+                    st.code(p, language=None)
+
+        c_prev, c_run, c_cancel = st.columns([1, 1, 1], gap="small")
+        preview_clicked = c_prev.button("Preview (human review)", use_container_width=True)
+        run_clicked = c_run.button("Run full research", use_container_width=True, disabled=st.session_state.get("status") != "preview_ready")
+        cancel_clicked = c_cancel.button("Cancel", use_container_width=True)
+
+        with st.expander("Search & retrieval", expanded=False):
+            st.session_state["enable_web_search"] = st.checkbox(
+                "Tavily web search", value=st.session_state.get("enable_web_search", True)
+            )
+            s1, s2, s3 = st.columns(3)
+            st.session_state["top_k"] = s1.slider(
+                "Top-K (FAISS)", 2, 8, int(st.session_state.get("top_k", 4))
+            )
+            st.session_state["web_results_per_query"] = s2.slider(
+                "Web hits / query", 1, 5, int(st.session_state.get("web_results_per_query", 3))
+            )
+            st.session_state["max_research_rounds"] = s3.slider(
+                "Analyst passes", 1, 2, int(st.session_state.get("max_research_rounds", 1))
+            )
 
         if cancel_clicked:
             append_message("assistant", "_Cancelled. Adjust your question or files and run **Preview** again._")
