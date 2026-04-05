@@ -125,7 +125,12 @@ class ResearchCoordinator:
                             event_type="claim",
                             agent=label,
                             message=f"Generated claim: {claim.statement}",
-                            data={"confidence": claim.confidence.value, "trust_score": claim.trust_score},
+                            data={
+                                "confidence": claim.confidence.value,
+                                "trust_score": claim.trust_score,
+                                "consensus_pct": claim.consensus_pct,
+                                "debate_position": claim.debate_position or "neutral",
+                            },
                         ),
                     )
             if label == "reporter":
@@ -176,11 +181,16 @@ class ResearchCoordinator:
             date_preset=request.date_preset,
             depth=request.depth,
             selected_collection_ids=request.collection_ids,
+            debate_mode=request.debate_enabled,
+            position_a=request.position_a,
+            position_b=request.position_b,
         )
         session.metadata["source_labels"] = [source.value for source in enabled_sources]
         session.metadata["date_range_label"] = (
             f"{start_date.isoformat()} to {end_date.isoformat()}" if start_date and end_date else request.date_preset.value
         )
+        if request.debate_enabled:
+            session.metadata["debate_enabled"] = True
         return self.session_store.create(session)
 
     async def emit(self, session_id: str, event: ResearchEvent) -> None:
@@ -307,6 +317,9 @@ class ResearchCoordinator:
             selected_collection_ids=session.selected_collection_ids,
             uploaded_documents=session.uploaded_documents,
             pdf_texts=session.pdf_texts,
+            debate_mode=session.debate_mode,
+            position_a=session.position_a,
+            position_b=session.position_b,
         )
         result = await self.run_research(self.session_store.create(follow_up))
         session.sources.extend(result.sources)

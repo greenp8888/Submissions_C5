@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from io import BytesIO
 
 from reportlab.lib.pagesizes import letter
@@ -13,6 +14,7 @@ class ExportService:
         return text.encode("utf-8")
 
     def pdf_bytes(self, text: str) -> bytes:
+        text = re.sub(r"\[([^\]]+)\]\((https?://[^)]+)\)", r"[\1]", text)
         buffer = BytesIO()
         doc = SimpleDocTemplate(
             buffer,

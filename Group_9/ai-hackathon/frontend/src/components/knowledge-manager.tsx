@@ -46,8 +46,8 @@ export function KnowledgeManager() {
     <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
       <Card>
         <CardHeader>
-          <CardTitle>Upload and index knowledge</CardTitle>
-          <CardDescription>Create a collection from PDFs, markdown, or plain text files for local-first RAG retrieval.</CardDescription>
+          <CardTitle>Upload and index research documents</CardTitle>
+          <CardDescription>Create a collection from PDFs, markdown, or plain text files for local-first RAG retrieval and online knowledge building.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="space-y-2">
@@ -89,7 +89,7 @@ export function KnowledgeManager() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Collections</CardTitle>
+          <CardTitle>Research document collections</CardTitle>
           <CardDescription>Inspect indexed collections and review the documents available to local retrieval.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-5 lg:grid-cols-[0.85fr_1.15fr]">

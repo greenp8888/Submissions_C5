@@ -53,6 +53,9 @@ async def _parse_request(request: Request) -> tuple[ResearchRequest, list[tuple[
         date_preset = str(form.get("date_preset", DatePreset.ALL_TIME.value))
         batch_topics = _parse_json_list(form.get("batch_topics"), [])
         run_mode = str(form.get("run_mode", RunMode.SINGLE.value))
+        debate_enabled = str(form.get("debate_enabled", "false")).lower() == "true"
+        position_a = str(form.get("position_a", "")).strip() or None
+        position_b = str(form.get("position_b", "")).strip() or None
         files: list[tuple[str, bytes]] = []
         for value in form.getlist("files"):
             if isinstance(value, UploadFile):
@@ -73,6 +76,9 @@ async def _parse_request(request: Request) -> tuple[ResearchRequest, list[tuple[
                 date_preset=date_preset,
                 batch_topics=batch_topics,
                 run_mode=run_mode,
+                debate_enabled=debate_enabled,
+                position_a=position_a,
+                position_b=position_b,
             ),
             files,
         )

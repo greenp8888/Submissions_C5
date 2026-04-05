@@ -32,6 +32,7 @@ class CriticalAnalysisAgent(AgentBase):
                 page_suffix = f" p.{','.join(str(page) for page in source.page_refs)}" if source.page_refs else ""
                 citation_parts.append(f"{source.filename or source.title}{page_suffix}")
             citation_summary = ", ".join(citation_parts) or "Limited explicit source support"
+            debate_position = self._infer_debate_position(finding.sub_question) if session.debate_mode else ""
             claims.append(
                 Claim(
                     statement=finding.content.split(".")[0].strip() or finding.content[:120],
@@ -44,11 +45,44 @@ class CriticalAnalysisAgent(AgentBase):
                     contested=contested,
                     weak_evidence=weak_evidence,
                     trust_score=min(100, confidence_pct + (3 if avg_credibility > 0.75 else 0) - (5 if contested else 0)),
+                    debate_position=debate_position,
+                    consensus_pct=72 if contested else min(100, confidence_pct + 6),
                 )
             )
         session.claims.extend(claims)
-        session.contradictions.extend(await self.contradiction_checker.run(claims))
-        for claim in session.claims:
-            if claim.contested:
-                claim.contradicting_source_ids = claim.supporting_source_ids[:1]
+        contradictions = await self.contradiction_checker.run(session.claims, source_map)
+        session.contradictions.extend(contradictions)
+        self._apply_contradiction_metadata(session.claims, contradictions)
         return session
+
+    def _infer_debate_position(self, sub_question: str) -> str:
+        lowered = sub_question.lower()
+        if lowered.startswith("[a]"):
+            return "position_a"
+        if lowered.startswith("[b]"):
+            return "position_b"
+        return "neutral"
+
+    def _apply_contradiction_metadata(self, claims: list[Claim], contradictions) -> None:
+        claim_map = {claim.id: claim for claim in claims}
+        involvement_count: dict[str, int] = {}
+        for contradiction in contradictions:
+            for claim_id, opposing_source in (
+                (contradiction.claim_a_id, contradiction.source_b_id),
+                (contradiction.claim_b_id, contradiction.source_a_id),
+            ):
+                if not claim_id or claim_id not in claim_map:
+                    continue
+                claim = claim_map[claim_id]
+                if opposing_source and opposing_source not in claim.contradicting_source_ids:
+                    claim.contradicting_source_ids.append(opposing_source)
+                claim.contested = True
+                involvement_count[claim_id] = involvement_count.get(claim_id, 0) + 1
+
+        for claim in claims:
+            tension = involvement_count.get(claim.id, 0)
+            if tension:
+                claim.consensus_pct = max(28, min(claim.consensus_pct, 78 - (tension * 12)))
+                claim.trust_score = max(18, claim.trust_score - (tension * 6))
+            elif claim.contested:
+                claim.consensus_pct = min(claim.consensus_pct, 72)

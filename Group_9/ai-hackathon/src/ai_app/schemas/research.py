@@ -61,16 +61,24 @@ class Claim(BaseModel):
     contested: bool = False
     weak_evidence: bool = False
     trust_score: int = 0
+    debate_position: str = ""
+    consensus_pct: int = 100
 
 
 class Contradiction(BaseModel):
     id: str = Field(default_factory=lambda: f"ctr_{uuid4().hex}")
+    claim_a_id: str = ""
     claim_a: str
     source_a_id: str
+    source_a_label: str = ""
+    claim_b_id: str = ""
     claim_b: str
     source_b_id: str
+    source_b_label: str = ""
     analysis: str
     resolution: str | None = None
+    credibility_lean: str = ""
+    weighting_rationale: str = ""
 
 
 class Insight(BaseModel):
@@ -96,10 +104,49 @@ class Relationship(BaseModel):
     description: str | None = None
 
 
+class ReportCitation(BaseModel):
+    source_id: str = ""
+    label: str
+    title: str = ""
+    url: str | None = None
+
+
+class ReportMetaItem(BaseModel):
+    label: str
+    value: str
+
+
+class ReportVisualPoint(BaseModel):
+    label: str
+    value: float
+
+
+class ReportVisual(BaseModel):
+    chart_type: str = "bar"
+    title: str
+    description: str = ""
+    unit: str = ""
+    source_ids: list[str] = Field(default_factory=list)
+    points: list[ReportVisualPoint] = Field(default_factory=list)
+
+
+class ReportBlock(BaseModel):
+    title: str = ""
+    summary: str = ""
+    narrative: str = ""
+    citations: list[ReportCitation] = Field(default_factory=list)
+    metadata: list[ReportMetaItem] = Field(default_factory=list)
+    visual: ReportVisual | None = None
+
+
 class ReportSection(BaseModel):
     section_type: str
     title: str
-    content: str
+    content: str = ""
+    lead_summary: str = ""
+    blocks: list[ReportBlock] = Field(default_factory=list)
+    footer_notes: list[str] = Field(default_factory=list)
+    visual: ReportVisual | None = None
     order: int
 
 
@@ -204,6 +251,9 @@ class ResearchRequest(BaseModel):
     date_preset: DatePreset = DatePreset.ALL_TIME
     batch_topics: list[str] = Field(default_factory=list)
     run_mode: RunMode = RunMode.SINGLE
+    debate_enabled: bool = False
+    position_a: str | None = None
+    position_b: str | None = None
 
     @model_validator(mode="after")
     def validate_request(self) -> "ResearchRequest":
@@ -219,6 +269,11 @@ class ResearchRequest(BaseModel):
             raise ValueError("query is required when run_mode=single.")
         if self.run_mode == RunMode.BATCH and not self.query.strip():
             self.query = cleaned_topics[0]
+        if self.debate_enabled:
+            if self.run_mode != RunMode.SINGLE:
+                raise ValueError("debate is available only for single-topic runs.")
+            if not (self.position_a and self.position_a.strip() and self.position_b and self.position_b.strip()):
+                raise ValueError("position_a and position_b are required when debate is enabled.")
         return self
 
 

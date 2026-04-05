@@ -77,6 +77,9 @@ export async function startResearch(values: ResearchFormValues) {
     ),
   );
   form.append("run_mode", values.runMode);
+  form.append("debate_enabled", String(values.debateEnabled));
+  form.append("position_a", values.positionA);
+  form.append("position_b", values.positionB);
   values.files.forEach((file) => form.append("files", file));
   return apiRequest<{ session_id: string; status: string }>("/api/research", {
     method: "POST",

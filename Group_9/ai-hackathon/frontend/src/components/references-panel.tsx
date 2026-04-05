@@ -2,7 +2,6 @@ import { ArrowUpRight } from "lucide-react";
 
 import type { Source } from "@/lib/types";
 import { formatDate, truncate } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function ReferencesPanel({ groupedSources }: { groupedSources: Record<string, Source[]> }) {
@@ -25,9 +24,6 @@ export function ReferencesPanel({ groupedSources }: { groupedSources: Record<str
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <p className="font-semibold">{source.filename || source.title}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {source.provider} • {source.source_type} • credibility {source.credibility_score.toFixed(2)} • relevance {source.relevance_score.toFixed(2)}
-                        </p>
                       </div>
                       {source.url ? (
                         <a href={source.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm font-semibold text-primary">
@@ -35,13 +31,22 @@ export function ReferencesPanel({ groupedSources }: { groupedSources: Record<str
                         </a>
                       ) : null}
                     </div>
-                    <p className="mt-3 text-sm text-slate-700">{truncate(source.snippet || "No snippet available.", 260)}</p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {source.page_refs.length ? <Badge variant="secondary">Pages {source.page_refs.join(", ")}</Badge> : null}
-                      {source.published_date ? <Badge variant="muted">{formatDate(source.published_date)}</Badge> : null}
-                      {source.matched_time_window === false ? <Badge variant="warning">Outside selected range</Badge> : null}
+                    <p className="mt-3 text-sm leading-6 text-slate-800">{truncate(source.snippet || "No snippet available.", 260)}</p>
+                    <div className="mt-3 space-y-1 text-xs text-slate-500">
+                      <p>
+                        <span className="font-semibold">Reference:</span> {source.filename || source.title}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Provider:</span> {humanize(source.provider)} |{" "}
+                        <span className="font-semibold">Type:</span> {humanize(source.source_type)} |{" "}
+                        <span className="font-semibold">Credibility:</span> {source.credibility_score.toFixed(2)} |{" "}
+                        <span className="font-semibold">Relevance:</span> {source.relevance_score.toFixed(2)}
+                      </p>
+                      {source.page_refs.length ? <p><span className="font-semibold">Pages:</span> {source.page_refs.join(", ")}</p> : null}
+                      {source.published_date ? <p><span className="font-semibold">Published:</span> {formatDate(source.published_date)}</p> : null}
+                      {source.matched_time_window === false ? <p>Outside selected date range.</p> : null}
+                      {source.credibility_explanation ? <p><span className="font-semibold">Credibility rationale:</span> {source.credibility_explanation}</p> : null}
                     </div>
-                    {source.credibility_explanation ? <p className="mt-3 text-xs text-muted-foreground">{source.credibility_explanation}</p> : null}
                   </div>
                 ))}
               </div>
@@ -51,4 +56,8 @@ export function ReferencesPanel({ groupedSources }: { groupedSources: Record<str
       ))}
     </div>
   );
+}
+
+function humanize(value: string) {
+  return value.replace(/_/g, " ").replace(/—|–/g, "-");
 }

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowUpRight, BookOpen, CalendarRange, CheckCircle2, Download, LoaderCircle, SearchCheck, Settings2, Sparkles } from "lucide-react";
+import { ArrowUpRight, BookOpen, CalendarRange, CheckCircle2, ChevronDown, ChevronUp, Download, LoaderCircle, Scale, SearchCheck, Sparkles } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
+import { ComparativeAnalysis } from "@/components/comparative-analysis";
 import { ConfidencePanel } from "@/components/confidence-panel";
 import { GraphView } from "@/components/graph-view";
 import { ProgressPanel } from "@/components/progress-panel";
@@ -27,6 +28,9 @@ const defaultValues: ResearchFormValues = {
   query: "",
   batchTopics: "",
   runMode: "single",
+  debateEnabled: false,
+  positionA: "",
+  positionB: "",
   depth: "standard",
   enabledSources: ["local_rag", "web", "arxiv"],
   startDate: "",
@@ -36,12 +40,16 @@ const defaultValues: ResearchFormValues = {
   files: [],
 };
 
-export function ResearchDashboard({ sessionId }: { sessionId?: string }) {
+const DRAFT_STORAGE_PREFIX = "ai-hackathon-research-draft";
+
+export function ResearchDashboard({ sessionId, viewMode = "output" }: { sessionId?: string; viewMode?: "setup" | "output" }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [formValues, setFormValues] = useState<ResearchFormValues>(defaultValues);
+  const [formValues, setFormValues] = useState<ResearchFormValues>(() => loadDraft(sessionId));
   const [clientError, setClientError] = useState<string | null>(null);
   const [digDeeperTarget, setDigDeeperTarget] = useState("");
+  const [setupCollapsed, setSetupCollapsed] = useState(false);
+  const [progressExpanded, setProgressExpanded] = useState(false);
 
   const collectionsQuery = useQuery({ queryKey: ["collections"], queryFn: fetchCollections });
   const settingsQuery = useQuery({ queryKey: ["provider-settings"], queryFn: fetchProviderSettings });
@@ -56,13 +64,24 @@ export function ResearchDashboard({ sessionId }: { sessionId?: string }) {
   const { streamState, lastEventType } = useResearchStream(sessionId, session?.status === "running");
 
   useEffect(() => {
+    if (!sessionId) {
+      setFormValues(loadDraft());
+      return;
+    }
+    setFormValues(loadDraft(sessionId));
+  }, [sessionId]);
+
+  useEffect(() => {
     if (!session) {
       return;
     }
-    setFormValues({
+    const sessionDefaults: ResearchFormValues = {
       query: session.run_mode === "batch" ? "" : session.query,
       batchTopics: session.batch_topics.join("\n"),
       runMode: session.run_mode,
+      debateEnabled: session.debate_mode,
+      positionA: session.position_a ?? "",
+      positionB: session.position_b ?? "",
       depth: session.depth,
       enabledSources: session.enabled_sources,
       startDate: session.start_date ?? "",
@@ -70,14 +89,20 @@ export function ResearchDashboard({ sessionId }: { sessionId?: string }) {
       datePreset: session.date_preset,
       collectionIds: session.selected_collection_ids,
       files: [],
-    });
+    };
+    setFormValues(mergeDraft(loadDraft(session.session_id), sessionDefaults));
   }, [session]);
+
+  useEffect(() => {
+    saveDraft(sessionId, formValues);
+  }, [formValues, sessionId]);
 
   const startMutation = useMutation({
     mutationFn: () => startResearch(formValues),
     onSuccess: (result) => {
       setClientError(null);
-      navigate(`/sessions/${result.session_id}`);
+      saveDraft(result.session_id, formValues);
+      navigate(`/research/output/${result.session_id}`);
     },
     onError: (error) => {
       setClientError(error instanceof Error ? error.message : "Failed to start research.");
@@ -102,8 +127,18 @@ export function ResearchDashboard({ sessionId }: { sessionId?: string }) {
     },
   });
 
+  const liveRun = session?.status === "running" || streamState === "live" || startMutation.isPending;
+
+  useEffect(() => {
+    if (liveRun) {
+      setProgressExpanded(false);
+    }
+  }, [liveRun]);
+
   const groupedSources = useMemo(() => groupSources(session?.sources ?? []), [session?.sources]);
   const targetOptions = useMemo(() => buildDigDeeperOptions(session), [session]);
+  const showSetup = viewMode === "setup";
+  const showOutput = viewMode === "output";
 
   const handlePresetChange = (preset: ResearchFormValues["datePreset"]) => {
     const range = presetToRange(preset);
@@ -129,153 +164,232 @@ export function ResearchDashboard({ sessionId }: { sessionId?: string }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 2xl:grid-cols-[420px_minmax(0,1fr)]">
-        <Card className="h-fit">
-          <CardHeader>
+      {showOutput && liveRun ? <LiveAgentBar session={session} streamState={streamState} lastEventType={lastEventType} /> : null}
+
+      {showSetup ? <Card>
+        <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
             <CardTitle>Research setup</CardTitle>
-            <CardDescription>Choose the investigation mode, source mix, date window, collections, and uploads before running the graph.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="query">Research question</Label>
-              <Textarea
-                id="query"
-                value={formValues.query}
-                onChange={(event) => setFormValues((current) => ({ ...current, query: event.target.value }))}
-                placeholder="What are the most promising approaches to solid-state battery commercialization, and where does the evidence disagree?"
-                className="min-h-[132px]"
-              />
-            </div>
+            <CardDescription>Keep setup compact while giving the report maximum room once a run is in motion.</CardDescription>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="outline" onClick={() => setSetupCollapsed((value) => !value)}>
+              {setupCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+              {setupCollapsed ? "Expand setup" : "Minimize setup"}
+            </Button>
+            <Button onClick={handleRun} disabled={startMutation.isPending}>
+              {startMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <SearchCheck className="h-4 w-4" />}
+              {startMutation.isPending ? "Launching research..." : "Start research"}
+            </Button>
+            {sessionId ? <Badge variant="muted">Session {sessionId}</Badge> : null}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="query">Research question</Label>
+            <Textarea
+              id="query"
+              value={formValues.query}
+              onChange={(event) => setFormValues((current) => ({ ...current, query: event.target.value }))}
+              placeholder="What are the most promising approaches to solid-state battery commercialization, and where does the evidence disagree?"
+              className={cn("min-h-[180px]", setupCollapsed && "min-h-[120px]")}
+            />
+          </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <FieldSelect
-                id="run-mode"
-                label="Run mode"
-                value={formValues.runMode}
-                onChange={(value) => setFormValues((current) => ({ ...current, runMode: value as ResearchFormValues["runMode"] }))}
-                options={[
-                  ["single", "Single investigation"],
-                  ["batch", "Batch topics"],
-                ]}
-              />
-              <FieldSelect
-                id="depth"
-                label="Depth"
-                value={formValues.depth}
-                onChange={(value) => setFormValues((current) => ({ ...current, depth: value as ResearchFormValues["depth"] }))}
-                options={[
-                  ["quick", "Quick"],
-                  ["standard", "Standard"],
-                  ["deep", "Deep"],
-                ]}
-              />
-            </div>
-
-            {formValues.runMode === "batch" ? (
-              <div className="space-y-2">
-                <Label htmlFor="batch-topics">Batch topics</Label>
-                <Textarea
-                  id="batch-topics"
-                  value={formValues.batchTopics}
-                  onChange={(event) => setFormValues((current) => ({ ...current, batchTopics: event.target.value }))}
-                  placeholder="One topic per line"
-                  className="min-h-[120px]"
-                />
-              </div>
-            ) : null}
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>Sources</Label>
-                <Link to="/settings" className="inline-flex items-center gap-1 text-xs font-semibold text-primary">
-                  Provider settings <Settings2 className="h-3.5 w-3.5" />
-                </Link>
-              </div>
-              {SOURCE_OPTIONS.map((item) => {
-                const checked = formValues.enabledSources.includes(item.key);
-                return (
-                  <label key={item.key} className="flex cursor-pointer items-start gap-3 rounded-2xl border border-border bg-white/75 p-3">
-                    <Checkbox checked={checked} onCheckedChange={(value) => toggleSource(item.key, Boolean(value))} />
-                    <span>
-                      <span className="block font-semibold">{item.label}</span>
-                      <span className="block text-sm text-muted-foreground">{item.detail}</span>
-                    </span>
-                  </label>
-                );
-              })}
-              <div className="flex flex-wrap gap-2">
-                <ProviderHealthBadge label="OpenRouter" configured={settingsQuery.data?.openrouter.configured ?? false} />
-                <ProviderHealthBadge label="Tavily" configured={settingsQuery.data?.tavily.configured ?? false} />
-                <ProviderHealthBadge label="arXiv" configured />
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <FieldSelect
-                id="date-preset"
-                label="Quick date preset"
-                value={formValues.datePreset}
-                onChange={(value) => handlePresetChange(value as ResearchFormValues["datePreset"])}
-                options={DATE_PRESETS.map((preset) => [preset.value, preset.label])}
-              />
-              <div className="space-y-2">
-                <Label htmlFor="collections">Collections</Label>
-                <select
-                  id="collections"
-                  multiple
-                  className="min-h-[90px] w-full rounded-xl border border-border bg-white/80 px-3 py-2 text-sm"
-                  value={formValues.collectionIds}
-                  onChange={(event) =>
+          {!setupCollapsed ? (
+            <>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                <FieldSelect
+                  id="run-mode"
+                  label="Run mode"
+                  value={formValues.runMode}
+                  onChange={(value) =>
                     setFormValues((current) => ({
                       ...current,
-                      collectionIds: Array.from(event.target.selectedOptions).map((option) => option.value),
+                      runMode: value as ResearchFormValues["runMode"],
+                      debateEnabled: value === "batch" ? false : current.debateEnabled,
+                      positionA: value === "batch" ? "" : current.positionA,
+                      positionB: value === "batch" ? "" : current.positionB,
                     }))
                   }
-                >
-                  {(collectionsQuery.data?.collections ?? []).map((collection) => (
-                    <option key={collection.id} value={collection.id}>
-                      {collection.name}
-                    </option>
-                  ))}
-                </select>
+                  options={[
+                    ["single", "Single investigation"],
+                    ["batch", "Batch topics"],
+                  ]}
+                />
+                <FieldSelect
+                  id="depth"
+                  label="Depth"
+                  value={formValues.depth}
+                  onChange={(value) => setFormValues((current) => ({ ...current, depth: value as ResearchFormValues["depth"] }))}
+                  options={[
+                    ["quick", "Quick"],
+                    ["standard", "Standard"],
+                    ["deep", "Deep"],
+                  ]}
+                />
+                <FieldSelect
+                  id="date-preset"
+                  label="Quick date preset"
+                  value={formValues.datePreset}
+                  onChange={(value) => handlePresetChange(value as ResearchFormValues["datePreset"])}
+                  options={DATE_PRESETS.map((preset) => [preset.value, preset.label])}
+                />
+                <DateField id="start-date" label="Start date" value={formValues.startDate} onChange={(value) => setFormValues((current) => ({ ...current, startDate: value }))} />
+                <DateField id="end-date" label="End date" value={formValues.endDate} onChange={(value) => setFormValues((current) => ({ ...current, endDate: value }))} />
               </div>
-            </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <DateField id="start-date" label="Start date" value={formValues.startDate} onChange={(value) => setFormValues((current) => ({ ...current, startDate: value }))} />
-              <DateField id="end-date" label="End date" value={formValues.endDate} onChange={(value) => setFormValues((current) => ({ ...current, endDate: value }))} />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="uploads">Upload files for this run</Label>
-              <Input
-                id="uploads"
-                type="file"
-                multiple
-                accept=".pdf,.txt,.md"
-                onChange={(event) => setFormValues((current) => ({ ...current, files: Array.from(event.target.files ?? []) }))}
-              />
-              {formValues.files.length ? (
-                <div className="rounded-xl bg-muted/70 p-3 text-sm text-muted-foreground">{formValues.files.map((file) => file.name).join(", ")}</div>
+              {formValues.runMode === "batch" ? (
+                <div className="space-y-2">
+                  <Label htmlFor="batch-topics">Batch topics</Label>
+                  <Textarea
+                    id="batch-topics"
+                    value={formValues.batchTopics}
+                    onChange={(event) => setFormValues((current) => ({ ...current, batchTopics: event.target.value }))}
+                    placeholder="One topic per line"
+                    className="min-h-[110px]"
+                  />
+                </div>
               ) : null}
-              <Link to="/knowledge" className="inline-flex items-center gap-1 text-xs font-semibold text-primary">
-                Manage collections <ArrowUpRight className="h-3.5 w-3.5" />
-              </Link>
+
+              <div className="grid gap-4 xl:grid-cols-[1.25fr_1fr_1.1fr]">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label>Sources</Label>
+                    <Badge variant="muted">Configured from `.env`</Badge>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-1">
+                    {SOURCE_OPTIONS.map((item) => {
+                      const checked = formValues.enabledSources.includes(item.key);
+                      return (
+                        <label key={item.key} className="flex cursor-pointer items-start gap-3 rounded-2xl border border-border bg-white/75 p-3">
+                          <Checkbox checked={checked} onCheckedChange={(value) => toggleSource(item.key, Boolean(value))} />
+                          <span>
+                            <span className="block font-semibold">{item.label}</span>
+                            <span className="block text-sm text-muted-foreground">{item.detail}</span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <ProviderHealthBadge label="OpenRouter" configured={settingsQuery.data?.openrouter.configured ?? false} />
+                    <ProviderHealthBadge label="Tavily" configured={settingsQuery.data?.tavily.configured ?? false} />
+                    <ProviderHealthBadge label="arXiv" configured />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="collections">Collections</Label>
+                  <select
+                    id="collections"
+                    multiple
+                    className="min-h-[152px] w-full rounded-xl border border-border bg-white/80 px-3 py-2 text-sm"
+                    value={formValues.collectionIds}
+                    onChange={(event) =>
+                      setFormValues((current) => ({
+                        ...current,
+                        collectionIds: Array.from(event.target.selectedOptions).map((option) => option.value),
+                      }))
+                    }
+                  >
+                    {(collectionsQuery.data?.collections ?? []).map((collection) => (
+                      <option key={collection.id} value={collection.id}>
+                        {collection.name}
+                      </option>
+                    ))}
+                  </select>
+                  <Link to="/knowledge" className="inline-flex items-center gap-1 text-xs font-semibold text-primary">
+                    Open Research Documents <ArrowUpRight className="h-3.5 w-3.5" />
+                  </Link>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="uploads">Upload files for this run</Label>
+                  <Input
+                    id="uploads"
+                    type="file"
+                    multiple
+                    accept=".pdf,.txt,.md"
+                    onChange={(event) => setFormValues((current) => ({ ...current, files: Array.from(event.target.files ?? []) }))}
+                  />
+                  <div className="rounded-2xl border border-border bg-white/75 p-4">
+                    <p className="text-sm font-semibold">Upload to RAG online knowledge building</p>
+                    <p className="mt-1 text-sm text-muted-foreground">Attach PDFs, markdown, or text files here, or use the Research Documents page to build reusable collections.</p>
+                    {formValues.files.length ? (
+                      <div className="mt-3 rounded-xl bg-muted/70 p-3 text-sm text-muted-foreground">{formValues.files.map((file) => file.name).join(", ")}</div>
+                    ) : (
+                      <p className="mt-3 text-sm text-muted-foreground">No files selected for this run.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {formValues.runMode === "single" ? (
+                <div className="space-y-4 rounded-2xl border border-border bg-white/75 p-4">
+                  <label className="flex cursor-pointer items-start gap-3">
+                    <Checkbox
+                      checked={formValues.debateEnabled}
+                      onCheckedChange={(value) =>
+                        setFormValues((current) => ({
+                          ...current,
+                          debateEnabled: Boolean(value),
+                          positionA: Boolean(value) ? current.positionA : "",
+                          positionB: Boolean(value) ? current.positionB : "",
+                        }))
+                      }
+                    />
+                    <span>
+                      <span className="flex items-center gap-2 font-semibold">
+                        <Scale className="h-4 w-4" />
+                        Debate mode
+                      </span>
+                      <span className="block text-sm text-muted-foreground">Compare two competing positions and merge the disagreements into one comparative analysis view.</span>
+                    </span>
+                  </label>
+                  {formValues.debateEnabled ? (
+                    <div className="grid gap-4 xl:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="position-a">Position A</Label>
+                        <Textarea
+                          id="position-a"
+                          value={formValues.positionA}
+                          onChange={(event) => setFormValues((current) => ({ ...current, positionA: event.target.value }))}
+                          placeholder="Example: Solid-state batteries will achieve mass-market EV adoption within this decade."
+                          className="min-h-[90px]"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="position-b">Position B</Label>
+                        <Textarea
+                          id="position-b"
+                          value={formValues.positionB}
+                          onChange={(event) => setFormValues((current) => ({ ...current, positionB: event.target.value }))}
+                          placeholder="Example: Manufacturing, materials, and cost barriers will delay mass-market EV adoption beyond this decade."
+                          className="min-h-[90px]"
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {formValues.enabledSources.map((source) => (
+                <Badge key={source} variant="secondary">{source}</Badge>
+              ))}
+              {formValues.collectionIds.length ? <Badge variant="muted">{formValues.collectionIds.length} collections selected</Badge> : null}
+              {formValues.files.length ? <Badge variant="muted">{formValues.files.length} uploads attached</Badge> : null}
+              {formValues.debateEnabled ? <Badge variant="warning">Debate mode enabled</Badge> : null}
             </div>
+          )}
 
-            {clientError ? <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">{clientError}</div> : null}
+          {clientError ? <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">{clientError}</div> : null}
+        </CardContent>
+      </Card> : null}
 
-            <div className="flex flex-wrap items-center gap-3">
-              <Button onClick={handleRun} disabled={startMutation.isPending}>
-                {startMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <SearchCheck className="h-4 w-4" />}
-                {startMutation.isPending ? "Launching research…" : "Start research"}
-              </Button>
-              {sessionId ? <Badge variant="muted">Session {sessionId}</Badge> : null}
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="space-y-6">
+      {showOutput ? <div className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <MetricCard label="Status" value={session?.status ?? "idle"} icon={CheckCircle2} accent="success" />
             <MetricCard label="Sources" value={String(session?.sources.length ?? 0)} icon={BookOpen} />
@@ -285,65 +399,62 @@ export function ResearchDashboard({ sessionId }: { sessionId?: string }) {
 
           {session ? (
             <>
-              <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                    <div>
-                      <CardTitle>Research report</CardTitle>
-                      <CardDescription>Long-form synthesis with methodology, evidence, credibility, contradictions, and references.</CardDescription>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={session.status === "complete" ? "success" : session.status === "error" ? "warning" : "secondary"}>{session.status}</Badge>
-                      <Badge variant={streamState === "live" ? "success" : "muted"}>{streamState}</Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <ReportPanel session={session} />
-                  </CardContent>
-                </Card>
-
-                <div className="space-y-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Live research progress</CardTitle>
-                      <CardDescription>Planner, retriever, analysis, and reporting events stream here while the session runs.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <ProgressPanel events={session.events} streamState={streamState} lastEventType={lastEventType} />
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Dig deeper</CardTitle>
-                      <CardDescription>Open a focused sub-investigation from any finding, claim, or insight in the current session.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <select className="h-10 w-full rounded-xl border border-border bg-white/80 px-3 text-sm" value={digDeeperTarget} onChange={(event) => setDigDeeperTarget(event.target.value)}>
-                        <option value="">Choose a finding, claim, or insight</option>
-                        {targetOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="flex flex-wrap gap-3">
-                        <Button onClick={() => digDeeperMutation.mutate()} disabled={!digDeeperTarget || digDeeperMutation.isPending}>
-                          {digDeeperMutation.isPending ? "Running follow-up…" : "Investigate further"}
-                        </Button>
-                        <Button variant="outline" onClick={() => window.open(exportUrl(session.session_id, "markdown"), "_blank")}>
-                          <Download className="h-4 w-4" />
-                          Markdown
-                        </Button>
-                        <Button variant="outline" onClick={() => window.open(exportUrl(session.session_id, "pdf"), "_blank")}>
-                          <Download className="h-4 w-4" />
-                          PDF
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
+              <details
+                className="panel-surface overflow-hidden"
+                open={progressExpanded}
+                onToggle={(event) => setProgressExpanded((event.currentTarget as HTMLDetailsElement).open)}
+              >
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5">
+                  <div>
+                    <p className="font-semibold">Live research progress</p>
+                    <p className="text-sm text-muted-foreground">Keep this minimized while the report takes center stage, or expand it to inspect recent agent activity.</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={streamState === "live" ? "success" : "muted"}>{streamState}</Badge>
+                    {lastEventType ? <Badge variant="secondary">{lastEventType}</Badge> : null}
+                    {progressExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </div>
+                </summary>
+                <div className="border-t border-border px-5 pb-5 pt-3">
+                  <ProgressPanel events={session.events} streamState={streamState} lastEventType={lastEventType} />
                 </div>
-              </div>
+              </details>
+
+              <Card>
+                <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <CardTitle>Research report</CardTitle>
+                    <CardDescription>Long-form synthesis with methodology, evidence, credibility, contradictions, and references.</CardDescription>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={session.status === "complete" ? "success" : session.status === "error" ? "warning" : "secondary"}>{session.status}</Badge>
+                    <select className="h-10 min-w-[280px] rounded-xl border border-border bg-white/80 px-3 text-sm" value={digDeeperTarget} onChange={(event) => setDigDeeperTarget(event.target.value)}>
+                      <option value="">Choose a finding, claim, or insight</option>
+                      {targetOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <Button onClick={() => digDeeperMutation.mutate()} disabled={!digDeeperTarget || digDeeperMutation.isPending}>
+                      {digDeeperMutation.isPending ? "Running follow-up..." : "Investigate further"}
+                    </Button>
+                    <Button variant="outline" onClick={() => window.open(exportUrl(session.session_id, "markdown"), "_blank")}>
+                      <Download className="h-4 w-4" />
+                      Markdown
+                    </Button>
+                    <Button variant="outline" onClick={() => window.open(exportUrl(session.session_id, "pdf"), "_blank")}>
+                      <Download className="h-4 w-4" />
+                      PDF
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <ReportPanel session={session} />
+                </CardContent>
+              </Card>
+
+              <ComparativeAnalysis session={session} />
 
               <Tabs defaultValue="references">
                 <TabsList>
@@ -370,17 +481,17 @@ export function ResearchDashboard({ sessionId }: { sessionId?: string }) {
             <Card>
               <CardContent className="p-8">
                 <div className="flex flex-col items-start gap-4">
-                  <Badge variant="secondary">Research workspace</Badge>
-                  <h2 className="text-2xl">Start a session to populate the dashboard</h2>
+                  <Badge variant="secondary">Research Output</Badge>
+                  <h2 className="text-2xl">No active research output yet</h2>
                   <p className="max-w-3xl text-muted-foreground">
-                    The new frontend is route-driven. Once you launch a run, you will land on a session URL with live progress, citations, graph, trace, and export actions connected to the FastAPI backend.
+                    Start a run from Research Setup to populate this workspace with live progress, report sections, references, charts when explicit quantitative data exists, graph, and trace output.
                   </p>
+                  <Button onClick={() => navigate("/research/setup")}>Go to Research Setup</Button>
                 </div>
               </CardContent>
             </Card>
           )}
-        </div>
-      </div>
+      </div> : null}
     </div>
   );
 }
@@ -464,6 +575,12 @@ function validateForm(values: ResearchFormValues) {
   if (values.runMode === "batch" && values.batchTopics.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).length === 0) {
     return "At least one batch topic is required in batch mode.";
   }
+  if (values.runMode === "batch" && values.debateEnabled) {
+    return "Debate mode is available only for single investigations.";
+  }
+  if (values.debateEnabled && (!values.positionA.trim() || !values.positionB.trim())) {
+    return "Position A and Position B are required when debate mode is enabled.";
+  }
   return null;
 }
 
@@ -492,6 +609,93 @@ function renderDateWindow(startDate: string, endDate: string) {
     return "All time";
   }
   return `${startDate || "Any"} → ${endDate || "Now"}`;
+}
+
+function draftStorageKey(sessionId?: string) {
+  return `${DRAFT_STORAGE_PREFIX}:${sessionId ?? "new"}`;
+}
+
+function loadDraft(sessionId?: string): ResearchFormValues {
+  if (typeof window === "undefined") {
+    return defaultValues;
+  }
+  try {
+    const raw = window.localStorage.getItem(draftStorageKey(sessionId));
+    if (!raw) {
+      return { ...defaultValues };
+    }
+    const parsed = JSON.parse(raw) as Partial<Omit<ResearchFormValues, "files">>;
+    return mergeDraft(parsed, defaultValues);
+  } catch {
+    return { ...defaultValues };
+  }
+}
+
+function saveDraft(sessionId: string | undefined, values: ResearchFormValues) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const payload: Omit<ResearchFormValues, "files"> = {
+    query: values.query,
+    batchTopics: values.batchTopics,
+    runMode: values.runMode,
+    debateEnabled: values.debateEnabled,
+    positionA: values.positionA,
+    positionB: values.positionB,
+    depth: values.depth,
+    enabledSources: values.enabledSources,
+    startDate: values.startDate,
+    endDate: values.endDate,
+    datePreset: values.datePreset,
+    collectionIds: values.collectionIds,
+  };
+  window.localStorage.setItem(draftStorageKey(sessionId), JSON.stringify(payload));
+}
+
+function mergeDraft(
+  draft: Partial<Omit<ResearchFormValues, "files">>,
+  base: ResearchFormValues,
+): ResearchFormValues {
+  return {
+    ...base,
+    ...draft,
+    enabledSources: Array.isArray(draft.enabledSources) && draft.enabledSources.length ? draft.enabledSources : base.enabledSources,
+    collectionIds: Array.isArray(draft.collectionIds) ? draft.collectionIds : base.collectionIds,
+    files: [],
+  };
+}
+
+function LiveAgentBar({
+  session,
+  streamState,
+  lastEventType,
+}: {
+  session?: ResearchSession;
+  streamState: string;
+  lastEventType: string | null;
+}) {
+  return (
+    <div className="panel-surface overflow-hidden">
+      <div className="h-1.5 w-full overflow-hidden bg-muted">
+        <div className="h-full w-1/3 animate-[pulse_1.8s_ease-in-out_infinite] rounded-full bg-primary" />
+      </div>
+      <div className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="subtle-label">Agent Trace Live View</p>
+          <p className="font-semibold">Research is live right now</p>
+          <p className="text-sm text-muted-foreground">
+            {session?.events.length ? session.events[session.events.length - 1]?.message : "Agents are coordinating the current investigation."}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {session ? <Badge variant="secondary">Status: {session.status}</Badge> : null}
+          <Badge variant={streamState === "live" ? "success" : "secondary"}>{streamState}</Badge>
+          {lastEventType ? <Badge variant="muted">Last: {lastEventType}</Badge> : null}
+          {session ? <Badge variant="muted">{session.agent_trace.length} trace steps</Badge> : null}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 const SOURCE_OPTIONS: Array<{ key: SourceChannel; label: string; detail: string }> = [

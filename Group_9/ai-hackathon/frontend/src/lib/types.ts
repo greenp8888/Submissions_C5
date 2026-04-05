@@ -51,16 +51,24 @@ export interface Claim {
   contested: boolean;
   weak_evidence: boolean;
   trust_score: number;
+  debate_position: string;
+  consensus_pct: number;
 }
 
 export interface Contradiction {
   id: string;
+  claim_a_id: string;
   claim_a: string;
   source_a_id: string;
+  source_a_label: string;
+  claim_b_id: string;
   claim_b: string;
   source_b_id: string;
+  source_b_label: string;
   analysis: string;
   resolution?: string | null;
+  credibility_lean: string;
+  weighting_rationale: string;
 }
 
 export interface Insight {
@@ -90,7 +98,46 @@ export interface ReportSection {
   section_type: string;
   title: string;
   content: string;
+  lead_summary: string;
+  blocks: ReportBlock[];
+  footer_notes: string[];
+  visual?: ReportVisual | null;
   order: number;
+}
+
+export interface ReportCitation {
+  source_id: string;
+  label: string;
+  title: string;
+  url?: string | null;
+}
+
+export interface ReportMetaItem {
+  label: string;
+  value: string;
+}
+
+export interface ReportVisualPoint {
+  label: string;
+  value: number;
+}
+
+export interface ReportVisual {
+  chart_type: string;
+  title: string;
+  description: string;
+  unit: string;
+  source_ids: string[];
+  points: ReportVisualPoint[];
+}
+
+export interface ReportBlock {
+  title: string;
+  summary: string;
+  narrative: string;
+  citations: ReportCitation[];
+  metadata: ReportMetaItem[];
+  visual?: ReportVisual | null;
 }
 
 export interface FollowUpQuestion {
@@ -163,6 +210,9 @@ export interface ResearchSession {
   agent_trace: AgentTraceEntry[];
   uploaded_documents: KnowledgeDocument[];
   selected_collection_ids: string[];
+  debate_mode: boolean;
+  position_a?: string | null;
+  position_b?: string | null;
   metadata: Record<string, unknown>;
 }
 
@@ -192,6 +242,9 @@ export interface ResearchFormValues {
   query: string;
   batchTopics: string;
   runMode: RunMode;
+  debateEnabled: boolean;
+  positionA: string;
+  positionB: string;
   depth: Depth;
   enabledSources: SourceChannel[];
   startDate: string;

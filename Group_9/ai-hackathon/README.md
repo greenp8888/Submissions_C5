@@ -2,6 +2,11 @@
 
 `ai-hackathon` is the Group 9 implementation of the Multi-Agent AI Deep Researcher described in the submission HLD. It combines a FastAPI backend, a React + Vite research dashboard, LangGraph orchestration, local-first document retrieval, public-provider enrichment, transparent credibility scoring, and humanized export into a single runnable app.
 
+## Architecture Docs
+
+- [Architecture](./docs/ARCHITECTURE.md)
+- [Workflow Diagrams](./docs/WORKFLOW_DIAGRAMS.md)
+
 ## What This Project Does
 
 The application accepts a research question, optional multi-topic batch input, and optional uploaded files. It creates a local knowledge collection, searches that local corpus first, then enriches with public sources when needed. It produces:

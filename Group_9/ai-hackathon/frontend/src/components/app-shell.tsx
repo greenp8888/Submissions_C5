@@ -1,13 +1,13 @@
-import { BrainCircuit, Database, PanelLeftOpen, Settings2 } from "lucide-react";
+import { BrainCircuit, Database, PanelLeftOpen } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 const navigation = [
-  { to: "/", label: "Research", icon: BrainCircuit },
-  { to: "/knowledge", label: "Knowledge", icon: Database },
-  { to: "/settings", label: "Settings", icon: Settings2 },
+  { to: "/research/setup", label: "Research Setup", icon: BrainCircuit },
+  { to: "/research/output", label: "Research Output", icon: BrainCircuit },
+  { to: "/knowledge", label: "Research Documents", icon: Database },
 ];
 
 export function AppShell() {
