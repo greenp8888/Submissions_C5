@@ -1,6 +1,9 @@
 
 # AI Financial Coach
 
+#### [Technical Documentation](docs/TECHNICAL_DOCUMENTATION.md)
+#### [Demo Link]()
+
 This project is an AI-powered financial coach with:
 - structured financial data storage in SQLite
 - server-side RAG retrieval
