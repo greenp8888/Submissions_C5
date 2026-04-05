@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git init:*)",
+      "Bash(bash:*)",
+      "Bash(git -C /c/D/Dev/Group08 status)",
+      "Bash(pip install:*)",
+      "Bash(pip show:*)",
+      "Bash(git -C /c/D/Dev/Group08 add requirements.txt .env.example .gitignore orchestrator/__init__.py agents/__init__.py ui/__init__.py utils/__init__.py tests/__init__.py)",
+      "Bash(git -C /c/D/Dev/Group08 commit -m ':*)",
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(py:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git commit:*)",
+      "Bash(where py:*)",
+      "Bash(where pytest:*)",
+      "Bash(where python:*)",
+      "Bash(where python3:*)",
+      "Read(//usr/**)",
+      "Read(//usr/local/**)",
+      "Bash(/c/Users/vinee/AppData/Local/Python/bin/python3:*)",
+      "Bash(pytest tests/ -v --tb=short)",
+      "Bash(pytest:*)",
+      "Bash(streamlit run:*)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8501)",
+      "Bash(/c/Users/vinee/AppData/Local/Python/pythoncore-3.14-64/python.exe -c ':*)",
+      "Bash(pkill -f \"streamlit run\")",
+      "Bash(pkill -f \"streamlit\")"
+    ]
+  }
+}
