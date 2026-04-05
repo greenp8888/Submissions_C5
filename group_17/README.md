@@ -6,6 +6,11 @@ A multi-agent AI application that automates DevOps incident review from raw log 
 
 <img width="1905" height="990" alt="image" src="https://github.com/user-attachments/assets/b2714336-3792-4929-9bda-0bfda15646cb" />
 
+<img width="1902" height="987" alt="image" src="https://github.com/user-attachments/assets/aab82526-2fe7-4b53-a040-d839eb3c3def" />
+
+<img width="1600" height="734" alt="image" src="https://github.com/user-attachments/assets/d4dc361a-eb17-4965-b8f4-9a992455439c" />
+
+<img width="1900" height="943" alt="image" src="https://github.com/user-attachments/assets/19551bf1-7e8c-4b8b-af80-19f434750892" />
 
 ---
 
