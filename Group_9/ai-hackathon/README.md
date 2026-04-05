@@ -4,14 +4,14 @@
 
 This README is the main project reference document. It includes:
 
-- product overview
-- technical concepts used in the build
-- project structure
-- setup and run instructions
-- API references
-- architecture diagrams
-- workflow diagrams
-- implementation notes and limitations
+- Product Overview
+- Technical Concepts used in the build
+- Project structure
+- Setup and Run Instructions
+- API References
+- Architecture Diagrams
+- Workflow Diagrams
+- Implementation notes and limitations
 
 ## Project References
 
@@ -24,9 +24,7 @@ This README is the main project reference document. It includes:
 - [Debate Mode Notes](../debate-mode.md)
 - [Source Disagreement Notes](../Source-Disagreement.md)
 
-## Project Members
-
-Use this section as the final team handoff table.
+## Group 9 Project Members
 
 | Member | 
 | --- |
@@ -56,23 +54,23 @@ The application is designed to degrade gracefully. If external API keys are miss
 
 ## Core Concepts Used In The Project
 
-- multi-agent orchestration
-- LangGraph workflow execution
-- retrieval-augmented generation
-- local-first RAG
-- PDF parsing and chunking
-- local collection ingestion
-- source ranking and deduplication
-- credibility scoring heuristics
-- contradiction detection
-- comparative analysis and debate mode
-- confidence vs trust score separation
-- structured report generation
-- live progress streaming
-- in-memory session state
-- route-based React dashboard design
-- markdown and PDF export
-- optional quantitative visual generation from explicit numeric evidence
+Multi-Agent Orchestration
+LangGraph Workflow Execution
+Retrieval-Augmented Generation
+Local-First RAG
+PDF Parsing and Chunking
+Local Collection Ingestion
+Source Ranking and Deduplication
+Credibility Scoring Heuristics
+Contradiction Detection
+Comparative Analysis and Debate Mode
+Confidence vs Trust Score Separation
+Structured Report Generation
+Live Progress Streaming
+In-Memory Session State
+Route-Based React Dashboard Design
+Markdown and PDF Export
+Optional Quantitative Visual Generation from Explicit Numeric Evidence
 
 ## Technical Stack
 
@@ -109,37 +107,37 @@ The application is designed to degrade gracefully. If external API keys are miss
 
 The setup workspace allows the user to:
 
-- enter a long-form research question
-- choose single or batch mode
-- choose depth
-- choose a quick date preset or explicit date range
-- choose Local RAG, Web/Tavily, and arXiv
-- select collections
-- upload files for the current run
-- optionally enable debate mode and define Position A and Position B
+- Enter a long-form research question
+- Choose single or batch mode
+- Choose depth
+- Choose a quick date preset or explicit date range
+- Choose Local RAG, Web/Tavily, and arXiv
+- Select collections
+- Upload files for the current run
+- Optionally enable debate mode and define Position A and Position B
 
 ### Research Output
 
 The output workspace shows:
 
-- live progress status and event stream
-- report sections
-- comparative analysis
-- references
-- confidence and trust
-- graph
-- trace
-- dig deeper actions
-- markdown and PDF export
+- Live progress status and event stream
+- Report sections
+- Comparative analysis
+- References
+- Confidence and trust
+- Graph
+- Trace
+- Dig deeper actions
+- Markdown and PDF export
 
 ### Research Documents
 
 The research documents workspace supports:
 
-- collection creation
-- document upload
-- local indexing
-- reuse of uploaded material across sessions
+- Collection creation
+- Document upload
+- Local indexing
+- Reuse of uploaded material across sessions
 
 ## Architecture Overview
 
