@@ -2,6 +2,8 @@
 
 > Automatically classify ops logs by severity, generate actionable remediations, and push notifications to Slack and JIRA — all orchestrated by a LangGraph multi-agent pipeline with a live Streamlit dashboard.
 
+### [Try the Live Demo](https://submissionsc5-74hn55wc3nnuyq3sxi3kg6.streamlit.app/)
+
 ---
 
 ## Overview
@@ -265,4 +267,4 @@ Tests cover all five agents, the orchestrator graph, the router, state initialis
 
 ## Team
 
-**Group 8 — AI Engineers Accelerated Program**
+**Group 8 — AI Engineers Accelerated Program - C5**
