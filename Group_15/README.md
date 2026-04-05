@@ -6,6 +6,8 @@ SignalForge analyzes your product idea across GitHub, Reddit, HackerNews, Produc
 
 *Notes:* `GET /api/ideas` calls OpenRouter when `OPENROUTER_API_KEY` is set on the frontend; otherwise it returns built-in sample ideas. Product Hunt discovery uses Tavily (`TAVILY_API_KEY` on the backend).
 
+[Audio into and demo](https://drive.google.com/drive/folders/14H6eHn_0_2cuy1sFZBBgZ1Bu_kiK5jQo?usp=sharing)
+
 ## 🚀 Quick Start
 
 ### Prerequisites
