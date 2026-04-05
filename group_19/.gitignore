@@ -1,0 +1,15 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+*.db
+chroma_db/
+
+# Node
+node_modules/
+client/node_modules/
+server/node_modules/
+server/uploads/
+client/dist/
