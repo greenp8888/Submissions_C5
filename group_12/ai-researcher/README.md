@@ -1,5 +1,7 @@
 ## Demo
 
+**Live app (Streamlit):** [novamind.chaayos.com](https://novamind.chaayos.com/)
+
 **Watch the walkthrough on YouTube:** [NovaMind demo](https://youtu.be/7268sQ6RA9s)
 
 Alternate (download / Google sign-in if restricted): **[NovaMind-Demo.mov (Google Drive)](https://drive.google.com/file/d/1XU0kukCJZEEwWZhYZZrClGiHqjjWkuwk/view?usp=drive_link)**
