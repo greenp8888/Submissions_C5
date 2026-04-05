@@ -7,9 +7,18 @@ _HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/123.0.0.0 Safari/537.36"
+        "Chrome/131.0.0.0 Safari/537.36"
     ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "DNT": "1",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Cache-Control": "max-age=0",
 }
 
 
@@ -28,15 +37,20 @@ async def ai_for_that_retrieval(query: str) -> list[RepoItem]:
     html = ""
     for url in urls_to_try:
         try:
-            response = await client.get(url, headers=_HEADERS)
+            response = await client.get(url, headers=_HEADERS, follow_redirects=True)
+            print(f"[ai4that] Status: {response.status_code} for URL: {url}")
             if response.status_code == 200:
                 html = response.text
                 break
-        except Exception:
+            elif response.status_code == 403:
+                print(f"[ai4that] 403 Forbidden - website blocking requests")
+                break
+        except Exception as e:
+            print(f"[ai4that] Request failed: {e}")
             continue
 
     if not html:
-        print(f"[ai4that] no response for query: {query!r}")
+        print(f"[ai4that] No HTML retrieved for query: {query!r}")
         return []
 
     soup = BeautifulSoup(html, "lxml")

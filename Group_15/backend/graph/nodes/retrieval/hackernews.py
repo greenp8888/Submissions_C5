@@ -16,7 +16,14 @@ async def hackernews_retrieval(query: str) -> list[RepoItem]:
         response.raise_for_status()
         data = response.json()
 
+        if "hits" not in data:
+            print(f"[HN] No 'hits' in response. Keys: {list(data.keys())}")
+            return []
+
         hits = data.get("hits", [])[:8]
+
+        if not hits:
+            print(f"[HN] Query returned 0 hits for: {query!r}")
         items: list[RepoItem] = []
 
         for i, hit in enumerate(hits[:5]):
@@ -72,7 +79,11 @@ async def hackernews_retrieval(query: str) -> list[RepoItem]:
                 metadata=metadata
             ))
 
+        print(f"[HN] ✅ Returned {len(items)} stories for query: {query!r}")
         return items
 
     except Exception as e:
+        print(f"❌ HackerNews retrieval error: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return []

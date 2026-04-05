@@ -8,26 +8,37 @@ def is_similar(title1: str, title2: str) -> bool:
 
 
 def aggregator(state: GraphState) -> dict:
+    print("\n" + "="*80)
+    print("🔵 AGGREGATOR - Deduplicating and sorting")
+    print("="*80)
+
     matched_items = state.get("matched_items", [])
+    print(f"📥 Input: {len(matched_items)} items")
 
     seen_urls: set[str] = set()
     seen_titles: list[str] = []
     deduped: list[RepoItem] = []
 
+    duplicates_removed = 0
     for item in matched_items:
         url = item["url"]
         title = item["title"]
 
         if url in seen_urls:
+            duplicates_removed += 1
             continue
 
         is_duplicate = any(is_similar(title, seen_title) for seen_title in seen_titles)
         if is_duplicate:
+            duplicates_removed += 1
             continue
 
         seen_urls.add(url)
         seen_titles.append(title)
         deduped.append(item)
+
+    print(f"  • Duplicates removed: {duplicates_removed}")
+    print(f"  • After deduplication: {len(deduped)}")
 
     sorted_items = sorted(deduped, key=lambda x: x["relevance_score"], reverse=True)
 
@@ -44,5 +55,11 @@ def aggregator(state: GraphState) -> dict:
 
         if len(final_items) >= 20:
             break
+
+    print(f"  • After diversity cap (max 5 per source, max 20 total): {len(final_items)}")
+    print(f"\n📊 Final distribution by source:")
+    for source, count in sorted(source_counts.items()):
+        print(f"  • {source:10s}: {count} items")
+    print()
 
     return {"matched_items": final_items}

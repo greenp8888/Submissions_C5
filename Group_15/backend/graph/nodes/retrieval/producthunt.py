@@ -1,142 +1,108 @@
-import re
-import json
-from bs4 import BeautifulSoup
-from utils.http import get_client
-from utils.llm import call_llm
+import os
+from tavily import TavilyClient
 from graph.state import RepoItem
+from utils.llm import call_llm
 from prompts.micro_summarize import micro_summarize_prompt
-
-_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/123.0.0.0 Safari/537.36"
-    ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-}
-
-
-def _parse_next_data(html: str) -> list[dict]:
-    """Extract product list from Next.js __NEXT_DATA__ JSON blob."""
-    match = re.search(
-        r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>',
-        html, re.DOTALL
-    )
-    if not match:
-        return []
-    try:
-        nd = json.loads(match.group(1))
-    except json.JSONDecodeError:
-        return []
-
-    # Walk the props tree — PH's shape varies by deploy; try multiple paths
-    props = nd.get("props", {}).get("pageProps", {})
-    candidates = [
-        props.get("posts"),
-        props.get("results"),
-        (props.get("searchResults") or {}).get("posts"),
-        (props.get("searchResults") or {}).get("edges"),
-        props.get("initialData"),
-    ]
-    for c in candidates:
-        if isinstance(c, list) and c:
-            return c
-        if isinstance(c, dict):
-            edges = c.get("edges") or c.get("items") or []
-            if edges:
-                return edges
-    return []
 
 
 async def producthunt_retrieval(query: str) -> list[RepoItem]:
-    client = get_client()
+    """
+    Retrieves ProductHunt products using Tavily search API with domain filtering.
+    This searches ProductHunt's content via web search for better relevance.
+    Falls back to empty list if Tavily is not configured.
+    """
+    tavily_key = os.getenv("TAVILY_API_KEY")
+
+    if not tavily_key:
+        print("[ProductHunt] Tavily API key not set - skipping ProductHunt search")
+        print("[ProductHunt] Add TAVILY_API_KEY to .env for ProductHunt results")
+        return []
 
     try:
-        response = await client.get(
-            "https://www.producthunt.com/search",
-            params={"q": query},
-            headers=_HEADERS,
+        client = TavilyClient(api_key=tavily_key)
+
+        # Search specifically on ProductHunt domain
+        response = client.search(
+            query=f"{query} site:producthunt.com",
+            search_depth="basic",
+            max_results=10,
+            include_domains=["producthunt.com"],
         )
-        response.raise_for_status()
-        html = response.text
+
+        results = response.get("results", [])
+
+        if not results:
+            print(f"[ProductHunt] No results found for query: {query!r}")
+            return []
 
         items: list[RepoItem] = []
 
-        # ── Strategy 1: extract from __NEXT_DATA__ ──────────────────────────
-        raw_posts = _parse_next_data(html)
-        for edge in raw_posts[:8]:
-            node = edge.get("node", edge) if isinstance(edge, dict) else {}
-            title = node.get("name") or node.get("title") or ""
-            tagline = node.get("tagline") or node.get("description") or ""
-            votes = node.get("votesCount") or node.get("votes_count") or 0
-            slug = node.get("slug") or ""
-            url = (
-                f"https://www.producthunt.com/posts/{slug}"
-                if slug
-                else node.get("url") or node.get("website") or ""
-            )
-            if not title:
+        for result in results[:8]:
+            title = result.get("title", "")
+            url = result.get("url", "")
+            content = result.get("content", "")
+            score = result.get("score", 0.0)
+
+            if not title or not url:
                 continue
+
+            # Skip non-product pages (homepage, about, etc.)
+            # Accept both /posts/ and /products/ URLs
+            if not any(x in url for x in ["/posts/", "/products/"]):
+                continue
+
+            # Extract product info from title (ProductHunt format: "Product - Description")
+            if " - " in title:
+                product_name = title.split(" - ")[0].strip()
+                tagline = title.split(" - ", 1)[1].strip()
+            else:
+                product_name = title
+                tagline = ""
+
+            summary = content[:200] if content else tagline or product_name
+
+            # Try to get votes from content if available
+            votes = 0
+            if "votes" in content.lower():
+                import re
+                vote_match = re.search(r'(\d+)\s*votes?', content.lower())
+                if vote_match:
+                    votes = int(vote_match.group(1))
+
+            metadata = {
+                "votes": votes,
+                "tagline": tagline,
+                "search_score": score
+            }
+
             items.append(RepoItem(
                 source="ph",
-                title=title,
+                title=product_name,
                 url=url,
-                summary=tagline[:200] or title,
-                relevance_score=0.0,
-                metadata={"votes": votes, "tagline": tagline},
+                summary=summary,
+                relevance_score=float(score),
+                metadata=metadata
             ))
 
-        # ── Strategy 2: BeautifulSoup fallback ──────────────────────────────
-        if not items:
-            soup = BeautifulSoup(html, "lxml")
-            product_cards = (
-                soup.select('[data-test="product-item"]')
-                or soup.select('[class*="productItem"]')
-                or soup.select('[class*="product-item"]')
-                or soup.select('section[class*="post"]')
-                or soup.select('li[class*="item"]')
-            )
-            for card in product_cards[:8]:
-                link_elem = card.select_one('a[href*="/posts/"]')
-                title_elem = card.select_one('h2, h3, h4') or link_elem
-                title = title_elem.get_text(strip=True) if title_elem else ""
-                tagline_elem = card.select_one(
-                    'p, [class*="tagline"], [class*="description"]'
-                )
-                tagline = tagline_elem.get_text(strip=True) if tagline_elem else ""
-                url = (
-                    f"https://www.producthunt.com{link_elem['href']}"
-                    if link_elem and link_elem.get("href")
-                    else ""
-                )
-                if not title:
-                    continue
-                items.append(RepoItem(
-                    source="ph",
-                    title=title,
-                    url=url,
-                    summary=tagline[:200] or title,
-                    relevance_score=0.0,
-                    metadata={"votes": 0, "tagline": tagline},
-                ))
-
-        # ── LLM micro-summarise top 3 items ─────────────────────────────────
+        # LLM micro-summarize top 3 items
         enriched: list[RepoItem] = []
-        for i, item in enumerate(items[:8]):
+        for i, item in enumerate(items):
             if i < 3:
                 try:
                     prompt = micro_summarize_prompt(
-                        item["title"], item["summary"], "producthunt", item["metadata"]
+                        item["title"],
+                        item["summary"],
+                        "producthunt",
+                        item["metadata"]
                     )
                     item["summary"] = call_llm(prompt, max_tokens=256).strip()
                 except Exception:
                     pass
             enriched.append(item)
 
-        print(f"[ProductHunt] returned {len(enriched)} items for query: {query!r}")
+        print(f"[ProductHunt] ✅ Returned {len(enriched)} products for query: {query!r}")
         return enriched
 
     except Exception as e:
-        print(f"[ProductHunt retrieval error] {e}")
+        print(f"❌ ProductHunt retrieval error: {type(e).__name__}: {str(e)}")
         return []

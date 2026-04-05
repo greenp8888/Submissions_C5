@@ -75,7 +75,9 @@ async def reddit_retrieval(query: str) -> list[RepoItem]:
                 metadata=metadata
             ))
 
+        print(f"[Reddit] ✅ Returned {len(items)} posts for query: {query!r}")
         return items
 
     except Exception as e:
+        print(f"❌ Reddit retrieval error: {type(e).__name__}: {str(e)}")
         return []

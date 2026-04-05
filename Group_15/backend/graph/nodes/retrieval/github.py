@@ -13,6 +13,8 @@ async def github_retrieval(query: str) -> list[RepoItem]:
     github_token = os.getenv("GITHUB_TOKEN")
     if github_token:
         headers["Authorization"] = f"token {github_token}"
+    else:
+        print("[GitHub] Warning: No GITHUB_TOKEN set - rate limited to 60 requests/hour")
 
     try:
         response = await client.get(
@@ -20,8 +22,19 @@ async def github_retrieval(query: str) -> list[RepoItem]:
             params={"q": query, "sort": "stars", "per_page": 8},
             headers=headers
         )
+
+        if response.status_code == 403:
+            print(f"[GitHub] Rate limited! Status: {response.status_code}")
+            print(f"[GitHub] Response: {response.text[:200]}")
+            return []
+
         response.raise_for_status()
         data = response.json()
+
+        if "items" not in data:
+            print(f"[GitHub] No 'items' in response. Keys: {list(data.keys())}")
+            print(f"[GitHub] Response preview: {str(data)[:200]}")
+            return []
 
         repos = data.get("items", [])[:8]
         items: list[RepoItem] = []
@@ -79,7 +92,11 @@ async def github_retrieval(query: str) -> list[RepoItem]:
                 metadata=metadata
             ))
 
+        print(f"[GitHub] ✅ Returned {len(items)} repos for query: {query!r}")
         return items
 
     except Exception as e:
+        print(f"❌ GitHub retrieval error: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return []

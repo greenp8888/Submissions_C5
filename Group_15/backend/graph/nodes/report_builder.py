@@ -14,6 +14,10 @@ def determine_traffic_light(matched_items: list, gap_analysis: list) -> tuple[st
 
 
 def report_builder(state: GraphState) -> dict:
+    print("\n" + "="*80)
+    print("🔵 REPORT BUILDER - Assembling final report")
+    print("="*80)
+
     matched_items = state.get("matched_items", [])
     analysis_data = state.get("analysis", {})
 
@@ -57,5 +61,15 @@ def report_builder(state: GraphState) -> dict:
         "competitive_landscape": competitive_landscape,
         "market_signals": market_signals
     }
+
+    print("✅ Report assembled successfully:")
+    print(f"  • Traffic light: {traffic_light.upper()} - {traffic_light_reason}")
+    print(f"  • Total items in report: {len(matched_items)}")
+    print(f"  • Gap analysis points: {len(gap_analysis)}")
+    print(f"  • Suggested features: {len(suggested_features)}")
+    print(f"  • Market signals: {len(market_signals)}")
+    print("\n" + "="*80)
+    print("✅ PIPELINE COMPLETE - Report ready for delivery")
+    print("="*80 + "\n")
 
     return {"report": report}
