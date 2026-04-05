@@ -4,6 +4,9 @@ A production-grade multi-agent research assistant for multi-hop, multi-source
 investigations. The system spins up specialized agents that collaborate to retrieve,
 analyze, synthesize, and report on any research topic.
 
+### Demo Link
+https://jumpshare.com/s/IZ8eBhRYBqpptX4ICYGN
+
 ## Architecture
 
 ```
