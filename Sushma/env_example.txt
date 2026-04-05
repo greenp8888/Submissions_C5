@@ -1,0 +1,12 @@
+# Required: OpenRouter API key for LLM orchestration
+OPENROUTER_API_KEY=your_openrouter_key_here
+
+# OpenRouter configuration
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_MODEL=openai/gpt-4.1-mini
+
+# Required: Tavily API key for web search
+TAVILY_API_KEY=your_tavily_key_here
+
+# Optional: SerpAPI key for Google Search
+SERPAPI_API_KEY=your_serpapi_key_here
