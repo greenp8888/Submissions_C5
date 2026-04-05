@@ -212,3 +212,6 @@ curl "http://localhost:8000/research/abc-123/report?format=file" --output report
 2. `"How is quantum computing threatening current cryptography standards?"`
 3. `"What is the current state of nuclear fusion energy commercialization?"`
 4. `"How are LLMs being used in drug discovery pipelines?"`
+
+## Run with deployed FastAPI
+https://submissions-c5.onrender.com/docs
