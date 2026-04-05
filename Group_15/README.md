@@ -245,42 +245,18 @@ Dynamically adjust relevance thresholds based on result count:
 - **Benefit**: Consistent result quality across diverse queries
 
 ---
-### 5. **Node Flow**
----
-config:
-  flowchart:
-    curve: linear
----
-graph TD;
-	__start__([<p>__start__</p>]):::first
-	input(input)
-	query_builder(query_builder)
-	retrieval(retrieval)
-	matcher(matcher)
-	aggregator(aggregator)
-	analysis(analysis)
-	report(report)
-	__end__([<p>__end__</p>]):::last
-	__start__ --> input;
-	aggregator --> analysis;
-	analysis --> report;
-	input -.-> __end__;
-	input -.-> query_builder;
-	matcher --> aggregator;
-	query_builder --> retrieval;
-	retrieval --> matcher;
-	report --> __end__;
-	classDef default fill:#f2f0ff,line-height:1.2
-	classDef first fill-opacity:0
-	classDef last fill:#bfb6fc
-
 
 ## 🤝 Contributing
 
 This project was built as part of the AI Engineering Accelerator Program (Course 5).
 
 **Team**: Group 15
-
+- Artur Wilkomir: arturwikomirventures@proton.me
+- Gandakumar: ganda70@gmail.com
+- Florian Willert: fw@feropartners.com
+- Sneha Rao: sneharao300@gmail.com
+- Steven Weber: steven.weber@swebx.de
+- Mahesh
 ---
 
 ## 📄 License
