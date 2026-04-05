@@ -56,6 +56,18 @@ python app.py
 By default the app runs locally on:
 - `http://127.0.0.1:7860`
 
+### Streamlit UI (chat + OAuth)
+
+```bash
+streamlit run streamlitApp.py
+```
+
+Opens at `http://127.0.0.1:8501` by default.
+
+### Docker
+
+Build and run with Compose and `scripts/docker-deploy.sh`. Step-by-step instructions, volumes, OAuth, and registry push are in **[DOCKER.md](DOCKER.md)**. Compose files use **YAML** (`docker-compose.yml`); there is no standard `docker-compose.xml` for Docker Compose v2.
+
 ## Personal-use / local-only mode
 
 This app is local-first by design.

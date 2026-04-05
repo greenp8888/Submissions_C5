@@ -1,0 +1,38 @@
+# Git and local tooling
+.git
+.gitignore
+.cursorignore
+.cursorindexingignore
+.idea
+.vscode
+
+# Secrets (mount or inject at runtime)
+.env
+.env.*
+!.env.example
+
+# Python environments
+.venv
+venv
+ENV
+__pycache__
+*.py[cod]
+*.egg-info
+.eggs
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Local data (use named volumes in compose)
+user-data
+streamlit_chats
+output
+.gradio
+
+# Large / optional test assets (not needed at runtime)
+tests/demo/*.pdf
+tests/demo/*.jfif
+
+# Docs-only (optional shrink; remove lines below if you need them in-image)
+# *.md
+# docs
