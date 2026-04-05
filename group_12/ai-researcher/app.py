@@ -29,6 +29,9 @@ OPENROUTER_MODEL_PRESETS: list[str] = [
 # Tab order (left to right): Human review → Report → Sources → Trace & gaps
 TAB_HUMAN, TAB_REPORT, TAB_SOURCES, TAB_TRACE = 0, 1, 2, 3
 
+REVIEW_BUTTON_LABEL = "Review uploads & question"
+RUN_RESEARCH_BUTTON_LABEL = "Run full research"
+
 _APP_DIR = Path(__file__).resolve().parent
 LOGO_PATH = _APP_DIR / "assets" / "novamind-logo.png"
 
@@ -185,19 +188,44 @@ NOVAMIND_CSS = """
 
 .gradio-tabs { margin-top: 0 !important; }
 .gradio-tab-nav { gap: 0.35rem !important; border-bottom: 1px solid var(--nm-border) !important; padding-bottom: 0.45rem !important; margin-bottom: 0.65rem !important; flex-wrap: wrap !important; }
-.gradio-tab-nav button {
-  /* Slightly brighter than body muted text so inactive tabs stay readable on dark chrome */
-  color: #aebccf !important; border: none !important; background: transparent !important;
-  font-weight: 500 !important; font-size: 0.84rem !important; padding: 0.4rem 0.8rem !important; border-radius: 8px !important;
+/* Gradio 5/6: tab labels must stay high-contrast on near-black backgrounds */
+.gradio-tab-nav button,
+.nm-tabs-shell [role="tab"] {
+  color: #d8e3f0 !important;
+  border: none !important; background: transparent !important;
+  font-weight: 500 !important; font-size: 0.86rem !important; padding: 0.45rem 0.85rem !important; border-radius: 8px !important;
   opacity: 1 !important;
 }
-.gradio-tab-nav button.selected { color: var(--nm-text) !important; background: var(--nm-accent-dim) !important; box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.35) !important; }
+.gradio-tab-nav button.selected,
+.nm-tabs-shell [role="tab"][aria-selected="true"] {
+  color: #f8fafc !important;
+  background: var(--nm-accent-dim) !important;
+  box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.45) !important;
+}
 /* While a job runs, Gradio may add .pending or disable tab controls — avoid unreadable dimming.
    Do NOT use :has() on .gradio-container — it forces constant descendant scans and can freeze the tab. */
 .gradio-container.pending .gradio-tab-nav button:not(.selected),
-.gradio-tab-nav button:disabled {
-  color: #c5d0df !important; opacity: 0.95 !important;
+.gradio-container.pending .nm-tabs-shell [role="tab"]:not([aria-selected="true"]),
+.gradio-tab-nav button:disabled,
+.nm-tabs-shell [role="tab"][aria-disabled="true"] {
+  color: #e2e8f0 !important; opacity: 0.98 !important;
 }
+
+/* Report / markdown: model output often uses ## headers — Gradio prose defaults can be near-black */
+.nm-main .prose h1, .nm-main .prose h2, .nm-main .prose h3, .nm-main .prose h4, .nm-main .prose h5, .nm-main .prose h6,
+.report-citations-prose .prose h1, .report-citations-prose .prose h2, .report-citations-prose .prose h3,
+.report-citations-prose .prose h4, .report-citations-prose .prose h5, .report-citations-prose .prose h6,
+.nm-main .markdown h1, .nm-main .markdown h2, .nm-main .markdown h3, .nm-main .markdown h4,
+.report-citations-prose h1, .report-citations-prose h2, .report-citations-prose h3 {
+  color: #eef2f8 !important;
+  font-weight: 600 !important;
+}
+.nm-main .prose strong, .report-citations-prose .prose strong { color: #f1f5f9 !important; }
+.nm-main .prose hr, .report-citations-prose .prose hr { border-color: rgba(100, 180, 255, 0.25) !important; }
+.nm-main .prose blockquote, .report-citations-prose .prose blockquote {
+  color: #c5d2e3 !important; border-left-color: var(--nm-accent) !important;
+}
+.nm-main .prose li::marker, .report-citations-prose .prose li::marker { color: var(--nm-accent) !important; }
 
 .gradio-container textarea, .gradio-container input[type="text"], .gradio-container input[type="password"] {
   background: var(--nm-elevated) !important; border: 1px solid var(--nm-border) !important;
@@ -225,7 +253,8 @@ NOVAMIND_CSS = """
 }
 #nm-trace-panel em, #nm-gaps-panel em { color: var(--nm-muted) !important; }
 
-.report-citations-prose { line-height: 1.65; max-width: 100%; color: var(--nm-text); }
+.report-citations-prose { line-height: 1.65; max-width: 100%; color: var(--nm-text) !important; }
+.report-citations-prose .markdown, .report-citations-prose .prose, .report-citations-prose p { color: var(--nm-text) !important; }
 .report-citations-prose a {
   display: inline-flex; align-items: center; background: var(--nm-elevated);
   padding: 0.15rem 0.55rem 0.18rem; border-radius: 999px; font-size: 0.78rem; font-weight: 500;
@@ -337,6 +366,18 @@ def on_files_updated(files):
     paths = collect_upload_paths(files)
     if not paths:
         return "_No files attached. Upload PDFs, images, or audio when you are ready._"
+    # Gradio may emit change before each temp path is fully written (common on large uploads).
+    for p in paths:
+        try:
+            if not Path(p).is_file():
+                return (
+                    "_**Upload in progress.**_ The browser is still transferring this file; the summary will "
+                    "refresh when the server has the full copy. Very large files can take a minute._"
+                )
+        except OSError:
+            return (
+                "_**Upload in progress.**_ Waiting for the file to become available on the server._"
+            )
     pdfs, images, audios, skipped = _classify_local_paths(paths)
     names = [Path(p).name for p in paths[:12]]
     more = " …" if len(paths) > 12 else ""
@@ -446,6 +487,9 @@ def run_preflight_review(
         raise gr.Error(str(exc)) from exc
 
     steps: list[str] = []
+    _rb_busy = gr.update(interactive=False, value="⏳ Review in progress…")
+    _rb_idle = gr.update(interactive=True, value=REVIEW_BUTTON_LABEL)
+
     steps.append(f"Using {_llm_backend_label(settings)} for alignment check.")
     steps.append("Validating question and classifying uploads…")
     yield (
@@ -454,6 +498,7 @@ def run_preflight_review(
         gr.update(visible=False),
         gr.update(selected=TAB_TRACE),
         _preflight_trace_block(steps),
+        _rb_busy,
     )
 
     paths = collect_upload_paths(files)
@@ -464,6 +509,7 @@ def run_preflight_review(
         gr.update(visible=False),
         gr.update(selected=TAB_TRACE),
         _preflight_trace_block(steps),
+        _rb_busy,
     )
 
     try:
@@ -475,6 +521,7 @@ def run_preflight_review(
             gr.update(visible=False),
             gr.update(selected=TAB_TRACE),
             _preflight_trace_block(steps),
+            _rb_busy,
         )
         analysis = llm_preflight_analysis(q, digest, settings)
         md = assemble_preflight_markdown(digest, analysis)
@@ -486,10 +533,11 @@ def run_preflight_review(
     steps.append("Preflight complete — open **Human review** to read the summary.")
     yield (
         md,
-        gr.update(visible=True),
+        gr.update(visible=True, interactive=True, value=RUN_RESEARCH_BUTTON_LABEL),
         gr.update(visible=True),
         gr.update(selected=TAB_HUMAN),
         _preflight_trace_block(steps),
+        _rb_idle,
     )
 
 
@@ -559,6 +607,31 @@ def run_research_after_confirm(
     except ValueError as exc:
         raise gr.Error(str(exc)) from exc
 
+    _run_busy = gr.update(visible=True, interactive=False, value="⏳ Running full research…")
+    _run_hide = gr.update(visible=False)
+    _review_busy = gr.update(interactive=False, value="⏳ Research running…")
+    _review_idle = gr.update(interactive=True, value=REVIEW_BUTTON_LABEL)
+
+    # Yield immediately so the Trace tab + trace panel update before graph compilation (can be slow).
+    yield (
+        gr.skip(),
+        gr.skip(),
+        gr.skip(),
+        gr.skip(),
+        (
+            f"## Research run\n\n"
+            f"- Backend: {_llm_backend_label(settings)}\n"
+            f"- _Switching to **Trace & gaps** — preparing the LangGraph orchestrator…_\n"
+        ),
+        gr.skip(),
+        gr.skip(),
+        gr.skip(),
+        _run_busy,
+        _run_hide,
+        gr.update(selected=TAB_TRACE),
+        _review_busy,
+    )
+
     graph = build_graph(settings)
     local_paths = collect_upload_paths(files)
 
@@ -578,7 +651,7 @@ def run_research_after_confirm(
     boot_trace = (
         f"## Research run\n\n"
         f"- Backend: {_llm_backend_label(settings)}\n"
-        f"- _Compiling graph and starting LangGraph stream…_\n"
+        f"- _Graph ready — streaming LangGraph steps below._\n"
     )
     yield (
         gr.skip(),
@@ -589,9 +662,10 @@ def run_research_after_confirm(
         gr.skip(),
         gr.skip(),
         gr.skip(),
-        gr.update(visible=False),
-        gr.update(visible=False),
+        _run_busy,
+        _run_hide,
         gr.update(selected=TAB_TRACE),
+        _review_busy,
     )
 
     last_state: dict = initial_state
@@ -610,9 +684,10 @@ def run_research_after_confirm(
                     gr.skip(),
                     gr.skip(),
                     gr.skip(),
-                    gr.update(visible=False),
-                    gr.update(visible=False),
+                    _run_busy,
+                    _run_hide,
                     gr.update(selected=TAB_TRACE),
+                    _review_busy,
                 )
         if not saw_chunk:
             last_state = graph.invoke(initial_state)
@@ -620,11 +695,13 @@ def run_research_after_confirm(
         raise gr.Error(f"Research failed: {exc!s}") from exc
 
     fin = finalize_research_outputs(last_state)
+    _confirm_reset = gr.update(visible=False, interactive=True, value=RUN_RESEARCH_BUTTON_LABEL)
     yield (
         *fin,
-        gr.update(visible=False),
-        gr.update(visible=False),
+        _confirm_reset,
+        _confirm_reset,
         gr.update(selected=TAB_REPORT),
+        _review_idle,
     )
 
 
@@ -792,7 +869,10 @@ def build_ui() -> gr.Blocks:
                             type="filepath",
                         )
                         file_upload_status = gr.Markdown(
-                            value="_No files staged. On upload, NovaMind validates types (PDF / image / audio)._",
+                            value=(
+                                "_No files staged. On upload, NovaMind validates types (PDF / image / audio). "
+                                "Large files (10MB+) may take time in the **browser** before the summary appears._"
+                            ),
                             elem_classes=["nm-file-hint"],
                         )
 
@@ -835,10 +915,10 @@ def build_ui() -> gr.Blocks:
 
                     with gr.Column(elem_classes=["nm-card"]):
                         gr.Markdown("### Run")
-                        review_button = gr.Button("Review uploads & question", variant="primary")
+                        review_button = gr.Button(REVIEW_BUTTON_LABEL, variant="primary")
                         with gr.Row():
                             confirm_yes = gr.Button(
-                                "Run full research", variant="primary", visible=False
+                                RUN_RESEARCH_BUTTON_LABEL, variant="primary", visible=False
                             )
                             confirm_no = gr.Button("Cancel", variant="secondary", visible=False)
 
@@ -930,9 +1010,8 @@ def build_ui() -> gr.Blocks:
         review_button.click(
             fn=run_preflight_review,
             inputs=[question, files, *llm_inputs],
-            outputs=[human_review_md, confirm_yes, confirm_no, main_tabs, trace_md],
-            # Full-screen progress freezes the tab bar and shows a stuck 0.0s timer during long BLIP/LLM work.
-            show_progress=False,
+            outputs=[human_review_md, confirm_yes, confirm_no, main_tabs, trace_md, review_button],
+            show_progress="minimal",
         )
 
         confirm_no.click(
@@ -965,10 +1044,12 @@ def build_ui() -> gr.Blocks:
                 confirm_yes,
                 confirm_no,
                 main_tabs,
+                review_button,
             ],
-            show_progress=False,
+            show_progress="minimal",
         )
 
+    demo.queue(default_concurrency_limit=4)
     return demo
 
 

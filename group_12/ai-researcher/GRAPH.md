@@ -2,11 +2,18 @@
 
 This document reflects **`build_graph()`** in [`deep_researcher/graph.py`](./deep_researcher/graph.py): nodes, edges, and routing. For product context see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
-**Rendered PNG (export of diagram §1):**
+**Rendered PNG (matches the compiled `StateGraph` exactly):**
 
 ![LangGraph topology — Phase 2 deep researcher](./docs/images/langgraph_topology.png)
 
-_Source file: [`docs/images/langgraph_topology.mmd`](./docs/images/langgraph_topology.mmd). Regenerate: `cd docs/images && npx -y @mermaid-js/mermaid-cli -i langgraph_topology.mmd -o langgraph_topology.png -w 3600 -H 2800 -b white` (requires a local Chrome/Chromium for Puppeteer)._
+_Authoritative source: [`docs/images/langgraph_topology_compiled.mmd`](./docs/images/langgraph_topology_compiled.mmd) (from `build_graph().get_graph().draw_mermaid()`). **Regenerate everything:**_
+
+```bash
+python scripts/export_langgraph_mermaid.py
+cd docs/images && npx -y @mermaid-js/mermaid-cli -i langgraph_topology_compiled.mmd -o langgraph_topology.png -w 3600 -H 2800 -b white
+```
+
+_(Mermaid CLI needs a local Chrome/Chromium for Puppeteer.) For a hand-drawn flow with subgraphs, see [`docs/images/langgraph_topology.mmd`](./docs/images/langgraph_topology.mmd) (logical layout only; keep in sync with [`deep_researcher/graph.py`](./deep_researcher/graph.py))._
 
 ---
 
@@ -134,7 +141,7 @@ Each chain runs **`insight_node` / `report_node`** with the same implementation;
 
 ## 6. Rendering diagrams
 
-- **Checked-in PNG:** [`docs/images/langgraph_topology.png`](./docs/images/langgraph_topology.png) (from [`langgraph_topology.mmd`](./docs/images/langgraph_topology.mmd)).
+- **Checked-in PNG:** [`docs/images/langgraph_topology.png`](./docs/images/langgraph_topology.png) (from [`langgraph_topology_compiled.mmd`](./docs/images/langgraph_topology_compiled.mmd); regenerate via [`scripts/export_langgraph_mermaid.py`](./scripts/export_langgraph_mermaid.py) + mermaid-cli as in the figure note).
 - **GitHub / GitLab:** Mermaid renders in Markdown preview.
 - **VS Code:** “Markdown Preview Mermaid Support” or similar extension.
 - **Export PNG/SVG:** [Mermaid Live Editor](https://mermaid.live) (paste the fenced blocks) or **@mermaid-js/mermaid-cli** as in the note under the figure above.
