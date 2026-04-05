@@ -11,13 +11,14 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { Bell, Clock3, Loader2, Upload } from 'lucide-react';
+import { Bell, Clock3, Info, Loader2, Trash2, Upload } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useFirebase } from './FirebaseProvider';
 import AIChat from './AIChat';
 import { apiClient } from '../lib/api';
 import { parseExpenses } from '../lib/agents/expenseParser';
 import { parseEquityPL } from '../lib/agents/equityParser';
+import { buildTradePayloadFromParsedTrade } from '../lib/tradeImport';
 
 const currencyFormatter = new Intl.NumberFormat('en-IN', {
   style: 'currency',
@@ -92,9 +93,29 @@ const inferTaxCategoryFromInvestment = (investment: any) => {
   return '';
 };
 
+const getInvestmentContributionDate = (investment: any) => {
+  return investment.purchase_date || investment.start_date || investment.maturity_date || '';
+};
+
+const getTaxBracketLabel = (taxableIncome: number) => {
+  const income = Math.max(0, taxableIncome);
+  if (income <= 400000) return 'Nil';
+  if (income <= 800000) return '5%';
+  if (income <= 1200000) return '10%';
+  if (income <= 1600000) return '15%';
+  if (income <= 2000000) return '20%';
+  if (income <= 2400000) return '25%';
+  return '30%';
+};
+
 const isInsuranceType = (type?: string) => {
   const value = String(type || '').toLowerCase();
   return value.includes('insurance') || value.includes('medical');
+};
+
+const isEmergencyFundGoal = (goal: any) => {
+  const label = `${goal?.goal_type || ''} ${goal?.goal_name || ''}`.toLowerCase();
+  return label.includes('emergency');
 };
 
 const calculateGoalProgress = (currentAmount: number, targetAmount: number) => {
@@ -165,6 +186,109 @@ const getTradeFilter = (trade: any): InvestmentFilter => {
   if (assetClass.includes('mutual')) return 'mutual_fund';
   if (assetClass.includes('etf')) return 'etf';
   return 'equity';
+};
+
+const getNormalizedTradeType = (trade: any) => {
+  const explicit = String(trade.trade_type || '').toUpperCase();
+  if (explicit === 'BUY' || explicit === 'SELL') return explicit;
+  return trade.sell_date ? 'SELL' : 'BUY';
+};
+
+const getTradeSnapshots = (trades: any[]) => {
+  const grouped = new Map<string, any>();
+
+  trades.forEach((trade) => {
+    const key = String(trade.ticker || trade.symbol || trade.ticker_name || 'Unknown');
+    const quantity = toNumber(trade.quantity);
+    const price = toNumber(trade.price_per_unit);
+    const currentPrice = toNumber(trade.current_price);
+    const uploadedUnrealizedGain = toNumber(trade.unrealized_gain);
+    const realizedGain = toNumber(trade.realized_gain);
+    const type = getNormalizedTradeType(trade);
+    const executionDate = trade.execution_date || trade.sell_date || trade.buy_date || '';
+    const executionTs = new Date(String(executionDate)).getTime();
+    const current = grouped.get(key) || {
+      key,
+      name: trade.ticker_name || trade.ticker || trade.symbol || key,
+      assetClass: getTradeAssetClass(trade),
+      boughtQty: 0,
+      soldQty: 0,
+      buyCost: 0,
+      realizedGain: 0,
+      latestPrice: 0,
+      latestTs: Number.NEGATIVE_INFINITY,
+      currentPrice: 0,
+      currentPriceTs: Number.NEGATIVE_INFINITY,
+      uploadedUnrealizedGain: 0,
+      tradeCount: 0,
+    };
+
+    if (type === 'BUY') {
+      current.boughtQty += quantity;
+      current.buyCost += quantity * price;
+    } else {
+      current.soldQty += quantity;
+      current.realizedGain += realizedGain;
+    }
+
+    if (Number.isFinite(executionTs) ? executionTs >= current.latestTs : current.tradeCount === 0) {
+      current.latestTs = Number.isFinite(executionTs) ? executionTs : current.latestTs;
+      current.latestPrice = price;
+    }
+
+    if (type === 'BUY' && currentPrice > 0 && (Number.isFinite(executionTs) ? executionTs >= current.currentPriceTs : current.tradeCount === 0)) {
+      current.currentPrice = currentPrice;
+      current.currentPriceTs = Number.isFinite(executionTs) ? executionTs : current.currentPriceTs;
+    }
+
+    if (type === 'BUY' && uploadedUnrealizedGain !== 0) {
+      current.uploadedUnrealizedGain = uploadedUnrealizedGain;
+    }
+
+    current.tradeCount += 1;
+    grouped.set(key, current);
+  });
+
+  const active = Array.from(grouped.values())
+    .map((item) => {
+      const openQuantity = Math.max(0, item.boughtQty - item.soldQty);
+      const averageBuyPrice = item.boughtQty > 0 ? item.buyCost / item.boughtQty : 0;
+      const costBasis = openQuantity * averageBuyPrice;
+      const marketPrice = item.currentPrice || item.latestPrice;
+      const currentValue = marketPrice > 0
+        ? openQuantity * marketPrice
+        : (item.uploadedUnrealizedGain !== 0 ? costBasis + item.uploadedUnrealizedGain : costBasis);
+      return {
+        id: `trade-active-${item.key}`,
+        name: item.name,
+        assetClass: item.assetClass,
+        openQuantity,
+        averageBuyPrice,
+        currentPrice: openQuantity > 0 ? currentValue / openQuantity : marketPrice,
+        currentValue,
+        unrealizedGain: item.uploadedUnrealizedGain !== 0 ? item.uploadedUnrealizedGain : currentValue - costBasis,
+        tradeCount: item.tradeCount,
+      };
+    })
+    .filter((item) => item.openQuantity > 0);
+
+  const past = Array.from(grouped.values())
+    .map((item) => {
+      const openQuantity = Math.max(0, item.boughtQty - item.soldQty);
+      return {
+        id: `trade-past-${item.key}`,
+        name: item.name,
+        assetClass: item.assetClass,
+        soldQuantity: item.soldQty,
+        realizedGain: item.realizedGain,
+        tradeCount: item.tradeCount,
+        openQuantity,
+      };
+    })
+    .filter((item) => item.soldQuantity > 0 && item.openQuantity <= 0)
+    .map(({ openQuantity, ...item }) => item);
+
+  return { active, past };
 };
 
 const addMonthsToDate = (dateString: string, months: number) => {
@@ -251,6 +375,34 @@ const getInclusiveMonthCount = (start: Date, end: Date) => {
   return (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
 };
 
+const getRollingSixMonthExpenseTotal = (expenses: any[]) => {
+  const now = new Date();
+  const rangeStart = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+  const rangeEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+  return expenses.reduce((sum, expense) => {
+    if (!isWithinRange(expense.transaction_date, rangeStart, rangeEnd)) return sum;
+    return sum + toNumber(expense.amount);
+  }, 0);
+};
+
+const getRollingSixMonthSalaryTotal = (salaryRanges: any[]) => {
+  const now = new Date();
+
+  return Array.from({ length: 6 }, (_, index) => {
+    const monthDate = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1);
+    const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+    const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    return salaryRanges.reduce((sum, salary) => {
+      const salaryStart = salary.start;
+      const salaryEnd = salary.rangeEnd || monthEnd;
+      if (!salaryStart || salaryStart > monthEnd || salaryEnd < monthStart) return sum;
+      return sum + toNumber(salary.monthly_amount);
+    }, 0);
+  }).reduce((sum, value) => sum + value, 0);
+};
+
 const getOptimizationStatus = (value: number, limit?: number) => {
   if (!limit) return value > 0 ? 'claimed' : 'pending';
   if (value >= limit) return 'complete';
@@ -290,7 +442,6 @@ export default function Dashboard() {
   const {
     userProfile,
     salaryHistory,
-    healthScores,
     otherIncomes,
     investments,
     goals,
@@ -304,6 +455,7 @@ export default function Dashboard() {
   const [page, setPage] = useState<DashboardPage>('overview');
   const financialYears = useMemo(() => getFinancialYearOptions(), []);
   const [selectedFyId, setSelectedFyId] = useState(financialYears[0]?.id || '');
+  const [activeHealthInfo, setActiveHealthInfo] = useState<'savings' | 'debt' | 'investments' | 'emergency' | null>(null);
   const [taxBenefitDraft, setTaxBenefitDraft] = useState<{
     benefitCategory: string;
     entryType: string;
@@ -355,6 +507,9 @@ export default function Dashboard() {
       const months = countMonthsInRange(salary.start!, salary.rangeEnd);
       return sum + salary.monthly_amount * months;
     }, 0);
+    const trackedSalaryMonths = salaryRanges.reduce((sum, salary) => {
+      return sum + countMonthsInRange(salary.start!, salary.rangeEnd);
+    }, 0);
 
     const totalSalaryComponentForFy = (field: string) =>
       salaryRanges.reduce((sum, salary) => {
@@ -391,15 +546,25 @@ export default function Dashboard() {
       if (!isWithinRange(expense.transaction_date, fyStart, fyEnd)) return sum;
       return sum + toNumber(expense.amount);
     }, 0);
+    const fyAverageMonthlySalary = trackedSalaryMonths > 0 ? currentYearSalary / trackedSalaryMonths : 0;
     const fyAverageMonthlyIncome = currentYearIncome / fyMonthCount;
     const fyAverageMonthlyExpenses = currentYearExpenses / fyMonthCount;
     const fyAverageMonthlySavings = (currentYearIncome - currentYearExpenses) / fyMonthCount;
+    const rollingSixMonthExpenseTotal = getRollingSixMonthExpenseTotal(expenses);
+    const rollingSixMonthAverageExpense = rollingSixMonthExpenseTotal / 6;
+    const rollingSixMonthSalaryTotal = getRollingSixMonthSalaryTotal(salaryRanges);
+    const rollingSixMonthAverageSalary = rollingSixMonthSalaryTotal / 6;
 
     const portfolioInvestments = investments.filter((investment) => !isInsuranceType(investment.investment_type));
+    const marketInvestments = portfolioInvestments.filter((investment) => {
+      const filter = getInvestmentFilter(investment);
+      return filter === 'equity' || filter === 'mutual_fund' || filter === 'etf';
+    });
+    const tradeSnapshots = getTradeSnapshots(equityTrades);
 
     const fixedHoldings = portfolioInvestments.map((investment) => ({
       id: `fixed-${investment.id}`,
-      name: investment.commodity_type || investment.investment_type || 'Investment',
+      name: investment.instrument_name || investment.commodity_type || investment.investment_type || 'Investment',
       kind: 'fixed',
       trackedValue: toNumber(investment.principal_amount) || toNumber(investment.quantity_units) * toNumber(investment.buy_price_per_unit),
       rate: toNumber(investment.interest_rate),
@@ -408,35 +573,64 @@ export default function Dashboard() {
       sortMetric: toNumber(investment.principal_amount),
     }));
 
-    const equityMap = new Map<string, { name: string; trackedValue: number; realizedGain: number; trades: number }>();
-    equityTrades.forEach((trade) => {
-      const key = trade.ticker || trade.symbol || 'Equity';
-      const trackedValue = toNumber(trade.quantity) * toNumber(trade.price_per_unit);
-      const existing = equityMap.get(key) || { name: key, trackedValue: 0, realizedGain: 0, trades: 0 };
-      equityMap.set(key, {
-        name: key,
-        trackedValue: existing.trackedValue + trackedValue,
-        realizedGain: existing.realizedGain + toNumber(trade.realized_gain),
-        trades: existing.trades + 1,
-      });
-    });
-
-    const equityHoldings = Array.from(equityMap.entries()).map(([key, value]) => ({
-      id: `equity-${key}`,
-      name: value.name,
+    const activeTradeHoldings = tradeSnapshots.active.map((holding) => ({
+      id: holding.id,
+      name: holding.name,
       kind: 'equity',
-      trackedValue: value.trackedValue,
+      trackedValue: holding.currentValue,
       rate: 0,
       maturityAmount: 0,
-      realizedGain: value.realizedGain,
-      trades: value.trades,
-      sortMetric: value.trackedValue || value.realizedGain,
+      unrealizedGain: holding.unrealizedGain,
+      trades: holding.tradeCount,
+      openQuantity: holding.openQuantity,
+      currentPrice: holding.currentPrice,
+      averageBuyPrice: holding.averageBuyPrice,
+      sortMetric: holding.currentValue || holding.unrealizedGain,
+      assetClass: holding.assetClass,
     }));
 
-    const allHoldings = [...fixedHoldings, ...equityHoldings];
+    const pastTradeHoldings = tradeSnapshots.past.map((holding) => ({
+      ...holding,
+      sortMetric: Math.abs(holding.realizedGain),
+    }));
+
+    const activeManualMarketHoldings = marketInvestments.map((investment) => {
+      const costBasis =
+        toNumber(investment.quantity_units) > 0 && toNumber(investment.buy_price_per_unit) > 0
+          ? toNumber(investment.quantity_units) * toNumber(investment.buy_price_per_unit)
+          : toNumber(investment.principal_amount);
+      const currentValue = toNumber(investment.principal_amount) || costBasis;
+      return {
+        id: `manual-market-${investment.id}`,
+        name: investment.instrument_name || investment.commodity_type || investment.investment_type || 'Holding',
+        kind: 'manual_market',
+        trackedValue: currentValue,
+        unrealizedGain: currentValue - costBasis,
+        assetClass: getInvestmentFilterLabel(getInvestmentFilter(investment)),
+        openQuantity: toNumber(investment.quantity_units),
+        averageBuyPrice: toNumber(investment.buy_price_per_unit),
+        currentPrice: toNumber(investment.quantity_units) > 0 ? currentValue / Math.max(1, toNumber(investment.quantity_units)) : 0,
+        sortMetric: currentValue,
+      };
+    });
+
+    const fixedDepositTotal = portfolioInvestments
+      .filter((investment) => getInvestmentFilter(investment) === 'debt')
+      .reduce((sum, investment) => sum + (toNumber(investment.principal_amount) || toNumber(investment.quantity_units) * toNumber(investment.buy_price_per_unit)), 0);
+    const commodityTotal = portfolioInvestments
+      .filter((investment) => getInvestmentFilter(investment) === 'commodity')
+      .reduce((sum, investment) => sum + (toNumber(investment.principal_amount) || toNumber(investment.quantity_units) * toNumber(investment.buy_price_per_unit)), 0);
+    const equityTotal = [...activeManualMarketHoldings, ...activeTradeHoldings].reduce((sum, item) => sum + toNumber(item.trackedValue), 0);
+
+    const allHoldings = [...fixedHoldings, ...activeTradeHoldings];
     const totalInvestments = fixedHoldings.reduce((sum, item) => sum + item.trackedValue, 0);
     const totalPortfolioTrackedValue = allHoldings.reduce((sum, item) => sum + item.trackedValue, 0);
-    const totalTradeGain = equityHoldings.reduce((sum, item) => sum + item.realizedGain, 0);
+    const totalActiveUnrealizedGain = [...activeManualMarketHoldings, ...activeTradeHoldings].reduce((sum, item) => sum + toNumber(item.unrealizedGain), 0);
+    const totalRealizedGain = pastTradeHoldings.reduce((sum, item) => sum + toNumber(item.realizedGain), 0);
+    const dashboardPortfolioHoldings =
+      [...activeManualMarketHoldings, ...activeTradeHoldings].length > 0
+        ? [...activeManualMarketHoldings, ...activeTradeHoldings].sort((a, b) => b.sortMetric - a.sortMetric).slice(0, 2)
+        : [...fixedHoldings].sort((a, b) => b.sortMetric - a.sortMetric).slice(0, 2);
 
     const activeLoanBreakdown = loans.filter((loan) => {
       if (!loan.end_date) return true;
@@ -485,8 +679,8 @@ export default function Dashboard() {
       const bucket = classifyInvestment(investment.investment_type, investment.asset_category, investment.commodity_type);
       allocationMap.set(bucket, (allocationMap.get(bucket) || 0) + toNumber(investment.principal_amount));
     });
-    if (equityHoldings.length > 0) {
-      allocationMap.set('Equity', (allocationMap.get('Equity') || 0) + equityHoldings.reduce((sum, item) => sum + item.trackedValue, 0));
+    if (activeTradeHoldings.length > 0) {
+      allocationMap.set('Equity', (allocationMap.get('Equity') || 0) + activeTradeHoldings.reduce((sum, item) => sum + item.trackedValue, 0));
     }
 
     const allocationData = Array.from(allocationMap.entries()).map(([name, value], index) => ({
@@ -496,8 +690,9 @@ export default function Dashboard() {
     }));
     const allocationTotal = allocationData.reduce((sum, item) => sum + item.value, 0);
 
+    const fyExpenses = expenses.filter((expense) => isWithinRange(expense.transaction_date, fyStart, fyEnd));
     const expenseMap = new Map<string, number>();
-    expenses.forEach((expense) => {
+    fyExpenses.forEach((expense) => {
       const category = expense.category_name || expense.category || 'Other';
       expenseMap.set(category, (expenseMap.get(category) || 0) + toNumber(expense.amount));
     });
@@ -551,7 +746,7 @@ export default function Dashboard() {
     const taxBenefitByCategory = investments.reduce((acc, investment) => {
       const category = inferTaxCategoryFromInvestment(investment);
       if (!category) return acc;
-      if (!isWithinRange(investment.start_date, fyStart, fyEnd)) return acc;
+      if (!isWithinRange(getInvestmentContributionDate(investment), fyStart, fyEnd)) return acc;
       acc[category] = (acc[category] || 0) + toNumber(investment.principal_amount);
       return acc;
     }, {} as Record<string, number>);
@@ -574,6 +769,7 @@ export default function Dashboard() {
     const totalDeductionBenefits = total80CInvested + total80CCD1BInvested + total80DInvested + fyProfessionalTaxTracked;
     const estimatedTaxableIncome = Math.max(0, currentYearIncome - totalDeductionBenefits);
     const estimatedTaxCalculated = estimateTaxByNewRegime(estimatedTaxableIncome);
+    const estimatedTaxBracket = getTaxBracketLabel(estimatedTaxableIncome);
 
     const taxOptimizationRows = [
       {
@@ -624,18 +820,72 @@ export default function Dashboard() {
     ];
 
     const trackedTaxRows = [
-      { label: 'Tax collected', value: fyTdsTracked },
-      { label: 'Tax calculated', value: estimatedTaxCalculated },
-      { label: 'TDS tracked', value: fyTdsTracked },
-      { label: 'PF tracked', value: fyPfTracked },
-      { label: 'NPS tracked', value: fyNpsTracked },
-      { label: 'HRA tracked', value: fyHraTracked },
-      { label: 'Professional tax tracked', value: fyProfessionalTaxTracked },
-      { label: 'Other deductions tracked', value: fyOtherDeductionsTracked },
-      { label: '80C contributions', value: taxBenefitByCategory['80C'] || 0 },
-      { label: '80CCD(1B) contributions', value: total80CCD1BInvested },
-      { label: '80D health premiums', value: taxBenefitByCategory['80D'] || 0 },
-    ].filter((row) => row.value > 0);
+      {
+        label: 'Taxable income',
+        value: estimatedTaxableIncome,
+        info: `Selected FY total income (${currencyFormatter.format(currentYearIncome)}) minus tracked deduction benefits (${currencyFormatter.format(totalDeductionBenefits)}). Deductions considered here: 80C, 80CCD(1B), 80D, and professional tax.`,
+      },
+      {
+        label: 'Tax bracket',
+        value: estimatedTaxBracket,
+        info: `Estimated from selected FY taxable income of ${currencyFormatter.format(estimatedTaxableIncome)} using the app's current new-regime slab mapping.`,
+      },
+      {
+        label: 'Tax collected',
+        value: fyTdsTracked,
+        info: `Same as tracked TDS from salary entries in ${selectedFy.label}. This comes from the tax deduction field recorded across salary history months that overlap the selected FY.`,
+      },
+      {
+        label: 'Tax calculated',
+        value: estimatedTaxCalculated,
+        info: `Calculated on selected FY taxable income of ${currencyFormatter.format(estimatedTaxableIncome)} using the app's new-regime tax slab helper. This is an estimate, not a final filing value.`,
+      },
+      {
+        label: 'TDS tracked',
+        value: fyTdsTracked,
+        info: `Sum of salary tax_deduction values for salary records overlapping ${selectedFy.label}.`,
+      },
+      {
+        label: 'PF tracked',
+        value: fyPfTracked,
+        info: `Sum of salary PF deductions across the salary months that fall within ${selectedFy.label}. This PF amount is also counted toward 80C in tax optimisation.`,
+      },
+      {
+        label: 'NPS tracked',
+        value: fyNpsTracked,
+        info: `Sum of salary NPS deductions across the salary months that fall within ${selectedFy.label}. This amount is also counted toward 80CCD(1B) in tax optimisation.`,
+      },
+      {
+        label: 'HRA tracked',
+        value: fyHraTracked,
+        info: `Sum of HRA amounts from salary records overlapping ${selectedFy.label}.`,
+      },
+      {
+        label: 'Professional tax tracked',
+        value: fyProfessionalTaxTracked,
+        info: `Sum of professional tax values from salary records overlapping ${selectedFy.label}. This amount is also included in the deduction total used for taxable income.`,
+      },
+      {
+        label: 'Other deductions tracked',
+        value: fyOtherDeductionsTracked,
+        info: `Sum of the other_deductions field from salary records overlapping ${selectedFy.label}. This is shown for visibility but is not currently added into the taxable-income deduction total.`,
+      },
+      {
+        label: '80C contributions',
+        value: taxBenefitByCategory['80C'] || 0,
+        info: `Manual or investment-linked 80C entries dated within ${selectedFy.label}, excluding PF. PF is shown separately under PF tracked and then added into the 80C total in tax optimisation.`,
+      },
+      {
+        label: '80CCD(1B) contributions',
+        value: total80CCD1BInvested,
+        info: `Selected FY 80CCD(1B) entries plus tracked NPS salary deductions. Total considered here: ${currencyFormatter.format(total80CCD1BInvested)}.`,
+      },
+      {
+        label: '80D health premiums',
+        value: taxBenefitByCategory['80D'] || 0,
+        info: `Tracked 80D entries dated within ${selectedFy.label}, typically health insurance premiums.`,
+      },
+    ].filter((row) => typeof row.value === 'string' || row.value > 0);
 
     const goalProgressRows = goals
       .map((goal) => {
@@ -676,26 +926,49 @@ export default function Dashboard() {
             : 'md:grid-cols-4';
 
     const monthlyDebtRatioPercent = fyAverageMonthlyIncome > 0 ? (totalMonthlyEmi / fyAverageMonthlyIncome) * 100 : 0;
-    const savingsRateScore = clampScore(currentYearIncome > 0 ? (Math.max(0, currentYearIncome - currentYearExpenses) / currentYearIncome) * 100 : 0);
+    const savingsRateScore = clampScore(
+      rollingSixMonthAverageSalary > 0
+        ? (Math.max(0, rollingSixMonthAverageSalary - rollingSixMonthAverageExpense) / rollingSixMonthAverageSalary) * 100
+        : 0
+    );
     const debtScore = clampScore(100 - monthlyDebtRatioPercent * 2);
     const investmentCoverageScore = clampScore(currentYearIncome > 0 ? (totalPortfolioTrackedValue / currentYearIncome) * 10 : 0);
-    const emergencyFundCurrent = portfolioInvestments
-      .filter((investment) => {
-        const type = String(investment.investment_type || '').toLowerCase();
-        return type.includes('fd') || type.includes('liquid') || type.includes('cash');
-      })
-      .reduce((sum, investment) => sum + toNumber(investment.principal_amount), 0);
-    const emergencyFundTarget = fyAverageMonthlyExpenses * 6;
+    const emergencyGoalRows = goals
+      .filter((goal) => isEmergencyFundGoal(goal))
+      .map((goal) => ({
+        id: goal.id,
+        name: goal.goal_name || goal.goal_type || 'Emergency Fund',
+        currentAmount: toNumber(goal.current_amount),
+        targetAmount: toNumber(goal.target_amount),
+        monthlyContribution: toNumber(goal.monthly_contribution),
+      }));
+    const emergencyFundCurrent = emergencyGoalRows.reduce((sum, goal) => sum + goal.currentAmount, 0);
+    const emergencyFundTarget = rollingSixMonthExpenseTotal;
     const emergencyFundScore = clampScore(
       emergencyFundTarget > 0 ? (emergencyFundCurrent / emergencyFundTarget) * 100 : 0
     );
     const computedHealthScore = Math.round((savingsRateScore + debtScore + investmentCoverageScore + emergencyFundScore) / 4);
-    const storedHealthScore = healthScores.find((score: any) => score.fy_id === selectedFy.id);
-    const healthScore = storedHealthScore ? Math.round(toNumber(storedHealthScore.overall)) : computedHealthScore;
+    const healthScore = computedHealthScore;
+
+    const investmentCoverageItems = [
+      ...portfolioInvestments.map((investment) => ({
+        id: `investment-${investment.id}`,
+        name: investment.instrument_name || investment.commodity_type || investment.investment_type || 'Investment',
+        amount: toNumber(investment.principal_amount) || toNumber(investment.quantity_units) * toNumber(investment.buy_price_per_unit),
+        meta: investment.asset_category || 'Fixed investment',
+      })),
+      ...activeTradeHoldings.map((holding) => ({
+        id: holding.id,
+        name: holding.name,
+        amount: holding.trackedValue,
+        meta: `${holding.trades || 0} trade${holding.trades === 1 ? '' : 's'} uploaded`,
+      })),
+    ].filter((item) => item.amount > 0);
 
     return {
       name: userProfile.name || userProfile.email || 'User',
       initials: getInitials(userProfile.name, userProfile.email),
+      monthlySalary: fyAverageMonthlySalary,
       monthlyIncome: fyAverageMonthlyIncome,
       monthlyExpenses: fyAverageMonthlyExpenses,
       monthlySavings: fyAverageMonthlySavings,
@@ -708,13 +981,19 @@ export default function Dashboard() {
       totalLoanOutstanding,
       totalMonthlyEmi,
       activeLoans: activeLoanBreakdown.length,
-      totalTradeGain,
+      totalActiveUnrealizedGain,
+      totalRealizedGain,
       goals,
       loanBreakdown: activeLoanBreakdown,
       allHoldings,
-      topEquityHoldings: equityHoldings.sort((a, b) => b.sortMetric - a.sortMetric).slice(0, 2),
+      dashboardPortfolioHoldings,
       allocationData,
       allocationTotal,
+      portfolioBreakdown: {
+        equityTotal,
+        fixedDepositTotal,
+        commodityTotal,
+      },
       expenseBreakdown,
       monthlyTrend,
       trackedTaxRows,
@@ -725,10 +1004,41 @@ export default function Dashboard() {
       loanGridClassName,
       healthScore,
       healthScoreBreakdown: {
-        savingsRateScore: storedHealthScore ? toNumber(storedHealthScore.savings_rate_score) : savingsRateScore,
-        debtScore: storedHealthScore ? toNumber(storedHealthScore.debt_score) : debtScore,
-        investmentCoverageScore: storedHealthScore ? toNumber(storedHealthScore.investment_coverage_score) : investmentCoverageScore,
-        emergencyFundScore: storedHealthScore ? toNumber(storedHealthScore.emergency_fund_score) : emergencyFundScore,
+        savingsRateScore,
+        debtScore,
+        investmentCoverageScore,
+        emergencyFundScore,
+      },
+      healthScoreDetails: {
+        savings: {
+          monthlyIncome: rollingSixMonthAverageSalary,
+          monthlyExpenses: rollingSixMonthAverageExpense,
+          monthlySavings: rollingSixMonthAverageSalary - rollingSixMonthAverageExpense,
+          annualIncome: currentYearIncome,
+          annualExpenses: currentYearExpenses,
+        },
+        debt: {
+          totalMonthlyEmi,
+          monthlyDebtRatioPercent,
+          loans: activeLoanBreakdown.map((loan) => ({
+            id: loan.id,
+            name: loan.loan_type || 'Loan',
+            monthlyEmi: toNumber(loan.monthly_emi),
+            pendingAmount: loan.pendingAmount,
+            endDate: loan.end_date || '',
+          })),
+        },
+        investments: {
+          totalPortfolioTrackedValue,
+          annualIncome: currentYearIncome,
+          items: investmentCoverageItems,
+        },
+        emergency: {
+          currentAmount: emergencyFundCurrent,
+          targetAmount: emergencyFundTarget,
+          monthlyExpenses: rollingSixMonthAverageExpense,
+          goals: emergencyGoalRows,
+        },
       },
       selectedFyLabel: selectedFy.label,
       hasAnyData:
@@ -742,7 +1052,7 @@ export default function Dashboard() {
         loans.length > 0 ||
         equityTrades.length > 0,
     };
-  }, [equityTrades, expenses, financialYears, goals, healthScores, investments, loans, otherIncomes, salaryHistory, selectedFyId, taxBenefits, userProfile]);
+  }, [equityTrades, expenses, financialYears, goals, investments, loans, otherIncomes, salaryHistory, selectedFyId, taxBenefits, userProfile]);
 
   if (!data) return null;
 
@@ -801,7 +1111,7 @@ export default function Dashboard() {
               <>
                 <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                   <MetricCard title="Net worth" value={data.netWorth} />
-                  <MetricCard title={`${data.selectedFyLabel} avg monthly income`} value={data.monthlyIncome} />
+                  <MetricCard title={`${data.selectedFyLabel} avg monthly salary`} value={data.monthlySalary} />
                   <MetricCard title={`${data.selectedFyLabel} salary`} value={data.annualSalary} />
                   <MetricCard title={`${data.selectedFyLabel} total income`} value={data.currentYearIncome} />
                 </section>
@@ -892,7 +1202,7 @@ export default function Dashboard() {
                     <div className="flex items-center justify-between gap-4">
                       <div>
                         <h2 className="text-xl font-bold text-slate-800">Portfolio summary</h2>
-                        <p className="mt-1 text-sm text-slate-500">Top two equity stocks from your uploaded P&amp;L statement.</p>
+                        <p className="mt-1 text-sm text-slate-500">Only current holdings are shown here, capped to the top 2 positions on the dashboard.</p>
                       </div>
                       <button
                         type="button"
@@ -904,26 +1214,48 @@ export default function Dashboard() {
                     </div>
                     <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
                       <div className="rounded-2xl bg-slate-50 px-4 py-4">
-                        <p className="text-sm text-slate-500">Top stocks shown</p>
-                        <p className="mt-2 text-2xl font-bold text-slate-800">{data.topEquityHoldings.length}</p>
-                      </div>
-                      <div className="rounded-2xl bg-slate-50 px-4 py-4">
-                        <p className="text-sm text-slate-500">Total portfolio value</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm text-slate-500">Total value</p>
+                          <div className="group relative">
+                            <Info className="h-4 w-4 cursor-help text-slate-400" />
+                            <div className="pointer-events-none absolute left-0 top-6 z-10 hidden w-72 rounded-2xl border border-slate-200 bg-white p-3 text-xs text-slate-600 shadow-lg group-hover:block">
+                              <p className="font-medium text-slate-800">Portfolio value breakdown</p>
+                              <div className="mt-2 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span>Equity / Mutual Funds / ETFs</span>
+                                  <span>{currencyFormatter.format(data.portfolioBreakdown.equityTotal)}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span>FDs / Debt holdings</span>
+                                  <span>{currencyFormatter.format(data.portfolioBreakdown.fixedDepositTotal)}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span>Commodities</span>
+                                  <span>{currencyFormatter.format(data.portfolioBreakdown.commodityTotal)}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                         <p className="mt-2 text-2xl font-bold text-slate-800">{currencyFormatter.format(data.totalPortfolioTrackedValue)}</p>
                       </div>
                       <div className="rounded-2xl bg-slate-50 px-4 py-4">
+                        <p className="text-sm text-slate-500">Unrealized gains</p>
+                        <p className={`mt-2 text-2xl font-bold ${data.totalActiveUnrealizedGain >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{currencyFormatter.format(data.totalActiveUnrealizedGain)}</p>
+                      </div>
+                      <div className="rounded-2xl bg-slate-50 px-4 py-4">
                         <p className="text-sm text-slate-500">Realized gain</p>
-                        <p className="mt-2 text-2xl font-bold text-emerald-600">{currencyFormatter.format(data.totalTradeGain)}</p>
+                        <p className={`mt-2 text-2xl font-bold ${data.totalRealizedGain >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{currencyFormatter.format(data.totalRealizedGain)}</p>
                       </div>
                     </div>
-                    {data.topEquityHoldings.length > 0 ? (
+                    {data.dashboardPortfolioHoldings.length > 0 ? (
                       <div className="mt-6 space-y-4">
-                        {data.topEquityHoldings.map((holding: any) => (
+                        {data.dashboardPortfolioHoldings.map((holding: any) => (
                           <div key={holding.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
                             <div className="flex items-start justify-between gap-4">
                               <div>
                                 <p className="font-semibold text-slate-800">{holding.name}</p>
-                                <p className="text-sm text-slate-500">Equity from P&amp;L statement</p>
+                                <p className="text-sm text-slate-500">{holding.assetClass || 'Holding'} currently in portfolio</p>
                               </div>
                               <div className="text-right">
                                 <p className="text-xs text-slate-500">Tracked value</p>
@@ -931,19 +1263,22 @@ export default function Dashboard() {
                               </div>
                             </div>
                             <div className="mt-3 flex items-center justify-between text-sm">
-                              <span className="text-slate-500">Realized gain</span>
-                              <span className="font-medium text-emerald-600">{currencyFormatter.format(holding.realizedGain)}</span>
+                              <span className="text-slate-500">Unrealized gain</span>
+                              <span className={`font-medium ${toNumber(holding.unrealizedGain) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{currencyFormatter.format(toNumber(holding.unrealizedGain))}</span>
                             </div>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <EmptyState text="Upload a P&L statement to see your top equity stocks here." />
+                      <EmptyState text="Add or upload active holdings to see current portfolio positions here." />
                     )}
                   </Card>
 
                   <Card className="xl:col-span-6">
-                    <h2 className="text-xl font-bold text-slate-800">Expense breakdown</h2>
+                    <div>
+                      <h2 className="text-xl font-bold text-slate-800">Expense breakdown</h2>
+                      <p className="mt-1 text-sm text-slate-500">{data.selectedFyLabel} spending based only on tracked entries in that year.</p>
+                    </div>
                     {data.expenseBreakdown.length > 0 ? (
                       <div className="mt-6 space-y-4">
                         {data.expenseBreakdown.map((item, index) => {
@@ -1036,21 +1371,36 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <div className="mt-6 space-y-4">
-                      {[
-                        { label: 'Savings', value: data.healthScoreBreakdown.savingsRateScore, color: '#10b981' },
-                        { label: 'Debt', value: data.healthScoreBreakdown.debtScore, color: '#f59e0b' },
-                        { label: 'Investments', value: data.healthScoreBreakdown.investmentCoverageScore, color: '#6366f1' },
-                        { label: 'Emergency', value: data.healthScoreBreakdown.emergencyFundScore, color: '#ef4444' },
-                      ].map((item) => (
-                        <div key={item.label} className="grid grid-cols-[120px_1fr_56px] items-center gap-4">
-                          <span className="text-sm font-medium text-slate-700">{item.label}</span>
-                          <div className="h-2 rounded-full bg-slate-100">
-                            <div
-                              className="h-2 rounded-full"
-                              style={{ width: `${Math.max(0, Math.min(100, item.value))}%`, backgroundColor: item.color }}
-                            />
+                      {([
+                        { id: 'savings', label: 'Savings', value: data.healthScoreBreakdown.savingsRateScore, color: '#10b981' },
+                        { id: 'debt', label: 'Debt', value: data.healthScoreBreakdown.debtScore, color: '#f59e0b' },
+                        { id: 'investments', label: 'Investments', value: data.healthScoreBreakdown.investmentCoverageScore, color: '#6366f1' },
+                        { id: 'emergency', label: 'Emergency', value: data.healthScoreBreakdown.emergencyFundScore, color: '#ef4444' },
+                      ] as const).map((item) => (
+                        <div key={item.label} className="space-y-3">
+                          <div className="grid grid-cols-[120px_1fr_88px] items-center gap-4">
+                            <button
+                              type="button"
+                              onClick={() => setActiveHealthInfo((current) => current === item.id ? null : item.id)}
+                              className="inline-flex items-center gap-1 text-left text-sm font-medium text-slate-700 hover:text-slate-900"
+                            >
+                              <span>{item.label}</span>
+                              <Info className="h-4 w-4 text-slate-400" />
+                            </button>
+                            <div className="h-2 rounded-full bg-slate-100">
+                              <div
+                                className="h-2 rounded-full"
+                                style={{ width: `${Math.max(0, Math.min(100, item.value))}%`, backgroundColor: item.color }}
+                              />
+                            </div>
+                            <span className="text-right text-sm font-semibold text-slate-800">{Math.round(item.value)}</span>
                           </div>
-                          <span className="text-right text-sm font-semibold text-slate-800">{Math.round(item.value)}</span>
+                          {activeHealthInfo === item.id ? (
+                            <HealthInfoPanel
+                              kind={item.id}
+                              details={data.healthScoreDetails}
+                            />
+                          ) : null}
                         </div>
                       ))}
                     </div>
@@ -1109,8 +1459,18 @@ export default function Dashboard() {
                       <div className="mt-6 space-y-4">
                         {data.trackedTaxRows.map((row) => (
                           <div key={row.label} className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3 text-sm">
-                            <span className="text-slate-600">{row.label}</span>
-                            <span className="font-semibold text-slate-800">{currencyFormatter.format(row.value)}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-slate-600">{row.label}</span>
+                              <div className="group relative">
+                                <Info className="h-4 w-4 cursor-help text-slate-400" />
+                                <div className="pointer-events-none absolute left-0 top-6 z-10 hidden w-80 rounded-2xl border border-slate-200 bg-white p-3 text-xs text-slate-600 shadow-lg group-hover:block">
+                                  {row.info}
+                                </div>
+                              </div>
+                            </div>
+                            <span className="font-semibold text-slate-800">
+                              {typeof row.value === 'number' ? currencyFormatter.format(row.value) : row.value}
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -1187,7 +1547,15 @@ export default function Dashboard() {
         {page === 'salary' ? <SalaryPage salaryHistory={salaryHistory} refreshProfile={refreshProfile} /> : null}
         {page === 'investments' ? <InvestmentsPage investments={investments} equityTrades={equityTrades} refreshProfile={refreshProfile} /> : null}
         {page === 'goals' ? <GoalsPage goals={goals} refreshProfile={refreshProfile} /> : null}
-        {page === 'tax' ? <TaxBenefitsPage taxBenefits={taxBenefits} refreshProfile={refreshProfile} taxBenefitDraft={taxBenefitDraft} clearTaxBenefitDraft={() => setTaxBenefitDraft(null)} /> : null}
+        {page === 'tax' ? (
+          <TaxBenefitsPage
+            taxBenefits={taxBenefits}
+            refreshProfile={refreshProfile}
+            taxBenefitDraft={taxBenefitDraft}
+            clearTaxBenefitDraft={() => setTaxBenefitDraft(null)}
+            selectedFy={financialYears.find((fy) => fy.id === selectedFyId) || financialYears[0]}
+          />
+        ) : null}
         {page === 'loans' ? <LoansPage loans={loans} refreshProfile={refreshProfile} /> : null}
         {page === 'expenses' ? <ExpensesPage expenses={expenses} refreshProfile={refreshProfile} /> : null}
       </div>
@@ -1427,6 +1795,7 @@ function InvestmentsPage({
   const [editingId, setEditingId] = useState<number | null>(null);
   const [investment, setInvestment] = useState({
     type: 'Fixed Deposit',
+    instrumentName: '',
     assetCategory: 'Debt',
     commodityType: 'Gold',
     principal: '',
@@ -1440,36 +1809,41 @@ function InvestmentsPage({
   });
   const portfolioInvestments = investments.filter((item) => !isInsuranceType(item.investment_type));
   const filteredInvestments = portfolioInvestments.filter((item) => getInvestmentFilter(item) === filter);
-  const filteredTrades = equityTrades.filter((trade) => getTradeFilter(trade) === filter);
+  const tradeSnapshots = getTradeSnapshots(equityTrades.filter((trade) => getTradeFilter(trade) === filter));
+  const activeTradeRecords = tradeSnapshots.active;
+  const pastTradeRecords = tradeSnapshots.past;
   const combinedRecords = [
     ...filteredInvestments.map((item) => ({ kind: 'investment' as const, item })),
-    ...filteredTrades.map((item) => ({ kind: 'trade' as const, item })),
+    ...activeTradeRecords.map((item) => ({ kind: 'active_trade' as const, item })),
+    ...pastTradeRecords.map((item) => ({ kind: 'past_trade' as const, item })),
   ];
   const pagedRecords = combinedRecords.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const isCommodity = investment.type === 'Commodity';
+  const isMarketBased = ['Equity', 'Mutual Fund', 'ETF'].includes(investment.type);
 
   const saveInvestment = async () => {
     try {
       setSaving('investment');
       setStatus('');
-      const derivedPrincipal = isCommodity
+      const derivedPrincipal = (isCommodity || isMarketBased)
         ? (Number(investment.quantityUnits) || 0) * (Number(investment.buyPricePerUnit) || 0)
         : Number(investment.principal) || 0;
-      const startDate = isCommodity ? (investment.purchaseDate || investment.startDate) : investment.startDate;
-      const maturityDate = isCommodity ? null : addMonthsToDate(investment.startDate, Number(investment.tenureMonths));
-      const maturityAmount = isCommodity ? null : calculateFdMaturityAmount(derivedPrincipal, Number(investment.rate), Number(investment.tenureMonths));
+      const startDate = (isCommodity || isMarketBased) ? (investment.purchaseDate || investment.startDate) : investment.startDate;
+      const maturityDate = (isCommodity || isMarketBased) ? null : addMonthsToDate(investment.startDate, Number(investment.tenureMonths));
+      const maturityAmount = (isCommodity || isMarketBased) ? null : calculateFdMaturityAmount(derivedPrincipal, Number(investment.rate), Number(investment.tenureMonths));
       const payload = {
         investment_type: investment.type,
-        asset_category: isCommodity ? 'Commodity' : investment.assetCategory,
+        instrument_name: isMarketBased ? investment.instrumentName || null : null,
+        asset_category: isCommodity ? 'Commodity' : isMarketBased ? investment.type : investment.assetCategory,
         commodity_type: isCommodity ? investment.commodityType : null,
         principal_amount: derivedPrincipal,
-        interest_rate: isCommodity ? 0 : Number(investment.rate) || 0,
-        quantity_units: isCommodity ? Number(investment.quantityUnits) || 0 : null,
-        buy_price_per_unit: isCommodity ? Number(investment.buyPricePerUnit) || 0 : null,
+        interest_rate: (isCommodity || isMarketBased) ? 0 : Number(investment.rate) || 0,
+        quantity_units: (isCommodity || isMarketBased) ? Number(investment.quantityUnits) || 0 : null,
+        buy_price_per_unit: (isCommodity || isMarketBased) ? Number(investment.buyPricePerUnit) || 0 : null,
         start_date: startDate,
-        purchase_date: isCommodity ? startDate : null,
+        purchase_date: (isCommodity || isMarketBased) ? startDate : null,
         maturity_date: maturityDate,
-        tenure_months: isCommodity ? null : Number(investment.tenureMonths) || 0,
+        tenure_months: (isCommodity || isMarketBased) ? null : Number(investment.tenureMonths) || 0,
         maturity_amount: maturityAmount,
         tax_exemption_category: investment.taxExemptionCategory || null,
       };
@@ -1480,6 +1854,7 @@ function InvestmentsPage({
       }
       setInvestment({
         type: 'Fixed Deposit',
+        instrumentName: '',
         assetCategory: 'Debt',
         commodityType: 'Gold',
         principal: '',
@@ -1506,24 +1881,47 @@ function InvestmentsPage({
       setSaving('trades');
       setStatus('');
       const trades = await parseEquityPL(file);
-      await Promise.all(trades.map((trade) => apiClient.addTrade({
-        ticker: trade.symbol,
-        trade_type: 'SELL',
-        quantity: trade.quantity,
-        price_per_unit: trade.sell_price,
-        execution_date: trade.sell_date || trade.buy_date,
-        brokerage_fees: 0,
-        ticker_name: trade.symbol,
+      const results = await Promise.all(trades.map((trade) => apiClient.addTrade(buildTradePayloadFromParsedTrade({
+        ...trade,
         asset_class: trade.asset_class || getTradeAssetClass(trade),
-        buy_date: trade.buy_date,
-        sell_date: trade.sell_date,
-        realized_gain: trade.realized_gain,
-        holding_type: trade.holding_type,
-      })));
+      }))));
+      const inserted = results.filter((result) => result?.action === 'inserted').length;
+      const updated = results.filter((result) => result?.action === 'updated').length;
       await refreshProfile();
-      setStatus('P&L uploaded.');
+      setStatus(`P&L uploaded. ${inserted} new rows added, ${updated} matching rows refreshed.`);
     } catch (error: any) {
       setStatus(error.message || 'Failed to upload P&L.');
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const deleteInvestment = async (id: number) => {
+    try {
+      setSaving(`delete-investment-${id}`);
+      setStatus('');
+      await apiClient.deleteInvestment(id);
+      if (editingId === id) {
+        setEditingId(null);
+        setInvestment({
+          type: 'Fixed Deposit',
+          instrumentName: '',
+          assetCategory: 'Debt',
+          commodityType: 'Gold',
+          principal: '',
+          rate: '',
+          quantityUnits: '',
+          buyPricePerUnit: '',
+          startDate: '',
+          purchaseDate: '',
+          tenureMonths: '',
+          taxExemptionCategory: '',
+        });
+      }
+      await refreshProfile();
+      setStatus('Investment deleted.');
+    } catch (error: any) {
+      setStatus(error.message || 'Failed to delete investment.');
     } finally {
       setSaving(null);
     }
@@ -1556,15 +1954,17 @@ function InvestmentsPage({
         <div className="mt-6 space-y-4">
           {pagedRecords.map((record) => record.kind === 'investment' ? (
             <div key={`fixed-${record.item.id}`} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="font-semibold text-slate-800">{record.item.commodity_type || record.item.investment_type}</p>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                  <p className="font-semibold text-slate-800">{record.item.instrument_name || record.item.commodity_type || record.item.investment_type}</p>
                   <p className="text-sm text-slate-500">
                     {record.item.investment_type === 'Commodity'
                       ? `${record.item.commodity_type || 'Commodity'} • Total value ${currencyFormatter.format(toNumber(record.item.principal_amount))}`
+                      : ['Equity', 'Mutual Fund', 'ETF'].includes(record.item.investment_type)
+                        ? `${record.item.investment_type} • ${toNumber(record.item.quantity_units)} units at ${currencyFormatter.format(toNumber(record.item.buy_price_per_unit))}`
                       : `${toNumber(record.item.interest_rate)}% interest`}
                   </p>
-                  {record.item.investment_type === 'Commodity' && toNumber(record.item.quantity_units) > 0 && toNumber(record.item.buy_price_per_unit) > 0 ? (
+                  {(record.item.investment_type === 'Commodity' || ['Equity', 'Mutual Fund', 'ETF'].includes(record.item.investment_type)) && toNumber(record.item.quantity_units) > 0 && toNumber(record.item.buy_price_per_unit) > 0 ? (
                     <p className="mt-1 text-xs text-slate-500">
                       {toNumber(record.item.quantity_units)} units at {currencyFormatter.format(toNumber(record.item.buy_price_per_unit))}
                     </p>
@@ -1575,44 +1975,76 @@ function InvestmentsPage({
                   <p className="font-semibold text-slate-800">{currencyFormatter.format(toNumber(record.item.principal_amount))}</p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setMode('fd');
-                  setEditingId(record.item.id);
-                  setInvestment({
-                    type: record.item.investment_type || 'Fixed Deposit',
-                    assetCategory: record.item.asset_category || 'Debt',
-                    commodityType: record.item.commodity_type || 'Gold',
-                    principal: String(toNumber(record.item.principal_amount) || ''),
-                    rate: String(toNumber(record.item.interest_rate) || ''),
-                    quantityUnits: String(toNumber(record.item.quantity_units) || ''),
-                    buyPricePerUnit: String(toNumber(record.item.buy_price_per_unit) || ''),
-                    startDate: record.item.start_date || '',
-                    purchaseDate: record.item.purchase_date || '',
-                    tenureMonths: String(toNumber(record.item.tenure_months) || ''),
-                    taxExemptionCategory: record.item.tax_exemption_category || '',
-                  });
-                }}
-                className="mt-3 text-sm font-medium text-indigo-600 hover:underline"
-              >
-                Edit
-              </button>
+              <div className="mt-3 flex items-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('fd');
+                    setEditingId(record.item.id);
+                    setInvestment({
+                      type: record.item.investment_type || 'Fixed Deposit',
+                      instrumentName: record.item.instrument_name || '',
+                      assetCategory: record.item.asset_category || 'Debt',
+                      commodityType: record.item.commodity_type || 'Gold',
+                      principal: String(toNumber(record.item.principal_amount) || ''),
+                      rate: String(toNumber(record.item.interest_rate) || ''),
+                      quantityUnits: String(toNumber(record.item.quantity_units) || ''),
+                      buyPricePerUnit: String(toNumber(record.item.buy_price_per_unit) || ''),
+                      startDate: record.item.start_date || '',
+                      purchaseDate: record.item.purchase_date || '',
+                      tenureMonths: String(toNumber(record.item.tenure_months) || ''),
+                      taxExemptionCategory: record.item.tax_exemption_category || '',
+                    });
+                  }}
+                  className="text-sm font-medium text-indigo-600 hover:underline"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm('Delete this investment?')) void deleteInvestment(record.item.id);
+                  }}
+                  disabled={saving === `delete-investment-${record.item.id}`}
+                  className="inline-flex items-center gap-1 text-sm font-medium text-rose-600 hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </button>
+              </div>
             </div>
-          ) : (
-            <div key={`trade-${record.item.id}`} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+          ) : record.kind === 'active_trade' ? (
+            <div key={`trade-active-${record.item.id}`} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="font-semibold text-slate-800">{record.item.ticker_name || record.item.ticker}</p>
-                  <p className="text-sm text-slate-500">{getTradeAssetClass(record.item)} • {record.item.holding_type || 'Trade'}</p>
+                  <p className="font-semibold text-slate-800">{record.item.name}</p>
+                  <p className="text-sm text-slate-500">{record.item.assetClass} • Active holding</p>
                   <p className="mt-1 text-xs text-slate-500">
-                    {toNumber(record.item.quantity)} units at {currencyFormatter.format(toNumber(record.item.price_per_unit))}
+                    {toNumber(record.item.openQuantity)} units at {currencyFormatter.format(toNumber(record.item.currentPrice))}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-slate-500">Unrealized gain</p>
+                  <p className={`font-semibold ${toNumber(record.item.unrealizedGain) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    {currencyFormatter.format(toNumber(record.item.unrealizedGain))}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div key={`trade-past-${record.item.id}`} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="font-semibold text-slate-800">{record.item.name}</p>
+                  <p className="text-sm text-slate-500">{record.item.assetClass} • Past holding</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {toNumber(record.item.soldQuantity)} units exited
                   </p>
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-slate-500">Realized gain</p>
-                  <p className={`font-semibold ${toNumber(record.item.realized_gain) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                    {currencyFormatter.format(toNumber(record.item.realized_gain))}
+                  <p className={`font-semibold ${toNumber(record.item.realizedGain) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    {currencyFormatter.format(toNumber(record.item.realizedGain))}
                   </p>
                 </div>
               </div>
@@ -1646,6 +2078,16 @@ function InvestmentsPage({
                   Tracked value: {currencyFormatter.format((Number(investment.quantityUnits) || 0) * (Number(investment.buyPricePerUnit) || 0))}
                 </div>
               </>
+            ) : isMarketBased ? (
+              <>
+                <input value={investment.instrumentName} onChange={(e) => setInvestment({ ...investment, instrumentName: e.target.value })} placeholder={`${investment.type} name`} className="w-full rounded-xl border border-slate-300 px-3 py-2" />
+                <input type="number" value={investment.buyPricePerUnit} onChange={(e) => setInvestment({ ...investment, buyPricePerUnit: e.target.value })} placeholder="Average buy value per unit" className="w-full rounded-xl border border-slate-300 px-3 py-2" />
+                <input type="number" value={investment.quantityUnits} onChange={(e) => setInvestment({ ...investment, quantityUnits: e.target.value })} placeholder="Quantity / units" className="w-full rounded-xl border border-slate-300 px-3 py-2" />
+                <input type="date" value={investment.purchaseDate} onChange={(e) => setInvestment({ ...investment, purchaseDate: e.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2" />
+                <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                  Total invested value: {currencyFormatter.format((Number(investment.quantityUnits) || 0) * (Number(investment.buyPricePerUnit) || 0))}
+                </div>
+              </>
             ) : (
               <>
                 <input type="number" value={investment.principal} onChange={(e) => setInvestment({ ...investment, principal: e.target.value })} placeholder="Principal amount" className="w-full rounded-xl border border-slate-300 px-3 py-2" />
@@ -1664,7 +2106,7 @@ function InvestmentsPage({
         ) : null}
 
         {mode === 'trades' ? (
-          <div className="mt-6">
+          <div className="mt-6 space-y-3">
             <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 px-4 py-4 text-sm text-slate-600 hover:bg-slate-50">
               <Upload className="h-4 w-4" />
               Upload P&amp;L file
@@ -1679,6 +2121,9 @@ function InvestmentsPage({
                 }}
               />
             </label>
+            <p className="text-xs text-slate-500">
+              Multiple statement uploads are supported. Matching trades are refreshed instead of duplicated, and active holdings keep their latest uploaded market price when available.
+            </p>
           </div>
         ) : null}
 
@@ -1842,11 +2287,13 @@ function TaxBenefitsPage({
   refreshProfile,
   taxBenefitDraft,
   clearTaxBenefitDraft,
+  selectedFy,
 }: {
   taxBenefits: any[];
   refreshProfile: () => Promise<void>;
   taxBenefitDraft: { benefitCategory: string; entryType: string; description: string } | null;
   clearTaxBenefitDraft: () => void;
+  selectedFy: { id: string; label: string; start: Date; end: Date };
 }) {
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState('');
@@ -1859,7 +2306,8 @@ function TaxBenefitsPage({
     contributionDate: new Date().toISOString().split('T')[0],
     description: '',
   });
-  const pagedEntries = taxBenefits.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const fyTaxBenefits = taxBenefits.filter((entry) => isWithinRange(entry.contribution_date, selectedFy.start, selectedFy.end));
+  const pagedEntries = fyTaxBenefits.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   useEffect(() => {
     if (!taxBenefitDraft) return;
@@ -1871,6 +2319,10 @@ function TaxBenefitsPage({
     }));
     clearTaxBenefitDraft();
   }, [clearTaxBenefitDraft, taxBenefitDraft]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedFy.id]);
 
   const saveTaxBenefit = async () => {
     try {
@@ -1909,10 +2361,13 @@ function TaxBenefitsPage({
     <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
       <Card className="xl:col-span-7">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold text-slate-800">Tax benefit entries</h2>
+          <div>
+            <h2 className="text-xl font-bold text-slate-800">Tax benefit entries</h2>
+            <p className="mt-1 text-sm text-slate-500">{selectedFy.label} entries only.</p>
+          </div>
           {status ? <span className="text-sm text-indigo-600">{status}</span> : null}
         </div>
-        {taxBenefits.length > 0 ? (
+        {fyTaxBenefits.length > 0 ? (
           <div className="mt-6 space-y-4">
             {pagedEntries.map((entry) => (
               <div key={entry.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
@@ -1945,10 +2400,10 @@ function TaxBenefitsPage({
                 </button>
               </div>
             ))}
-            <PaginationControls total={taxBenefits.length} page={page} setPage={setPage} />
+            <PaginationControls total={fyTaxBenefits.length} page={page} setPage={setPage} />
           </div>
         ) : (
-          <EmptyState text="Add tax benefit entries such as 80C contributions or health insurance premiums." />
+          <EmptyState text={`No tax benefit entries found for ${selectedFy.label}.`} />
         )}
       </Card>
 
@@ -2280,6 +2735,86 @@ function SmallCard({ label, value }: { label: string; value: string }) {
       <p className="text-sm text-slate-500">{label}</p>
       <p className="mt-2 text-xl font-bold text-slate-800">{value}</p>
     </section>
+  );
+}
+
+function HealthInfoPanel({
+  kind,
+  details,
+}: {
+  kind: 'savings' | 'debt' | 'investments' | 'emergency';
+  details: any;
+}) {
+  if (kind === 'savings') {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+        <p className="font-medium text-slate-800">Savings score uses the last 6 months of average monthly salary minus the last 6 months of average monthly expenses.</p>
+        <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
+          <span>Avg income: {currencyFormatter.format(details.savings.monthlyIncome)}</span>
+          <span>Avg expenses: {currencyFormatter.format(details.savings.monthlyExpenses)}</span>
+          <span>Avg savings: {currencyFormatter.format(details.savings.monthlySavings)}</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (kind === 'debt') {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+        <p className="font-medium text-slate-800">Debt score is based on active-loan EMI burden versus average monthly income.</p>
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
+          <span>Total EMI counted: {currencyFormatter.format(details.debt.totalMonthlyEmi)}</span>
+          <span>Debt-to-income ratio: {details.debt.monthlyDebtRatioPercent.toFixed(1)}%</span>
+        </div>
+        <div className="mt-3 space-y-2">
+          {details.debt.loans.length > 0 ? details.debt.loans.map((loan: any) => (
+            <div key={loan.id} className="flex items-center justify-between rounded-xl bg-white px-3 py-2">
+              <span>{loan.name}</span>
+              <span>EMI {currencyFormatter.format(loan.monthlyEmi)} • Outstanding {currencyFormatter.format(Math.round(loan.pendingAmount))}</span>
+            </div>
+          )) : <span>No active loans are currently being counted.</span>}
+        </div>
+      </div>
+    );
+  }
+
+  if (kind === 'investments') {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+        <p className="font-medium text-slate-800">Investment score compares tracked portfolio value against selected-year income.</p>
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
+          <span>Portfolio counted: {currencyFormatter.format(details.investments.totalPortfolioTrackedValue)}</span>
+          <span>Income compared against: {currencyFormatter.format(details.investments.annualIncome)}</span>
+        </div>
+        <div className="mt-3 space-y-2">
+          {details.investments.items.length > 0 ? details.investments.items.map((item: any) => (
+            <div key={item.id} className="flex items-center justify-between rounded-xl bg-white px-3 py-2">
+              <span>{item.name} <span className="text-xs text-slate-400">({item.meta})</span></span>
+              <span>{currencyFormatter.format(item.amount)}</span>
+            </div>
+          )) : <span>No investments or uploaded equity trades are being counted yet.</span>}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+      <p className="font-medium text-slate-800">Emergency fund score uses goals whose name or type includes “Emergency”.</p>
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
+        <span>Current emergency corpus: {currencyFormatter.format(details.emergency.currentAmount)}</span>
+        <span>Target corpus: {currencyFormatter.format(details.emergency.targetAmount)}</span>
+        <span>Based on 6 months of expenses: {currencyFormatter.format(details.emergency.monthlyExpenses)}/month</span>
+      </div>
+      <div className="mt-3 space-y-2">
+        {details.emergency.goals.length > 0 ? details.emergency.goals.map((goal: any) => (
+          <div key={goal.id} className="flex items-center justify-between rounded-xl bg-white px-3 py-2">
+            <span>{goal.name}</span>
+            <span>{currencyFormatter.format(goal.currentAmount)} saved of {currencyFormatter.format(goal.targetAmount)}</span>
+          </div>
+        )) : <span>No emergency-fund goal is being counted right now. Add or update a goal named/type “Emergency Fund”.</span>}
+      </div>
+    </div>
   );
 }
 

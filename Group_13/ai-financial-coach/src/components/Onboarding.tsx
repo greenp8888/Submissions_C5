@@ -10,6 +10,7 @@ import { parseSalarySlip } from '../lib/agents/salaryParser';
 import { parseEquityPL, EquityTrade } from '../lib/agents/equityParser';
 import { parseExpenses, Expense } from '../lib/agents/expenseParser';
 import { apiClient } from '../lib/api';
+import { buildTradePayloadFromParsedTrade, deriveCurrentPriceFromParsedTrade, isParsedTradeExit, normalizeTradeAssetClass } from '../lib/tradeImport';
 
 const addMonthsToDate = (dateString: string, months: number) => {
   if (!dateString || !months) return '';
@@ -85,7 +86,6 @@ export default function Onboarding() {
 
   // Step 3: Equity Portfolio (Tax P&L)
   const [equityTrades, setEquityTrades] = useState<EquityTrade[]>([]);
-  const [totalEquityGain, setTotalEquityGain] = useState(0);
 
   // Step 4: Expenses (Bank Statement)
   const [parsedExpenses, setParsedExpenses] = useState<Expense[]>([]);
@@ -111,6 +111,27 @@ export default function Onboarding() {
   });
 
   const [isFinishing, setIsFinishing] = useState(false);
+  const tradeSummary = equityTrades.reduce((summary, trade) => {
+    const assetClass = normalizeTradeAssetClass(trade.asset_class);
+    const isExit = isParsedTradeExit(trade);
+
+    if (assetClass === 'Mutual Fund') summary.mutualFund += 1;
+    else if (assetClass === 'ETF') summary.etf += 1;
+    else summary.equity += 1;
+
+    if (isExit) {
+      summary.past += 1;
+      summary.realized += Number(trade.realized_gain) || 0;
+    } else {
+      summary.active += 1;
+      const quantity = Number(trade.quantity) || 0;
+      const currentPrice = deriveCurrentPriceFromParsedTrade(trade);
+      const buyPrice = Number(trade.buy_price) || 0;
+      summary.unrealized += (currentPrice - buyPrice) * quantity;
+    }
+
+    return summary;
+  }, { equity: 0, mutualFund: 0, etf: 0, active: 0, past: 0, realized: 0, unrealized: 0 });
 
   // File Handlers
   const onDropSalary = useCallback(async (acceptedFiles: File[]) => {
@@ -159,8 +180,6 @@ export default function Onboarding() {
     try {
       const trades = await parseEquityPL(file);
       setEquityTrades(trades);
-      const gain = trades.reduce((acc, curr) => acc + (curr.realized_gain || 0), 0);
-      setTotalEquityGain(gain);
       setIsProcessing(false);
     } catch (e) {
       setIsProcessing(false);
@@ -305,20 +324,10 @@ export default function Onboarding() {
           is_taxable: 1,
           date_received: income.date
         })),
-        ...equityTrades.map(trade => apiClient.addTrade({
-          ticker: trade.symbol,
-          trade_type: 'SELL', // Assuming realized gains come from sells
-          quantity: trade.quantity,
-          price_per_unit: trade.sell_price,
-          execution_date: trade.sell_date,
-          brokerage_fees: 0,
-          ticker_name: trade.symbol,
-          asset_class: 'Equity',
-          buy_date: trade.buy_date,
-          sell_date: trade.sell_date,
-          realized_gain: trade.realized_gain,
-          holding_type: trade.holding_type,
-        })),
+        ...equityTrades.map(trade => apiClient.addTrade(buildTradePayloadFromParsedTrade({
+          ...trade,
+          asset_class: trade.asset_class || 'Equity',
+        }))),
         ...parsedExpenses.map(exp => apiClient.addExpense({
           amount: exp.amount,
           transaction_date: exp.date,
@@ -584,19 +593,39 @@ export default function Onboarding() {
               <div className="md:col-span-8 bg-slate-50 p-6 rounded-xl border border-slate-200">
                 <div className="mb-6 p-4 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-medium text-slate-500 uppercase">Total Realized Gain</p>
-                    <p className={`text-2xl font-bold ${totalEquityGain >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>₹{totalEquityGain.toLocaleString()}</p>
+                    <p className="text-xs font-medium text-slate-500 uppercase">Realized Gain</p>
+                    <p className={`text-2xl font-bold ${tradeSummary.realized >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>₹{tradeSummary.realized.toLocaleString()}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-xs font-medium text-slate-500 uppercase">Trades Found</p>
                     <p className="text-2xl font-bold text-slate-800">{equityTrades.length}</p>
                   </div>
                 </div>
+                <div className="mb-4 grid grid-cols-2 gap-3 text-xs md:grid-cols-4">
+                  <div className="rounded-lg border border-slate-200 bg-white p-3">
+                    <p className="text-slate-500">Active holdings</p>
+                    <p className="mt-1 font-semibold text-slate-800">{tradeSummary.active}</p>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-white p-3">
+                    <p className="text-slate-500">Past holdings</p>
+                    <p className="mt-1 font-semibold text-slate-800">{tradeSummary.past}</p>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-white p-3">
+                    <p className="text-slate-500">Unrealized gain</p>
+                    <p className={`mt-1 font-semibold ${tradeSummary.unrealized >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>₹{tradeSummary.unrealized.toLocaleString()}</p>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-white p-3">
+                    <p className="text-slate-500">Equity / MF / ETF</p>
+                    <p className="mt-1 font-semibold text-slate-800">{tradeSummary.equity} / {tradeSummary.mutualFund} / {tradeSummary.etf}</p>
+                  </div>
+                </div>
                 <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2">
                   {equityTrades.slice(0, 5).map((trade, i) => (
                     <div key={i} className="text-xs flex justify-between p-2 border-b border-slate-100">
-                      <span className="font-medium">{trade.symbol}</span>
-                      <span className={trade.realized_gain >= 0 ? 'text-emerald-600' : 'text-red-600'}>₹{trade.realized_gain.toLocaleString()}</span>
+                      <span className="font-medium">{trade.symbol} • {normalizeTradeAssetClass(trade.asset_class)} • {isParsedTradeExit(trade) ? 'Past holding' : 'Active holding'}</span>
+                      <span className={(isParsedTradeExit(trade) ? (Number(trade.realized_gain) || 0) : ((deriveCurrentPriceFromParsedTrade(trade) - (Number(trade.buy_price) || 0)) * (Number(trade.quantity) || 0))) >= 0 ? 'text-emerald-600' : 'text-red-600'}>
+                        ₹{(isParsedTradeExit(trade) ? (Number(trade.realized_gain) || 0) : ((deriveCurrentPriceFromParsedTrade(trade) - (Number(trade.buy_price) || 0)) * (Number(trade.quantity) || 0))).toLocaleString()}
+                      </span>
                     </div>
                   ))}
                   {equityTrades.length > 5 && <p className="text-[10px] text-center text-slate-400">...and {equityTrades.length - 5} more trades</p>}
@@ -826,8 +855,12 @@ export default function Onboarding() {
                 <span className="font-bold text-slate-800">₹{Number(salaryData.netSalary).toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-600">Equity Gains (FY)</span>
-                <span className="font-bold text-emerald-600">₹{totalEquityGain.toLocaleString()}</span>
+                <span className="text-sm text-slate-600">Realized Gains</span>
+                <span className={`font-bold ${tradeSummary.realized >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>₹{tradeSummary.realized.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-600">Unrealized Gains</span>
+                <span className={`font-bold ${tradeSummary.unrealized >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>₹{tradeSummary.unrealized.toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-600">Avg. Monthly Expenses</span>

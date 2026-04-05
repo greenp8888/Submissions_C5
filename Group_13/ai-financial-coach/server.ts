@@ -151,6 +151,8 @@ db.exec(`
     trade_type TEXT NOT NULL CHECK (trade_type IN ('BUY', 'SELL')),
     quantity INTEGER NOT NULL,
     price_per_unit REAL NOT NULL,
+    current_price REAL,
+    unrealized_gain REAL DEFAULT 0,
     execution_date TEXT NOT NULL,
     brokerage_fees REAL DEFAULT 0,
     buy_date TEXT,
@@ -171,6 +173,7 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES Users(user_id) ON DELETE CASCADE,
     investment_type TEXT NOT NULL,
+    instrument_name TEXT,
     asset_category TEXT,
     commodity_type TEXT,
     principal_amount REAL NOT NULL,
@@ -322,6 +325,101 @@ const getInclusiveMonthCount = (start: Date, end: Date) => {
   return (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
 };
 
+const getRollingSixMonthExpenseTotal = (expenseRows: any[]) => {
+  const now = new Date();
+  const rangeStart = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+  const rangeEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+  return expenseRows.reduce((sum, expense) => {
+    if (!isDateInRange(expense.transaction_date, rangeStart, rangeEnd)) return sum;
+    return sum + (Number(expense.amount) || 0);
+  }, 0);
+};
+
+const getRollingSixMonthSalaryTotal = (salaryRanges: any[]) => {
+  const now = new Date();
+
+  return Array.from({ length: 6 }, (_, index) => {
+    const monthDate = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1);
+    const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+    const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    return salaryRanges.reduce((sum, salary) => {
+      const salaryStart = salary.start;
+      const salaryEnd = salary.end || monthEnd;
+      if (!salaryStart || salaryStart > monthEnd || salaryEnd < monthStart) return sum;
+      return sum + (Number(salary.monthly_amount) || 0);
+    }, 0);
+  }).reduce((sum, value) => sum + value, 0);
+};
+
+const getNormalizedTradeType = (trade: any) => {
+  const explicit = String(trade.trade_type || '').toUpperCase();
+  if (explicit === 'BUY' || explicit === 'SELL') return explicit;
+  return trade.sell_date ? 'SELL' : 'BUY';
+};
+
+const getActiveTradePortfolioValue = (tradeRows: any[]) => {
+  const grouped = new Map<string, { boughtQty: number; soldQty: number; buyCost: number; latestPrice: number; latestTs: number; currentPrice: number; currentPriceTs: number; unrealizedGain: number }>();
+
+  tradeRows.forEach((trade) => {
+    const key = String(trade.ticker || 'Unknown');
+    const quantity = Number(trade.quantity) || 0;
+    const price = Number(trade.price_per_unit) || 0;
+    const currentPrice = Number(trade.current_price) || 0;
+    const unrealizedGain = Number(trade.unrealized_gain) || 0;
+    const type = getNormalizedTradeType(trade);
+    const executionDate = trade.execution_date || trade.sell_date || trade.buy_date || '';
+    const executionTs = new Date(String(executionDate)).getTime();
+    const current = grouped.get(key) || {
+      boughtQty: 0,
+      soldQty: 0,
+      buyCost: 0,
+      latestPrice: 0,
+      latestTs: Number.NEGATIVE_INFINITY,
+      currentPrice: 0,
+      currentPriceTs: Number.NEGATIVE_INFINITY,
+      unrealizedGain: 0,
+    };
+
+    if (type === 'BUY') {
+      current.boughtQty += quantity;
+      current.buyCost += quantity * price;
+    } else {
+      current.soldQty += quantity;
+    }
+
+    if (Number.isFinite(executionTs) ? executionTs >= current.latestTs : false) {
+      current.latestTs = executionTs;
+      current.latestPrice = price;
+    } else if (!current.latestPrice) {
+      current.latestPrice = price;
+    }
+
+    if (type === 'BUY' && currentPrice > 0 && (Number.isFinite(executionTs) ? executionTs >= current.currentPriceTs : !current.currentPrice)) {
+      current.currentPrice = currentPrice;
+      current.currentPriceTs = Number.isFinite(executionTs) ? executionTs : current.currentPriceTs;
+    }
+
+    if (type === 'BUY' && unrealizedGain !== 0) {
+      current.unrealizedGain = unrealizedGain;
+    }
+
+    grouped.set(key, current);
+  });
+
+  return Array.from(grouped.values()).reduce((sum, item) => {
+    const openQuantity = Math.max(0, item.boughtQty - item.soldQty);
+    const averageBuyPrice = item.boughtQty > 0 ? item.buyCost / item.boughtQty : 0;
+    const costBasis = openQuantity * averageBuyPrice;
+    const valuationPrice = item.currentPrice || item.latestPrice;
+    const portfolioValue = valuationPrice > 0
+      ? openQuantity * valuationPrice
+      : (openQuantity > 0 && item.unrealizedGain !== 0 ? costBasis + item.unrealizedGain : 0);
+    return sum + portfolioValue;
+  }, 0);
+};
+
 const inferInvestmentTaxCategory = (investment: any) => {
   if (investment.tax_exemption_category) return investment.tax_exemption_category;
   const type = String(investment.investment_type || '').toLowerCase();
@@ -356,9 +454,12 @@ ensureColumns('Trades', [
   { name: 'sell_date', type: 'TEXT' },
   { name: 'realized_gain', type: 'REAL DEFAULT 0' },
   { name: 'holding_type', type: 'TEXT' },
+  { name: 'current_price', type: 'REAL' },
+  { name: 'unrealized_gain', type: 'REAL DEFAULT 0' },
 ]);
 
 ensureColumns('FixedInvestments', [
+  { name: 'instrument_name', type: 'TEXT' },
   { name: 'asset_category', type: 'TEXT' },
   { name: 'commodity_type', type: 'TEXT' },
   { name: 'tenure_months', type: 'INTEGER' },
@@ -403,6 +504,8 @@ async function startServer() {
     const loanRows = db.prepare('SELECT * FROM Loans WHERE user_id = ?').all(userId) as any[];
     const tradeRows = db.prepare('SELECT * FROM Trades WHERE user_id = ?').all(userId) as any[];
     const goalRows = db.prepare('SELECT * FROM Goals WHERE user_id = ?').all(userId) as any[];
+    const rollingSixMonthExpenseTotal = getRollingSixMonthExpenseTotal(expenseRows);
+    const rollingSixMonthAverageExpense = rollingSixMonthExpenseTotal / 6;
 
     const salaryRanges = salaryRows.map((salary, index) => {
       const start = salary.effective_from ? new Date(salary.effective_from) : null;
@@ -416,6 +519,8 @@ async function startServer() {
         monthly_amount: Number(salary.monthly_amount) || 0,
       };
     }).filter((salary) => salary.start && !Number.isNaN(salary.start.getTime()));
+    const rollingSixMonthSalaryTotal = getRollingSixMonthSalaryTotal(salaryRanges);
+    const rollingSixMonthAverageSalary = rollingSixMonthSalaryTotal / 6;
 
     const upsert = db.prepare(`
       INSERT INTO HealthScores (
@@ -479,14 +584,18 @@ async function startServer() {
       });
       const investedAssets =
         portfolioInvestments.reduce((sum, investment) => sum + ((Number(investment.principal_amount) || 0) || ((Number(investment.quantity_units) || 0) * (Number(investment.buy_price_per_unit) || 0))), 0) +
-        tradeRows.reduce((sum, trade) => sum + (Number(trade.quantity) || 0) * (Number(trade.price_per_unit) || 0), 0);
+        getActiveTradePortfolioValue(tradeRows);
 
       const emergencyFundCurrent = goalRows
         .filter((goal) => isInsuranceLikeGoal(goal))
         .reduce((sum, goal) => sum + (Number(goal.current_amount) || 0), 0);
-      const emergencyFundTarget = monthlyExpenses * 6;
+      const emergencyFundTarget = rollingSixMonthAverageExpense * 6;
 
-      const savingsRateScore = clampScore(annualIncome > 0 ? ((Math.max(0, annualIncome - annualExpenses) / annualIncome) * 100) : 0);
+      const savingsRateScore = clampScore(
+        rollingSixMonthAverageSalary > 0
+          ? ((Math.max(0, rollingSixMonthAverageSalary - rollingSixMonthAverageExpense) / rollingSixMonthAverageSalary) * 100)
+          : 0
+      );
       const dtiRatioPercent = monthlyIncome > 0 ? (totalMonthlyEmi / monthlyIncome) * 100 : 0;
       const debtScore = clampScore(100 - dtiRatioPercent * 2);
       const investmentCoverageScore = clampScore(annualIncome > 0 ? ((investedAssets / annualIncome) * 10) : 0);
@@ -777,6 +886,7 @@ async function startServer() {
   app.post('/api/investments', authenticateToken, (req: any, res) => {
     const {
       investment_type,
+      instrument_name,
       asset_category,
       commodity_type,
       principal_amount,
@@ -794,6 +904,7 @@ async function startServer() {
       INSERT INTO FixedInvestments (
         user_id,
         investment_type,
+        instrument_name,
         asset_category,
         commodity_type,
         principal_amount,
@@ -806,11 +917,12 @@ async function startServer() {
         tenure_months,
         maturity_amount,
         tax_exemption_category
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
       .run(
         req.user.user_id,
         investment_type,
+        instrument_name || null,
         asset_category || null,
         commodity_type || null,
         principal_amount,
@@ -835,6 +947,13 @@ async function startServer() {
     }
     db.prepare(`UPDATE FixedInvestments SET ${setClause} WHERE id = ? AND user_id = ?`)
       .run(...values, req.params.id, req.user.user_id);
+    recalculateHealthScoresForUser(req.user.user_id);
+    res.json({ success: true });
+  });
+
+  app.delete('/api/investments/:id', authenticateToken, (req: any, res) => {
+    db.prepare('DELETE FROM FixedInvestments WHERE id = ? AND user_id = ?')
+      .run(req.params.id, req.user.user_id);
     recalculateHealthScoresForUser(req.user.user_id);
     res.json({ success: true });
   });
@@ -986,7 +1105,16 @@ async function startServer() {
 
   // Trades
   app.get('/api/trades', authenticateToken, (req: any, res) => {
-    const trades = db.prepare('SELECT * FROM Trades WHERE user_id = ?').all(req.user.user_id);
+    const trades = db.prepare(`
+      SELECT
+        t.*,
+        s.name AS ticker_name,
+        s.asset_class
+      FROM Trades t
+      LEFT JOIN Securities s ON s.ticker = t.ticker
+      WHERE t.user_id = ?
+      ORDER BY date(t.execution_date) DESC, t.id DESC
+    `).all(req.user.user_id);
     res.json(trades);
   });
 
@@ -996,6 +1124,8 @@ async function startServer() {
       trade_type,
       quantity,
       price_per_unit,
+      current_price,
+      unrealized_gain,
       execution_date,
       brokerage_fees,
       ticker_name,
@@ -1012,7 +1142,52 @@ async function startServer() {
     // Ensure security exists
     db.prepare('INSERT OR IGNORE INTO Securities (ticker, name, asset_class) VALUES (?, ?, ?)')
       .run(ticker, ticker_name || ticker, asset_class || 'Equity');
-    
+
+    const existingTrade = db.prepare(`
+      SELECT id
+      FROM Trades
+      WHERE user_id = ?
+        AND ticker = ?
+        AND trade_type = ?
+        AND quantity = ?
+        AND price_per_unit = ?
+        AND COALESCE(buy_date, '') = COALESCE(?, '')
+        AND COALESCE(sell_date, '') = COALESCE(?, '')
+        AND execution_date = ?
+      LIMIT 1
+    `).get(
+      req.user.user_id,
+      ticker,
+      trade_type,
+      quantity,
+      price_per_unit,
+      buy_date || null,
+      sell_date || null,
+      resolvedExecutionDate
+    ) as any;
+
+    if (existingTrade) {
+      db.prepare(`
+        UPDATE Trades
+        SET current_price = COALESCE(?, current_price),
+            unrealized_gain = ?,
+            brokerage_fees = ?,
+            realized_gain = ?,
+            holding_type = COALESCE(?, holding_type)
+        WHERE id = ? AND user_id = ?
+      `).run(
+        current_price || null,
+        unrealized_gain || 0,
+        brokerage_fees || 0,
+        realized_gain || 0,
+        holding_type || null,
+        existingTrade.id,
+        req.user.user_id
+      );
+      recalculateHealthScoresForUser(req.user.user_id);
+      return res.json({ success: true, action: 'updated' });
+    }
+
     db.prepare(`
       INSERT INTO Trades (
         user_id,
@@ -1020,19 +1195,23 @@ async function startServer() {
         trade_type,
         quantity,
         price_per_unit,
+        current_price,
+        unrealized_gain,
         execution_date,
         brokerage_fees,
         buy_date,
         sell_date,
         realized_gain,
         holding_type
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       req.user.user_id,
       ticker,
       trade_type,
       quantity,
       price_per_unit,
+      current_price || null,
+      unrealized_gain || 0,
       resolvedExecutionDate,
       brokerage_fees || 0,
       buy_date || null,
@@ -1041,7 +1220,7 @@ async function startServer() {
       holding_type || null
     );
     recalculateHealthScoresForUser(req.user.user_id);
-    res.json({ success: true });
+    res.json({ success: true, action: 'inserted' });
   });
 
   // Vite middleware for development
