@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Iterable
 
 from ai_app.agents.base import AgentBase
 from ai_app.agents.hypothesis_agent import HypothesisAgent
@@ -56,14 +57,12 @@ class InsightGenerationAgent(AgentBase):
                 for contradiction in session.contradictions[:10]
             ],
         }
-        parsed = parse_model(
-            await self.llm_client.complete_json(
-                self.system_prompt,
-                "Produce higher-order insights, graph entities, relationships, and follow-up questions as JSON.\n"
-                f"payload={payload}",
-            ),
-            InsightOutput,
+        raw_output = await self.llm_client.complete_json(
+            self.system_prompt,
+            "Produce higher-order insights, graph entities, relationships, and follow-up questions as JSON.\n"
+            f"payload={payload}",
         )
+        parsed = parse_model(self._normalize_llm_output(raw_output), InsightOutput)
         if not parsed:
             return False
 
@@ -138,3 +137,81 @@ class InsightGenerationAgent(AgentBase):
         session.entities.extend(entities)
         for left, right in zip(entities, entities[1:]):
             session.relationships.append(Relationship(source_entity_id=left.id, target_entity_id=right.id, relationship_type="related_to"))
+
+    def _normalize_llm_output(self, data: dict) -> dict:
+        if not isinstance(data, dict):
+            return {}
+        normalized = dict(data)
+        normalized["insights"] = [self._normalize_insight(item) for item in self._as_list(data.get("insights"))]
+        normalized["entities"] = [self._normalize_entity(item) for item in self._as_list(data.get("entities"))]
+        normalized["relationships"] = [self._normalize_relationship(item) for item in self._as_list(data.get("relationships"))]
+        normalized["follow_up_questions"] = [self._normalize_follow_up(item) for item in self._as_list(data.get("follow_up_questions"))]
+        return normalized
+
+    def _normalize_insight(self, item) -> dict:
+        if isinstance(item, str):
+            return {
+                "label": item[:80] or "Insight",
+                "content": item,
+                "insight_type": "trend",
+                "evidence_chain": [],
+            }
+        if not isinstance(item, dict):
+            return {"label": "Insight", "content": "", "insight_type": "trend", "evidence_chain": []}
+        return {
+            "label": item.get("label") or item.get("title") or item.get("statement") or "Insight",
+            "content": item.get("content") or item.get("statement") or item.get("summary") or item.get("description") or "",
+            "insight_type": item.get("insight_type") or item.get("type") or "trend",
+            "evidence_chain": self._string_list(item.get("evidence_chain") or item.get("evidence") or item.get("source_ids")),
+        }
+
+    def _normalize_entity(self, item) -> dict:
+        if isinstance(item, str):
+            return {"name": item, "entity_type": "concept", "description": "", "source_ids": []}
+        if not isinstance(item, dict):
+            return {"name": "Unknown entity", "entity_type": "concept", "description": "", "source_ids": []}
+        return {
+            "name": item.get("name") or item.get("entity") or item.get("label") or "Unknown entity",
+            "entity_type": item.get("entity_type") or item.get("type") or "concept",
+            "description": item.get("description") or item.get("summary") or "",
+            "source_ids": self._string_list(item.get("source_ids") or item.get("sources")),
+        }
+
+    def _normalize_relationship(self, item) -> dict:
+        if not isinstance(item, dict):
+            return {
+                "source_entity_name": "",
+                "target_entity_name": "",
+                "relationship_type": "related_to",
+                "description": "",
+            }
+        return {
+            "source_entity_name": item.get("source_entity_name") or item.get("source") or item.get("from") or "",
+            "target_entity_name": item.get("target_entity_name") or item.get("target") or item.get("to") or "",
+            "relationship_type": item.get("relationship_type") or item.get("type") or "related_to",
+            "description": item.get("description") or item.get("summary") or "",
+        }
+
+    def _normalize_follow_up(self, item) -> dict:
+        if isinstance(item, str):
+            return {"question": item, "rationale": ""}
+        if not isinstance(item, dict):
+            return {"question": "", "rationale": ""}
+        return {
+            "question": item.get("question") or item.get("prompt") or item.get("text") or "",
+            "rationale": item.get("rationale") or item.get("reason") or item.get("why") or "",
+        }
+
+    def _string_list(self, value) -> list[str]:
+        return [str(item).strip() for item in self._as_list(value) if str(item).strip()]
+
+    def _as_list(self, value) -> list:
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return value
+        if isinstance(value, tuple):
+            return list(value)
+        if isinstance(value, Iterable) and not isinstance(value, (str, bytes, dict)):
+            return list(value)
+        return [value]
