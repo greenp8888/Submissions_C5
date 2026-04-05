@@ -28,14 +28,15 @@ This README is the main project reference document. It includes:
 
 Use this section as the final team handoff table.
 
-| Member | Role | Ownership Area |
-| --- | --- | --- |
-| Group 9 Member 1 | Project Lead | Product direction / integration |
-| Group 9 Member 2 | Backend | APIs / orchestration |
-| Group 9 Member 3 | Retrieval | local RAG / providers |
-| Group 9 Member 4 | Frontend | React dashboard |
-| Group 9 Member 5 | Analysis | reporting / contradictions / insights |
-| Group 9 Member 6 | QA / Demo | validation / presentation |
+| Member | 
+| --- |
+| Chirag Shah |
+| Gaurav Thaoa |
+| Krunal Deshkar |
+| Ritesh Goyal |
+| Sandeep Girgaonkar |
+| Shraddha Sheth |
+| Vaishali |
 
 ## What The Project Does
 
