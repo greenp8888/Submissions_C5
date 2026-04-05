@@ -1,0 +1,82 @@
+Date,Description,Category,Amount,Type,Balance
+2026-01-01,Salary Credit - Infosys Ltd,Income,105000.00,Credit,205000.00
+2026-01-02,Rent Payment - Jan 2026,Housing,18000.00,Debit,187000.00
+2026-01-03,Electricity Bill - BESCOM,Utilities,2800.00,Debit,184200.00
+2026-01-03,Mobile Recharge - Jio,Utilities,599.00,Debit,183601.00
+2026-01-04,Broadband - ACT Fibernet,Utilities,1100.00,Debit,182501.00
+2026-01-05,Groceries - BigBasket,Food,4200.00,Debit,178301.00
+2026-01-06,Petrol - HP Pump,Transportation,3400.00,Debit,174901.00
+2026-01-07,EMI - Home Loan SBI,Loan/EMI,24500.00,Debit,150401.00
+2026-01-08,EMI - Personal Loan HDFC,Loan/EMI,8200.00,Debit,142201.00
+2026-01-09,Credit Card Payment - ICICI Min Due,Loan/EMI,5500.00,Debit,136701.00
+2026-01-10,SIP - Axis Bluechip MF,Investment,3000.00,Debit,133701.00
+2026-01-10,SIP - HDFC Mid Cap MF,Investment,2000.00,Debit,131701.00
+2026-01-10,PPF Contribution,Investment,2000.00,Debit,129701.00
+2026-01-12,Swiggy Food Order,Food,680.00,Debit,129021.00
+2026-01-13,Zomato Food Order,Food,520.00,Debit,128501.00
+2026-01-14,Amazon - Electronics,Shopping,4800.00,Debit,123701.00
+2026-01-15,Netflix Subscription,Entertainment,649.00,Debit,123052.00
+2026-01-15,Spotify Subscription,Entertainment,119.00,Debit,122933.00
+2026-01-16,Uber Ride,Transportation,450.00,Debit,122483.00
+2026-01-18,Medical Checkup - Apollo,Healthcare,2500.00,Debit,119983.00
+2026-01-20,Dining Out - Restaurant,Food,1800.00,Debit,118183.00
+2026-01-22,Gym Membership - Jan,Personal Care,1500.00,Debit,116683.00
+2026-01-25,Groceries - DMart,Food,3200.00,Debit,113483.00
+2026-01-27,Swiggy Food Order,Food,450.00,Debit,113033.00
+2026-01-28,Haircut & Grooming,Personal Care,600.00,Debit,112433.00
+2026-01-30,Water Bill,Utilities,400.00,Debit,112033.00
+2026-02-01,Salary Credit - Infosys Ltd,Income,105000.00,Credit,217033.00
+2026-02-02,Rent Payment - Feb 2026,Housing,18000.00,Debit,199033.00
+2026-02-03,Electricity Bill - BESCOM,Utilities,3100.00,Debit,195933.00
+2026-02-03,Mobile Recharge - Jio,Utilities,599.00,Debit,195334.00
+2026-02-04,Broadband - ACT Fibernet,Utilities,1100.00,Debit,194234.00
+2026-02-05,Groceries - BigBasket,Food,4800.00,Debit,189434.00
+2026-02-06,Petrol - HP Pump,Transportation,3600.00,Debit,185834.00
+2026-02-07,EMI - Home Loan SBI,Loan/EMI,24500.00,Debit,161334.00
+2026-02-08,EMI - Personal Loan HDFC,Loan/EMI,8200.00,Debit,153134.00
+2026-02-09,Credit Card Payment - ICICI Full,Loan/EMI,12800.00,Debit,140334.00
+2026-02-10,SIP - Axis Bluechip MF,Investment,3000.00,Debit,137334.00
+2026-02-10,SIP - HDFC Mid Cap MF,Investment,2000.00,Debit,135334.00
+2026-02-10,PPF Contribution,Investment,2000.00,Debit,133334.00
+2026-02-11,Swiggy Food Order,Food,720.00,Debit,132614.00
+2026-02-12,Flipkart - Clothing,Shopping,3500.00,Debit,129114.00
+2026-02-14,Valentine Dinner - Restaurant,Food,3200.00,Debit,125914.00
+2026-02-15,Netflix Subscription,Entertainment,649.00,Debit,125265.00
+2026-02-15,Spotify Subscription,Entertainment,119.00,Debit,125146.00
+2026-02-16,Ola Ride,Transportation,380.00,Debit,124766.00
+2026-02-18,Health Insurance Premium - Star Health,Insurance,1800.00,Debit,122966.00
+2026-02-20,Weekend Trip - Coorg,Travel,8500.00,Debit,114466.00
+2026-02-22,Gym Membership - Feb,Personal Care,1500.00,Debit,112966.00
+2026-02-24,Groceries - DMart,Food,3600.00,Debit,109366.00
+2026-02-25,Zomato Food Order,Food,580.00,Debit,108786.00
+2026-02-27,Uber Rides (multiple),Transportation,1200.00,Debit,107586.00
+2026-02-28,Water Bill,Utilities,400.00,Debit,107186.00
+2026-03-01,Salary Credit - Infosys Ltd,Income,105000.00,Credit,212186.00
+2026-03-01,Performance Bonus - Infosys,Income,25000.00,Credit,237186.00
+2026-03-02,Rent Payment - Mar 2026,Housing,18000.00,Debit,219186.00
+2026-03-03,Electricity Bill - BESCOM,Utilities,2600.00,Debit,216586.00
+2026-03-03,Mobile Recharge - Jio,Utilities,599.00,Debit,215987.00
+2026-03-04,Broadband - ACT Fibernet,Utilities,1100.00,Debit,214887.00
+2026-03-05,Groceries - BigBasket,Food,5200.00,Debit,209687.00
+2026-03-06,Petrol - HP Pump,Transportation,3800.00,Debit,205887.00
+2026-03-07,EMI - Home Loan SBI,Loan/EMI,24500.00,Debit,181387.00
+2026-03-08,EMI - Personal Loan HDFC,Loan/EMI,8200.00,Debit,173187.00
+2026-03-09,Credit Card Payment - ICICI Min Due,Loan/EMI,6200.00,Debit,166987.00
+2026-03-10,SIP - Axis Bluechip MF,Investment,3000.00,Debit,163987.00
+2026-03-10,SIP - HDFC Mid Cap MF,Investment,2000.00,Debit,161987.00
+2026-03-10,PPF Contribution,Investment,2000.00,Debit,159987.00
+2026-03-11,ELSS Tax Saver - Mirae Asset,Investment,5000.00,Debit,154987.00
+2026-03-12,Swiggy Food Order,Food,550.00,Debit,154437.00
+2026-03-13,Amazon - Books,Shopping,1200.00,Debit,153237.00
+2026-03-14,Holi Party Expenses,Entertainment,2500.00,Debit,150737.00
+2026-03-15,Netflix Subscription,Entertainment,649.00,Debit,150088.00
+2026-03-15,Spotify Subscription,Entertainment,119.00,Debit,149969.00
+2026-03-18,Eye Checkup - Sankara,Healthcare,1500.00,Debit,148469.00
+2026-03-20,Myntra - Clothing,Shopping,4200.00,Debit,144269.00
+2026-03-22,Gym Membership - Mar,Personal Care,1500.00,Debit,142769.00
+2026-03-24,Groceries - DMart,Food,3800.00,Debit,138969.00
+2026-03-25,Dining Out - Restaurant,Food,2100.00,Debit,136869.00
+2026-03-26,Uber Rides,Transportation,800.00,Debit,136069.00
+2026-03-28,Term Insurance Premium - HDFC Life,Insurance,1200.00,Debit,134869.00
+2026-03-30,Water Bill,Utilities,400.00,Debit,134469.00
+2026-03-31,FD Interest Credit - SBI,Income,3500.00,Credit,137969.00
