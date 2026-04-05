@@ -44,56 +44,6 @@ FinanceIQ ingests any CSV or Excel bank export and runs it through a **6-agent L
   <img src="docImage/financeiq_architecture_v2.svg" alt="FinanceIQ System Architecture" width="100%">
 </div>
 
-```mermaid
-graph TB
-    subgraph CLIENT["🖥️  REACT CLIENT  ·  Vite  ·  Port 5173"]
-        direction LR
-        Chat["💬 Chat & Upload"]
-        Cfg["⚙️ Config Panel\n(keys saved to localStorage)"]
-        Dash["📊 Dashboard\n6 interactive tabs"]
-        PDF["📄 PDF Export"]
-    end
-
-    subgraph SERVER["⚡  EXPRESS SERVER  ·  Node.js  ·  Port 3001"]
-        direction LR
-        Analyze["POST /api/analyze\n(SSE streaming)"]
-        Email["POST /api/send-report\n(PDF + email)"]
-        Samples["GET /api/samples"]
-    end
-
-    subgraph PYTHON["🐍  PYTHON PIPELINE  ·  LangGraph StateGraph"]
-        direction TB
-        State(["🗃️ FinancialState\nshared context bus"])
-
-        D1["📂 ① Document Ingestion\nparse · classify · snapshot"]
-        D2["🧠 ② Financial Analyzer\nhealth score · insights"]
-        D3["💳 ③ Debt Strategist\navalanche / snowball"]
-        D4["🏦 ④ Savings Strategist\nemergency fund · goals"]
-        D5["📊 ⑤ Budget Advisor\ncategory allocations"]
-        D6["📋 ⑥ Report Generator\nmarkdown + charts"]
-
-        State -.-> D1 --> D2 --> D3 --> D4 --> D5 --> D6
-    end
-
-    subgraph EXTERNAL["🌐  EXTERNAL SERVICES"]
-        LLM["🤖 OpenRouter\n50+ AI Models"]
-        Search["🔍 Tavily\nLive Web Search"]
-        Brevo["📧 Brevo SMTP\n300 emails/day free"]
-    end
-
-    CLIENT <-->|"Server-Sent Events\nreal-time streaming"| SERVER
-    SERVER -->|"child_process.spawn"| PYTHON
-    PYTHON -->|"LLM API calls"| LLM
-    D4 -->|"live savings rates"| Search
-    Cfg -->|"creds via request body\n(no .env needed)"| Email
-    Email -->|"HTML + PDF\nattachment"| Brevo
-
-    style CLIENT fill:#1e1b4b,stroke:#6366f1,color:#e0e7ff
-    style SERVER fill:#052e16,stroke:#22c55e,color:#dcfce7
-    style PYTHON fill:#1c1917,stroke:#f97316,color:#fed7aa
-    style EXTERNAL fill:#0f172a,stroke:#38bdf8,color:#e0f2fe
-```
-
 ---
 
 ## Agent Pipeline
