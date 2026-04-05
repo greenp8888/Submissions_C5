@@ -13,7 +13,7 @@ Team Members:
 
 - Ujwala B    ujwala.bheema@gmail.com
 - Nagaraju Siddam	nagaraju.siddam@gmail.com
-- Rajesh	vrajesh.myreg@gmail.com
+- Rajesh Vasireddy	vrajesh.myreg@gmail.com
 - Ravindranath Reddy	ravindra.rdy@gmail.com
 - Devu Pai	devuapai@gmail.com
 - Balaji Haridass	balaji.haridass.learn@gmail.com
