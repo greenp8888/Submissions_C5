@@ -60,6 +60,9 @@ from streamlit_google_auth import (
     verify_signed_oauth_state,
 )
 from streamlit_workflow import (
+    build_pdf_body_markdown,
+    build_report_cover_html,
+    build_report_cover_markdown,
     derive_title,
     finalize_research_outputs,
     markdown_to_pdf_bytes,
@@ -350,14 +353,13 @@ def _utc_now() -> str:
 
 
 def _empty_chat(chat_id: str) -> dict:
-    short = chat_id.replace("-", "")[:8] or chat_id[:8]
     try:
         art_root = str(get_chats_dir())
     except RuntimeError:
         art_root = ""
     return {
         "id": chat_id,
-        "title": f"Draft · {short}",
+        "title": "",
         "created_utc": _utc_now(),
         "updated_utc": _utc_now(),
         "question": "",
@@ -391,26 +393,71 @@ def _chat_path(cid: str) -> Path:
     return get_chats_dir() / f"{cid}.json"
 
 
-def list_chat_meta() -> list[tuple[str, str, str]]:
+def list_chat_meta() -> list[tuple[str, str, str, str]]:
+    """(id, title, updated_utc, question) sorted by updated_utc descending."""
     d = get_chats_dir()
     d.mkdir(parents=True, exist_ok=True)
-    out: list[tuple[str, str, str]] = []
-    for p in sorted(d.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True):
+    out: list[tuple[str, str, str, str]] = []
+    for p in d.glob("*.json"):
         try:
             data = json.loads(p.read_text(encoding="utf-8"))
-            out.append((data.get("id", p.stem), data.get("title", p.stem), data.get("updated_utc", "")))
+            out.append(
+                (
+                    data.get("id", p.stem),
+                    data.get("title", p.stem),
+                    data.get("updated_utc", ""),
+                    str(data.get("question") or ""),
+                )
+            )
         except (json.JSONDecodeError, OSError):
             continue
+    out.sort(key=lambda row: row[2] or "", reverse=True)
     return out
 
 
-def _sidebar_chat_label(title: str, chat_id: str) -> str:
-    """Avoid a column of identical 'New research' labels (legacy saves + defaults)."""
+def _sidebar_chat_label(title: str, chat_id: str, question: str = "") -> str:
+    """Prefer stored title, else question snippet, else a short id label (no 'Draft' JSON churn)."""
     t = (title or "").strip()
-    if t in ("", "New research"):
-        short = chat_id.replace("-", "")[:8] or chat_id[:8]
-        return f"Draft · {short}"
-    return t[:42] + ("…" if len(t) > 42 else "")
+    if t and t.lower() not in ("new research",):
+        return t[:42] + ("…" if len(t) > 42 else "")
+    q = (question or "").strip()
+    if q:
+        return (q[:40] + "…") if len(q) > 40 else q
+    short = chat_id.replace("-", "")[:8] or chat_id[:8]
+    return f"Chat · {short}"
+
+
+def _chat_should_persist(data: dict) -> bool:
+    """Skip writing empty sessions so idle / abandoned chats do not create JSON files."""
+    if data.get("uploaded_paths"):
+        return True
+    if (data.get("question") or "").strip():
+        return True
+    if data.get("messages"):
+        return True
+    chat_status = data.get("status") or "empty"
+    if chat_status != "empty":
+        return True
+    if (data.get("human_preview_md") or "").strip():
+        return True
+    if (data.get("report_md") or "").strip():
+        return True
+    return False
+
+
+def _planner_objective_plain(objective_md: str) -> str:
+    s = (objective_md or "").strip()
+    if "**Planner objective:**" in s:
+        return s.split("**Planner objective:**", 1)[-1].strip()
+    return ""
+
+
+def _llm_backend_label(provider: str) -> str:
+    if provider == LLM_PROVIDER_OPENROUTER:
+        return "OpenRouter"
+    if provider == LLM_PROVIDER_ANTHROPIC:
+        return "Anthropic (direct)"
+    return (provider or "").strip() or "—"
 
 
 def _inject_layout_css() -> None:
@@ -506,6 +553,10 @@ def _render_brand_header() -> None:
 
 
 def save_chat(data: dict) -> None:
+    if not _chat_should_persist(data):
+        return
+    if not (data.get("title") or "").strip():
+        data["title"] = derive_title(data.get("report_md") or "", data.get("question") or "")
     data["updated_utc"] = _utc_now()
     d = get_chats_dir()
     d.mkdir(parents=True, exist_ok=True)
@@ -541,13 +592,14 @@ def ensure_session() -> None:
     if "id" not in st.session_state:
         cid = str(uuid.uuid4())
         apply_chat_to_session(_empty_chat(cid))
-        save_chat(session_chat_dict())
 
 
 def new_research_session() -> None:
+    cur = session_chat_dict()
+    if _chat_should_persist(cur):
+        save_chat(cur)
     cid = str(uuid.uuid4())
     apply_chat_to_session(_empty_chat(cid))
-    save_chat(session_chat_dict())
 
 
 def persist_uploads(chat_id: str, files: list) -> list[str]:
@@ -572,6 +624,42 @@ def render_chat_messages() -> None:
     for m in st.session_state.get("messages") or []:
         with st.chat_message(m["role"]):
             st.markdown(m["content"])
+
+
+def render_conversation_and_artifacts() -> None:
+    """Conversation on top: artifact tabs when available, then the chat thread."""
+    msgs = st.session_state.get("messages") or []
+    has_artifacts = bool((st.session_state.get("human_preview_md") or "").strip()) or bool(
+        (st.session_state.get("report_md") or "").strip()
+    )
+    _conv_open = bool(msgs) or has_artifacts
+    with st.expander("Conversation", expanded=_conv_open):
+        if has_artifacts:
+            t1, t2, t3, t4 = st.tabs(["Human review", "Report", "Sources", "Trace & gaps"])
+            with t1:
+                st.markdown(
+                    st.session_state.get("human_preview_md")
+                    or "_No preview yet — run **Preview (human review)**._"
+                )
+            with t2:
+                st.markdown(st.session_state.get("report_md") or "_Report appears after **Run full research**._")
+                st.markdown("**Contradictions**")
+                st.markdown(st.session_state.get("contradictions_md") or "_None noted._")
+            with t3:
+                recs = st.session_state.get("evidence_records") or []
+                if recs:
+                    st.dataframe(pd.DataFrame(recs), use_container_width=True, hide_index=True)
+                st.markdown(st.session_state.get("sources_detail_md") or "")
+            with t4:
+                st.markdown(st.session_state.get("gaps_md") or "")
+                st.markdown(st.session_state.get("trace_md") or "")
+        if msgs:
+            if has_artifacts:
+                st.divider()
+                st.caption("Message thread")
+            render_chat_messages()
+        elif not has_artifacts:
+            st.caption("Preview and research replies will show here.")
 
 
 def main() -> None:
@@ -615,17 +703,21 @@ def main() -> None:
             new_research_session()
             st.rerun()
 
-        for cid, title, _upd in list_chat_meta():
-            label = _sidebar_chat_label(title, cid)
+        for cid, title, _upd, qtext in list_chat_meta():
+            label = _sidebar_chat_label(title, cid, qtext)
             if st.button(label, key=f"open_{cid}", use_container_width=True):
+                cur = session_chat_dict()
+                if cur.get("id") != cid and _chat_should_persist(cur):
+                    save_chat(cur)
                 data = load_chat(cid)
                 if data:
                     merged = _empty_chat(data.get("id", cid))
                     merged.update(data)
-                    tid = merged.get("id", cid)
-                    if (merged.get("title") or "").strip() in ("", "New research"):
-                        short = str(tid).replace("-", "")[:8] or str(tid)[:8]
-                        merged["title"] = f"Draft · {short}"
+                    if not (merged.get("title") or "").strip():
+                        merged["title"] = derive_title(
+                            merged.get("report_md") or "",
+                            merged.get("question") or "",
+                        )
                     apply_chat_to_session(merged)
                     save_chat(session_chat_dict())
                     st.rerun()
@@ -677,13 +769,7 @@ def main() -> None:
         st.caption("Leave keys empty to use `.env` on the server.")
 
     with col_main:
-        msgs = st.session_state.get("messages") or []
-        _conv_open = bool(msgs)
-        with st.expander("Conversation", expanded=_conv_open):
-            if msgs:
-                render_chat_messages()
-            else:
-                st.caption("Preview and research replies will show here.")
+        render_conversation_and_artifacts()
 
         st.markdown('<p class="nm-composer-label">Composer</p>', unsafe_allow_html=True)
         st.caption("Type below · **＋** uploads files (ChatGPT-style)")
@@ -851,33 +937,14 @@ def main() -> None:
                 st.session_state["artifact_dir"] = str(art_dir)
                 st.session_state["title"] = title
                 st.session_state["status"] = "complete"
-                append_message("assistant", f"**Research complete:** {title}\n\n_Open the tabs below and the report panel on the right._")
+                append_message(
+                    "assistant",
+                    f"**Research complete:** {title}\n\n_See **Conversation** for tabs and the report panel on the right._",
+                )
                 save_chat(session_chat_dict())
                 st.rerun()
 
-        if st.session_state.get("status") == "complete":
-            st.divider()
-            t1, t2, t3, t4 = st.tabs(["Human review", "Report", "Sources", "Trace & gaps"])
-            with t1:
-                st.markdown(st.session_state.get("human_preview_md") or "_No preview stored._")
-            with t2:
-                st.markdown(st.session_state.get("report_md") or "_No report._")
-                st.markdown("**Contradictions**")
-                st.markdown(st.session_state.get("contradictions_md") or "_None noted._")
-            with t3:
-                recs = st.session_state.get("evidence_records") or []
-                if recs:
-                    st.dataframe(pd.DataFrame(recs), use_container_width=True, hide_index=True)
-                st.markdown(st.session_state.get("sources_detail_md") or "")
-            with t4:
-                st.markdown(st.session_state.get("gaps_md") or "")
-                st.markdown(st.session_state.get("trace_md") or "")
-
     with col_right:
-        st.subheader("Report artifact")
-        st.markdown(st.session_state.get("objective_md", ""))
-        st.markdown(st.session_state.get("report_md") or "_Report appears here after a successful run._")
-
         base = st.session_state.get("artifact_base_name") or "research"
         full_md = ""
         art_dir = Path(st.session_state.get("artifact_dir") or get_chats_dir())
@@ -892,25 +959,72 @@ def main() -> None:
 
         fn_base = slug_filename_base(st.session_state.get("title") or base or "research")
 
-        st.download_button(
-            label=f"Download {fn_base}.md",
-            data=full_md.encode("utf-8") if full_md else b"",
-            file_name=f"{fn_base}.md",
-            mime="text/markdown",
-            use_container_width=True,
-            disabled=not full_md,
+        prov = st.session_state.get("llm_provider") or LLM_PROVIDER_OPENROUTER
+        model_lbl = (
+            st.session_state.get("openrouter_model", "")
+            if prov == LLM_PROVIDER_OPENROUTER
+            else st.session_state.get("anthropic_model", "")
+        )
+        _cover_kw = dict(
+            session_title=(st.session_state.get("title") or "").strip(),
+            question=st.session_state.get("question") or "",
+            uploaded_paths=list(st.session_state.get("uploaded_paths") or []),
+            user_email=st.session_state.get("user_email") or "",
+            user_display_name=st.session_state.get("user_display_name") or "",
+            llm_provider=_llm_backend_label(prov),
+            model_label=model_lbl,
+            web_search_enabled=bool(st.session_state.get("enable_web_search", True)),
+            generated_utc=_utc_now(),
+            planner_objective=_planner_objective_plain(st.session_state.get("objective_md") or ""),
+        )
+        cover_md = build_report_cover_markdown(**_cover_kw)
+        cover_html = build_report_cover_html(**_cover_kw)
+        pdf_body_md = build_pdf_body_markdown(
+            report_md=st.session_state.get("report_md") or "",
+            gaps_md=st.session_state.get("gaps_md") or "",
+            contradictions_md=st.session_state.get("contradictions_md") or "",
+            sources_detail_md=st.session_state.get("sources_detail_md") or "",
+        )
+        pdf_bytes = (
+            markdown_to_pdf_bytes(pdf_body_md, cover_html=cover_html)
+            if (st.session_state.get("report_md") or "").strip()
+            else None
         )
 
-        pdf_bytes = markdown_to_pdf_bytes(full_md) if full_md else None
-        st.download_button(
-            label=f"Download {fn_base}.pdf",
-            data=pdf_bytes or b"",
-            file_name=f"{fn_base}.pdf",
-            mime="application/pdf",
-            use_container_width=True,
-            disabled=pdf_bytes is None,
-        )
-        if full_md and pdf_bytes is None:
+        md_download = ""
+        if full_md:
+            md_download = f"{cover_md}\n\n---\n\n{full_md}"
+
+        h_left, h_dl = st.columns([3, 1])
+        with h_left:
+            st.subheader("Report artifact")
+        with h_dl:
+            d_md, d_pdf = st.columns(2)
+            with d_md:
+                st.download_button(
+                    label="📄",
+                    data=md_download.encode("utf-8") if md_download else b"",
+                    file_name=f"{fn_base}.md",
+                    mime="text/markdown",
+                    use_container_width=True,
+                    disabled=not md_download,
+                    help=f"Download Markdown ({fn_base}.md) — includes cover sheet",
+                )
+            with d_pdf:
+                st.download_button(
+                    label="📕",
+                    data=pdf_bytes or b"",
+                    file_name=f"{fn_base}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    disabled=pdf_bytes is None,
+                    help=f"Download PDF ({fn_base}.pdf)",
+                )
+
+        st.markdown(st.session_state.get("objective_md", ""))
+        st.markdown(st.session_state.get("report_md") or "_Report appears here after a successful run._")
+
+        if (st.session_state.get("report_md") or "").strip() and pdf_bytes is None:
             st.caption("Install optional PDF deps: `pip install markdown xhtml2pdf`")
 
 
