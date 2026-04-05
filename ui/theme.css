@@ -389,3 +389,74 @@ div[data-testid="stAlert"] {
     border: 1px solid #2a3442 !important;
     color: #b0bec8 !important;
 }
+
+/* === Markdown content (Cookbook, etc.) === */
+[data-testid="stAppViewContainer"] [data-testid="stMarkdownContainer"] {
+    color: #e6edf3 !important;
+}
+
+[data-testid="stAppViewContainer"] [data-testid="stMarkdownContainer"] h1,
+[data-testid="stAppViewContainer"] [data-testid="stMarkdownContainer"] h2,
+[data-testid="stAppViewContainer"] [data-testid="stMarkdownContainer"] h3 {
+    color: #f0f6fc !important;
+    font-family: 'Fira Sans', sans-serif;
+    font-weight: 600;
+    border-bottom: 1px solid #2a3442;
+    padding-bottom: 8px;
+    margin-top: 20px;
+}
+
+[data-testid="stAppViewContainer"] [data-testid="stMarkdownContainer"] p {
+    color: #e6edf3 !important;
+    font-size: 14px;
+    line-height: 1.7;
+}
+
+[data-testid="stAppViewContainer"] [data-testid="stMarkdownContainer"] ul,
+[data-testid="stAppViewContainer"] [data-testid="stMarkdownContainer"] ol {
+    color: #e6edf3 !important;
+    font-size: 14px;
+    line-height: 1.8;
+    padding-left: 24px;
+}
+
+[data-testid="stAppViewContainer"] [data-testid="stMarkdownContainer"] li {
+    color: #e6edf3 !important;
+    margin-bottom: 4px;
+}
+
+[data-testid="stAppViewContainer"] [data-testid="stMarkdownContainer"] code {
+    background: #1c2430 !important;
+    color: #79c0ff !important;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Fira Code', monospace;
+    font-size: 13px;
+}
+
+[data-testid="stAppViewContainer"] [data-testid="stMarkdownContainer"] pre {
+    background: #0a0e14 !important;
+    border: 1px solid #2a3442;
+    border-radius: 8px;
+    padding: 12px 16px;
+}
+
+[data-testid="stAppViewContainer"] [data-testid="stMarkdownContainer"] pre code {
+    background: transparent !important;
+    color: #e6edf3 !important;
+    padding: 0;
+}
+
+[data-testid="stAppViewContainer"] [data-testid="stMarkdownContainer"] strong {
+    color: #f0f6fc !important;
+    font-weight: 600;
+}
+
+[data-testid="stAppViewContainer"] [data-testid="stMarkdownContainer"] a {
+    color: #58a6ff !important;
+}
+
+/* Checkbox list items in cookbook */
+[data-testid="stAppViewContainer"] [data-testid="stMarkdownContainer"] input[type="checkbox"] {
+    accent-color: #58a6ff;
+}
