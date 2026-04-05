@@ -55,6 +55,14 @@ class IncidentState(TypedDict):
 
 
 def make_initial_state(raw_logs: str) -> IncidentState:
+    """Create a blank IncidentState seeded with raw log text.
+
+    Args:
+        raw_logs: Raw multi-line log content uploaded by the user.
+
+    Returns:
+        IncidentState with all list and string fields initialized to empty values.
+    """
     return {
         "raw_logs": raw_logs,
         "classified_entries": [],

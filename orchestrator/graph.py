@@ -1,3 +1,4 @@
+import logging
 from langgraph.graph import StateGraph, END
 from orchestrator.state import IncidentState
 from orchestrator.router import route_after_remediation
@@ -7,25 +8,42 @@ from agents.cookbook import synthesize_cookbook
 from agents.slack_notifier import send_slack_notifications
 from agents.jira_ticket import create_jira_tickets
 
+logger = logging.getLogger(__name__)
+
 
 def _classifier_node(state: IncidentState) -> dict:
-    return classify_logs(state)
+    logger.info("Graph node: classifier started")
+    result = classify_logs(state)
+    logger.info("Graph node: classifier completed")
+    return result
 
 
 def _remediation_node(state: IncidentState) -> dict:
-    return generate_remediations(state)
+    logger.info("Graph node: remediation started")
+    result = generate_remediations(state)
+    logger.info("Graph node: remediation completed")
+    return result
 
 
 def _cookbook_node(state: IncidentState) -> dict:
-    return synthesize_cookbook(state)
+    logger.info("Graph node: cookbook started")
+    result = synthesize_cookbook(state)
+    logger.info("Graph node: cookbook completed")
+    return result
 
 
 def _slack_node(state: IncidentState) -> dict:
-    return send_slack_notifications(state)
+    logger.info("Graph node: slack_notifier started")
+    result = send_slack_notifications(state)
+    logger.info("Graph node: slack_notifier completed")
+    return result
 
 
 def _jira_node(state: IncidentState) -> dict:
-    return create_jira_tickets(state)
+    logger.info("Graph node: jira_ticket started")
+    result = create_jira_tickets(state)
+    logger.info("Graph node: jira_ticket completed")
+    return result
 
 
 def _route_after_remediation(state: IncidentState) -> list[str]:
@@ -33,6 +51,15 @@ def _route_after_remediation(state: IncidentState) -> list[str]:
 
 
 def build_graph():
+    """Build and compile the LangGraph incident analysis workflow.
+
+    Constructs a directed graph with a linear classifier → remediation path
+    followed by a conditional fan-out to cookbook, Slack, and JIRA nodes
+    based on the highest detected severity.
+
+    Returns:
+        A compiled LangGraph runnable ready to invoke with an IncidentState.
+    """
     graph = StateGraph(IncidentState)
 
     # Add nodes

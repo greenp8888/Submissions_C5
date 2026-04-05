@@ -1,8 +1,11 @@
 import json
+import logging
 import time
 from langchain_core.messages import SystemMessage, HumanMessage
 from orchestrator.state import IncidentState
 from utils.llm import get_llm
+
+logger = logging.getLogger(__name__)
 
 JIRA_SYSTEM_PROMPT = """You are a DevOps engineer creating JIRA tickets for critical incidents.
 
@@ -19,6 +22,17 @@ Return a JSON array. No markdown, no explanation, just the JSON array."""
 
 
 def create_jira_tickets(state: IncidentState) -> dict:
+    """Create JIRA ticket objects for CRITICAL and HIGH severity issues.
+
+    Filters remediations linked to high-severity log entries and generates
+    structured ticket data with title, description, priority, and labels.
+
+    Args:
+        state: Current incident state containing classified_entries and remediations.
+
+    Returns:
+        Dict with jira_tickets and agent_trace updates.
+    """
     start_time = time.time()
 
     # Filter remediations linked to CRITICAL/HIGH entries
@@ -33,6 +47,7 @@ def create_jira_tickets(state: IncidentState) -> dict:
     ]
 
     if not critical_remediations:
+        logger.warning("No CRITICAL/HIGH remediations found — skipping JIRA ticket creation")
         end_time = time.time()
         return {
             "jira_tickets": [],
@@ -46,6 +61,8 @@ def create_jira_tickets(state: IncidentState) -> dict:
             }],
         }
 
+    logger.info("Creating JIRA tickets for %d critical/high remediations", len(critical_remediations))
+
     llm = get_llm()
     remediations_json = json.dumps(critical_remediations, indent=2)
     messages = [
@@ -58,8 +75,14 @@ def create_jira_tickets(state: IncidentState) -> dict:
     if raw_content.startswith("```"):
         raw_content = raw_content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
 
-    tickets = json.loads(raw_content)
+    try:
+        tickets = json.loads(raw_content)
+    except json.JSONDecodeError as e:
+        logger.error("Failed to parse jira_ticket JSON response: %s\nRaw content: %s", e, raw_content)
+        raise
+
     end_time = time.time()
+    logger.info("Created %d JIRA tickets in %.1fs", len(tickets), end_time - start_time)
 
     trace_entry = {
         "agent_name": "jira_ticket",

@@ -1,19 +1,6 @@
 import streamlit as st
 from pathlib import Path
-
-SEVERITY_COLORS = {
-    "CRITICAL": ("#f85149", "critical"),
-    "HIGH": ("#d29922", "high"),
-    "MEDIUM": ("#58a6ff", "medium"),
-    "LOW": ("#8b949e", "low"),
-}
-
-SEVERITY_EMOJI = {
-    "CRITICAL": "\U0001f534",
-    "HIGH": "\U0001f7e0",
-    "MEDIUM": "\U0001f535",
-    "LOW": "\u26aa",
-}
+from config import SEVERITY_COLORS, SEVERITY_EMOJI
 
 
 def inject_theme():

@@ -1,14 +1,11 @@
+import logging
 import os
 import time
 from slack_sdk import WebClient
 from orchestrator.state import IncidentState
+from config import SLACK_SEVERITY_EMOJI as SEVERITY_EMOJI
 
-SEVERITY_EMOJI = {
-    "CRITICAL": ":red_circle:",
-    "HIGH": ":large_orange_circle:",
-    "MEDIUM": ":large_blue_circle:",
-    "LOW": ":white_circle:",
-}
+logger = logging.getLogger(__name__)
 
 
 def _build_slack_blocks(remediations: list[dict]) -> list[dict]:
@@ -45,7 +42,20 @@ def _build_slack_blocks(remediations: list[dict]) -> list[dict]:
 
 
 def send_slack_notifications(state: IncidentState) -> dict:
+    """Send incident analysis report to a Slack channel.
+
+    Builds rich Block Kit message blocks from remediation data and posts
+    them to the configured channel, recording success or failure per message.
+
+    Args:
+        state: Current incident state containing remediations.
+
+    Returns:
+        Dict with slack_notifications and agent_trace updates.
+    """
     start_time = time.time()
+
+    logger.info("Sending Slack notifications for %d remediations", len(state.get("remediations", [])))
 
     # Read from .env directly to avoid Streamlit env var issues
     from pathlib import Path
@@ -72,7 +82,9 @@ def send_slack_notifications(state: IncidentState) -> dict:
             "blocks": {"blocks": blocks},
             "status": "sent",
         })
-    except Exception:
+        logger.info("Slack notification sent to %s", channel)
+    except Exception as e:
+        logger.error("Failed to send Slack notification: %s", e)
         notifications.append({
             "channel": channel,
             "text": fallback_text,
@@ -81,13 +93,15 @@ def send_slack_notifications(state: IncidentState) -> dict:
         })
 
     end_time = time.time()
+    sent_count = sum(1 for n in notifications if n["status"] == "sent")
+    logger.info("Slack notifier completed in %.1fs — %d sent", end_time - start_time, sent_count)
 
     trace_entry = {
         "agent_name": "slack_notifier",
         "start_time": start_time,
         "end_time": end_time,
         "input_summary": f"Remediations: {len(remediations)} items",
-        "output_summary": f"Sent {sum(1 for n in notifications if n['status'] == 'sent')} messages",
+        "output_summary": f"Sent {sent_count} messages",
         "status": "completed",
     }
 
