@@ -228,26 +228,6 @@ sequenceDiagram
 
 ### 💻 Option 2 — Run Locally
 
-#### One-command startup
-
-```bash
-# Clone
-git clone https://github.com/PavithraRajasekar/FinancialAdvisor.git
-cd FinancialAdvisor
-
-# macOS / Linux — creates venv, installs all deps, starts both servers
-./start.sh
-
-# Windows
-start.bat
-```
-
-> The startup script auto-creates the Python virtual environment, installs all dependencies, and launches the API server + React dev server in separate terminal windows.
-
-Open **[http://localhost:5173](http://localhost:5173)**
-
----
-
 #### Manual setup
 
 ```bash
@@ -265,6 +245,9 @@ cd server && node server.js
 
 # 3b · Start React dev server (Terminal 2)
 cd client && npm run dev
+
+# 4 . Start exploring in the browser
+Open **[http://localhost:5173](http://localhost:5173)**
 ```
 
 ---
@@ -326,10 +309,8 @@ Each email includes a styled HTML report + an **A4 PDF attachment** rendered by 
 ## Project Structure
 
 ```
-FinancialAdvisor/
+group_19/
 │
-├── 🚀 start.sh              macOS / Linux one-click startup
-├── 🪟 start.bat             Windows one-click startup
 ├── 📋 requirements.txt      Python dependencies
 ├── 🔧 .env.example          Env template (OpenRouter + Tavily only)
 │
