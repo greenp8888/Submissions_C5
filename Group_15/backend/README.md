@@ -1,4 +1,4 @@
-# Backend — Ideascope API
+# Backend — SignalForge API
 
 FastAPI backend with LangGraph orchestration for competitive intelligence analysis.
 

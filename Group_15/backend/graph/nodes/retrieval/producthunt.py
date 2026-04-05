@@ -1,5 +1,4 @@
 import os
-from tavily import TavilyClient
 from graph.state import RepoItem
 from utils.llm import call_llm
 from prompts.micro_summarize import micro_summarize_prompt
@@ -16,6 +15,15 @@ async def producthunt_retrieval(query: str) -> list[RepoItem]:
     if not tavily_key:
         print("[ProductHunt] Tavily API key not set - skipping ProductHunt search")
         print("[ProductHunt] Add TAVILY_API_KEY to .env for ProductHunt results")
+        return []
+
+    try:
+        from tavily import TavilyClient
+    except ModuleNotFoundError:
+        print(
+            "[ProductHunt] Package tavily-python is not installed — skipping. "
+            "Run: pip install tavily-python  (or pip install -r requirements.txt)"
+        )
         return []
 
     try:

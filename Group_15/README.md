@@ -1,8 +1,77 @@
-# Ideascope - AI-Powered Product Traction Analyzer
+# SignalForge — AI-Powered Product Traction Analyzer
 
 **Validate your startup ideas with real-time market intelligence.**
 
-Ideascope analyzes your product idea across GitHub, Reddit, HackerNews, ProductHunt, and Y Combinator to identify market gaps, competition, and opportunities using LangGraph and RAG (Retrieval-Augmented Generation).
+SignalForge analyzes your product idea across GitHub, Reddit, HackerNews, ProductHunt, and Y Combinator to identify market gaps, competition, and opportunities using LangGraph and RAG (Retrieval-Augmented Generation).
+
+## Application flowchart
+
+End-to-end view: browser → Next.js routes → FastAPI → optional disk cache → LangGraph (or short-circuit on validation error) → external APIs and local RAG. Analysis responses are streamed to the report page as Server-Sent Events (SSE).
+
+```mermaid
+flowchart TB
+    U([User browser])
+
+    subgraph Client["Client — Next.js"]
+        H["Home / — idea form"]
+        RP["Report /report/id — streaming UI"]
+    end
+
+    subgraph NextRoutes["Next.js API routes"]
+        R1["GET /api/ideas — sample prompts"]
+        R2["POST /api/backend/tagline"]
+        R3["POST /api/analyze — create report id"]
+        R4["POST /api/backend/analyze — SSE proxy"]
+    end
+
+    subgraph FastAPI["FastAPI :8000"]
+        T["POST /tagline"]
+        A["POST /analyze"]
+        Q{Disk cache hit?}
+    end
+
+    subgraph Graph["LangGraph — cache miss"]
+        direction TB
+        N1["input"] --> N2["query_builder"]
+        N2 --> N3["retrieval — asyncio parallel"]
+        N3 --> N4["matcher"]
+        N4 --> N5["aggregator"]
+        N5 --> N6["analysis"]
+        N6 --> N7["report"]
+    end
+
+    subgraph Sources["Retrieval sources"]
+        direction LR
+        S1["GitHub"]
+        S2["Reddit"]
+        S3["Hacker News"]
+        S4["Product Hunt — Tavily"]
+        S5["YC — local embeddings RAG"]
+    end
+
+    subgraph LLM["OpenRouter — LLM"]
+        OR["Chat completions"]
+    end
+
+    U --> H
+    H --> R1
+    H --> R2 --> T
+    T --> OR
+    H --> R3 --> RP
+    RP --> R4 --> A
+    A --> Q
+    Q -->|yes| SSE["SSE — cached markdown report"]
+    Q -->|no| N1
+    N1 -.->|validation error| ENDN([END])
+    N7 --> SSE
+    N7 --> CacheWrite["cache_report"]
+    N3 --> S1 & S2 & S3 & S4 & S5
+    N2 & N6 & N7 --> OR
+    R1 -.->|when API key set| OR
+    SSE --> RP
+```
+
+*Notes:* `GET /api/ideas` calls OpenRouter when `OPENROUTER_API_KEY` is set on the frontend; otherwise it returns built-in sample ideas. Product Hunt discovery uses Tavily (`TAVILY_API_KEY` on the backend).
 
 ## 🚀 Quick Start
 

@@ -18,8 +18,9 @@ const PRIORITY_META = {
 export default function FeatureTable({ features }: FeatureTableProps) {
   return (
     <div
+      data-feature-table-root
       style={{
-        border: "1px solid #30363d",
+        border: "1px solid var(--rp-border)",
         borderRadius: 14,
         overflow: "hidden",
       }}
@@ -29,8 +30,8 @@ export default function FeatureTable({ features }: FeatureTableProps) {
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 160px 80px",
-          background: "#161b22",
-          borderBottom: "1px solid #30363d",
+          background: "var(--rp-card)",
+          borderBottom: "1px solid var(--rp-border)",
           padding: "10px 16px",
           gap: 12,
         }}
@@ -42,7 +43,7 @@ export default function FeatureTable({ features }: FeatureTableProps) {
               fontFamily: "var(--font-mono)",
               fontSize: 11,
               letterSpacing: "0.08em",
-              color: "#8b949e",
+              color: "var(--rp-muted)",
               fontWeight: 500,
               textTransform: "uppercase",
             }}
@@ -63,8 +64,8 @@ export default function FeatureTable({ features }: FeatureTableProps) {
               gridTemplateColumns: "1fr 160px 80px",
               padding: "14px 16px",
               gap: 12,
-              borderBottom: idx < features.length - 1 ? "1px solid #21262d" : "none",
-              background: "#0d1117",
+              borderBottom: idx < features.length - 1 ? "1px solid var(--rp-row)" : "none",
+              background: "var(--rp-inset)",
               alignItems: "start",
             }}
           >
@@ -75,12 +76,13 @@ export default function FeatureTable({ features }: FeatureTableProps) {
                   style={{
                     fontSize: 14,
                     fontWeight: 600,
-                    color: "#f0f6fc",
+                    color: "var(--rp-heading)",
                   }}
                 >
                   {item.feature}
                 </span>
                 <span
+                  data-report-accent={true}
                   style={{
                     padding: "1px 7px",
                     borderRadius: 999,
@@ -92,12 +94,13 @@ export default function FeatureTable({ features }: FeatureTableProps) {
                     color: meta.text,
                     border: `1px solid ${meta.border}`,
                     flexShrink: 0,
+                    ["--report-accent-color" as string]: meta.text,
                   }}
                 >
                   {meta.label}
                 </span>
               </div>
-              <p style={{ fontSize: 13, color: "#8b949e", lineHeight: 1.55, margin: 0 }}>
+              <p style={{ fontSize: 13, color: "var(--rp-muted)", lineHeight: 1.55, margin: 0 }}>
                 {item.rationale}
               </p>
               {item.source_urls && item.source_urls.length > 0 && (
@@ -111,12 +114,12 @@ export default function FeatureTable({ features }: FeatureTableProps) {
                       style={{
                         fontFamily: "var(--font-mono)",
                         fontSize: 11,
-                        color: "#58a6ff",
+                        color: "var(--rp-link)",
                         textDecoration: "none",
                         padding: "2px 7px",
                         borderRadius: 4,
-                        background: "rgba(88,166,255,0.08)",
-                        border: "1px solid rgba(88,166,255,0.2)",
+                        background: "var(--rp-link-bg)",
+                        border: "1px solid var(--rp-link-border)",
                       }}
                       onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.textDecoration = "underline"; }}
                       onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.textDecoration = "none"; }}
@@ -131,16 +134,18 @@ export default function FeatureTable({ features }: FeatureTableProps) {
             {/* Mini bar */}
             <div style={{ paddingTop: 4 }}>
               <div
+                data-report-bar-track=""
                 style={{
                   width: "100%",
                   height: 8,
-                  background: "#21262d",
+                  background: "var(--rp-row)",
                   borderRadius: 999,
                   overflow: "hidden",
-                  border: "1px solid #30363d",
+                  border: "1px solid var(--rp-border)",
                 }}
               >
                 <div
+                  data-report-bar-fill=""
                   style={{
                     height: "100%",
                     width: `${meta.bar}%`,
@@ -151,12 +156,14 @@ export default function FeatureTable({ features }: FeatureTableProps) {
                 />
               </div>
               <p
+                data-report-accent={true}
                 style={{
                   fontFamily: "var(--font-mono)",
                   fontSize: 11,
-                  color: "#8b949e",
+                  color: "var(--rp-muted)",
                   marginTop: 4,
                   margin: "4px 0 0 0",
+                  ["--report-accent-color" as string]: meta.text,
                 }}
               >
                 {meta.bar}%
@@ -167,6 +174,7 @@ export default function FeatureTable({ features }: FeatureTableProps) {
             <div style={{ paddingTop: 4 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <div
+                  data-report-dot=""
                   style={{
                     width: 8,
                     height: 8,
@@ -177,11 +185,13 @@ export default function FeatureTable({ features }: FeatureTableProps) {
                   }}
                 />
                 <span
+                  data-report-accent={true}
                   style={{
                     fontFamily: "var(--font-mono)",
                     fontSize: 11,
                     color: meta.text,
                     fontWeight: 600,
+                    ["--report-accent-color" as string]: meta.text,
                   }}
                 >
                   {item.priority.toUpperCase()}

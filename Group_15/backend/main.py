@@ -3,23 +3,28 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 import json
+import re
 import uuid
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from graph.builder import build_graph
-from utils.cache import get_cached_report, cache_report
 from utils.llm import call_llm_async
 
 load_dotenv()
 
-app = FastAPI(title="Ideascope API")
+app = FastAPI(title="SignalForge API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -58,15 +63,51 @@ async def tagline(req: TaglineRequest):
         return {"tagline": raw.strip()[:80], "summary": ""}
 
 
+@app.get("/sample-ideas")
+async def sample_ideas(seed: str | None = Query(default=None, max_length=128)):
+    """LLM-generated example prompts for the home page; `seed` varies output between loads."""
+    nonce = (seed or "").strip() or str(uuid.uuid4())
+    prompt = (
+        "Generate exactly 4 creative, profitable, and timely product ideas worth building in 2026.\n\n"
+        "Rules:\n"
+        "- Each idea must be a single sentence (15–25 words) that describes the product clearly, "
+        "written as an analysis prompt for an AI product intelligence tool.\n"
+        "- Each idea must feel fresh and different — vary domains across B2B SaaS, mobile, marketplace, "
+        "developer tools, consumer apps, climate, health, education, fintech, etc.\n"
+        "- Avoid generic clichés; be specific. This batch must differ from typical AI-assistant or vague CRM ideas.\n"
+        f"- Variation nonce (treat as unique; do not repeat prior batches): {nonce}\n"
+        '- Include a 1–2 word ALL-CAPS category tag (e.g. "SAAS", "MOBILE", "B2B", "MARKETPLACE", '
+        '"AI TOOL", "PLATFORM", "API").\n\n'
+        "Return ONLY a valid JSON array — no markdown, no explanation:\n"
+        "[\n"
+        '  { "prompt": "...", "tag": "..." },\n'
+        '  { "prompt": "...", "tag": "..." },\n'
+        '  { "prompt": "...", "tag": "..." },\n'
+        '  { "prompt": "...", "tag": "..." }\n'
+        "]"
+    )
+    try:
+        raw = await call_llm_async(prompt, max_tokens=512, temperature=1.12)
+        cleaned = re.sub(r"^```(?:json)?\s*", "", raw.strip(), flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s*```\s*$", "", cleaned).strip()
+        ideas = json.loads(cleaned)
+        if not isinstance(ideas, list) or len(ideas) == 0:
+            return {"ideas": []}
+        normalized = []
+        for item in ideas[:4]:
+            if isinstance(item, dict) and item.get("prompt"):
+                normalized.append(
+                    {"prompt": str(item["prompt"]).strip(), "tag": str(item.get("tag", "IDEA")).strip()}
+                )
+        return {"ideas": normalized}
+    except Exception:
+        return {"ideas": []}
+
+
 @app.post("/analyze")
 async def analyze(req: AnalyzeRequest):
-    cached = get_cached_report(req.idea_description, req.audience)
-    if cached:
-        async def cached_stream():
-            yield f"data: {json.dumps({'node': 'report', 'update': {'report': cached}})}\n\n"
-            yield "data: [DONE]\n\n"
-
-        return StreamingResponse(cached_stream(), media_type="text/event-stream")
+    # No in-memory report cache: a cache hit only emitted the final "report" SSE event,
+    # so the UI skipped retrieval/matcher/analysis steps. Each run walks the full graph.
 
     request_id = str(uuid.uuid4())
     initial_state = {
@@ -83,19 +124,11 @@ async def analyze(req: AnalyzeRequest):
     }
 
     async def stream():
-        final_report = None
         async for event in graph.astream(initial_state, stream_mode="updates"):
             if event:
                 node_name = list(event.keys())[0]
                 update_data = event[node_name]
-
-                if node_name == "report" and "report" in update_data:
-                    final_report = update_data["report"]
-
                 yield f"data: {json.dumps({'node': node_name, 'update': update_data})}\n\n"
-
-        if final_report:
-            cache_report(req.idea_description, req.audience, final_report)
 
         yield "data: [DONE]\n\n"
 

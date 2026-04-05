@@ -15,6 +15,23 @@ def query_builder(state: GraphState) -> dict:
         state.get("product_url", "")
     )
 
+    idea = state["idea_description"]
+
+    def fallback_queries() -> dict:
+        print("🔄 Using fallback queries...")
+        fallback_query = f"{idea[:50]}"
+        print(f"  Fallback query: {fallback_query}\n")
+        return {
+            "query_object": {
+                "github": fallback_query,
+                "reddit": fallback_query,
+                "hn": fallback_query,
+                "ph": fallback_query,
+                "ai4that": fallback_query,
+                "yc": fallback_query,
+            }
+        }
+
     try:
         print("📡 Calling GPT-4.1 to generate queries...")
         content = call_llm(prompt, max_tokens=1024)
@@ -33,20 +50,8 @@ def query_builder(state: GraphState) -> dict:
 
     except (json.JSONDecodeError, ValueError) as e:
         print(f"⚠️  LLM response parsing failed: {e}")
-        print("🔄 Using fallback queries...")
+        return fallback_queries()
 
-        idea = state["idea_description"]
-        fallback_query = f"{idea[:50]}"
-
-        print(f"  Fallback query: {fallback_query}\n")
-
-        return {
-            "query_object": {
-                "github": fallback_query,
-                "reddit": fallback_query,
-                "hn": fallback_query,
-                "ph": fallback_query,
-                "ai4that": fallback_query,
-                "yc": fallback_query
-            }
-        }
+    except Exception as e:
+        print(f"⚠️  Query builder LLM call failed (check OPENROUTER_API_KEY in backend/.env): {e}")
+        return fallback_queries()

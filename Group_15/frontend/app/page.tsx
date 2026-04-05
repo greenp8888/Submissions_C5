@@ -2,6 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { DEFAULT_SAMPLE_IDEAS } from "@/lib/sampleIdeas";
+import { useAppTheme } from "@/lib/appTheme";
+import {
+  SignalForgeHeaderBrand,
+  SignalForgeKnowledgeIcon,
+} from "@/components/SignalForgeLogo";
 
 /* ─── Theme toggle icons ──────────────────────────────────────────── */
 const SunIcon = () => (
@@ -17,11 +23,6 @@ const MoonIcon = () => (
 );
 
 /* ─── SVG Icons ─────────────────────────────────────────────────── */
-const BoltIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className="w-5 h-5">
-    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-  </svg>
-);
 /* ─── Brand logos ────────────────────────────────────────────────── */
 const GitHubLogo = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" aria-label="GitHub" className="w-5 h-5">
@@ -54,22 +55,6 @@ const AI4ThatLogo = () => (
     <path d="M12 6v4M8 8l2.5 2.5M16 8l-2.5 2.5" />
     <rect x="4" y="10" width="16" height="9" rx="3" />
     <path d="M8 14h.01M12 14h.01M16 14h.01" strokeWidth={2} strokeLinecap="round" />
-  </svg>
-);
-/* IdeaScope knowledge-base logo — bolt + database stack */
-const IdeaScopeKBLogo = () => (
-  <svg viewBox="0 0 24 24" fill="none" aria-label="IdeaScope Knowledge Base" className="w-5 h-5">
-    {/* Bolt */}
-    <path d="M13 3L5 13h7l-1 8 9-11h-7l1-7z" fill="url(#kb-grad)" />
-    {/* Tiny DB lines */}
-    <line x1="3" y1="20" x2="9" y2="20" stroke="#22d3ee" strokeWidth="1.5" strokeLinecap="round" />
-    <line x1="3" y1="22" x2="7" y2="22" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" />
-    <defs>
-      <linearGradient id="kb-grad" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stopColor="#22d3ee" />
-        <stop offset="100%" stopColor="#3b82f6" />
-      </linearGradient>
-    </defs>
   </svg>
 );
 const ChevronRightIcon = () => (
@@ -122,7 +107,7 @@ const sources = [
   { icon: <ProductHuntLogo />, name: "Product Hunt",  color: "#DA552F", bg: "rgba(218,85,47,0.12)",   featured: false },
   { icon: <YCLogo />,          name: "Y Combinator",  color: "#FB651E", bg: "rgba(251,101,30,0.12)",  featured: false },
   { icon: <AI4ThatLogo />,     name: "AI For That",   color: "#818cf8", bg: "rgba(129,140,248,0.12)", featured: false },
-  { icon: <IdeaScopeKBLogo />, name: "IdeaScope KB",  color: "#22d3ee", bg: "rgba(34,211,238,0.12)",  featured: true  },
+  { icon: <SignalForgeKnowledgeIcon className="w-5 h-5" />, name: "SignalForge KB",  color: "#22d3ee", bg: "rgba(34,211,238,0.12)",  featured: true  },
 ];
 
 const comingSoonContent: Record<Exclude<NavTab, "home">, {
@@ -177,25 +162,31 @@ const comingSoonContent: Record<Exclude<NavTab, "home">, {
 /* ─── Component ──────────────────────────────────────────────────── */
 export default function Home() {
   const router = useRouter();
+  const { isDark, toggleTheme, mounted } = useAppTheme();
   const [ideaDescription, setIdeaDescription] = useState("");
   const [audience, setAudience] = useState("");
   const [productUrl, setProductUrl] = useState("");
   const [loading, setLoading] = useState(false);
-  const [isDark, setIsDark] = useState(true);
   const [selectedIdea, setSelectedIdea] = useState<number | null>(null);
   const [sampleIdeas, setSampleIdeas] = useState<SampleIdea[]>([]);
   const [ideasLoading, setIdeasLoading] = useState(true);
-  const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<NavTab>("home");
 
   useEffect(() => {
-    setMounted(true);
-    fetch("/api/ideas")
+    fetch(`/api/ideas?t=${Date.now()}&r=${Math.random().toString(36).slice(2)}`, {
+      cache: "no-store",
+    })
       .then((r) => r.json())
       .then((data) => {
-        if (Array.isArray(data.ideas)) setSampleIdeas(data.ideas);
+        if (Array.isArray(data.ideas) && data.ideas.length > 0) {
+          setSampleIdeas(data.ideas);
+        } else {
+          setSampleIdeas(DEFAULT_SAMPLE_IDEAS);
+        }
       })
-      .catch(() => {})
+      .catch(() => {
+        setSampleIdeas(DEFAULT_SAMPLE_IDEAS);
+      })
       .finally(() => setIdeasLoading(false));
   }, []);
 
@@ -254,18 +245,7 @@ export default function Home() {
         style={{ borderBottom: "1px solid var(--dark-border)", height: 56 }}
       >
         {/* Logo */}
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <div
-            className="flex items-center justify-center w-8 h-8 rounded-lg"
-            style={{ background: "linear-gradient(135deg, #3b82f6, #22d3ee)" }}
-            aria-hidden="true"
-          >
-            <BoltIcon />
-          </div>
-          <span style={{ fontSize: 17, fontWeight: 700, letterSpacing: "-0.02em" }}>
-            IdeaScope
-          </span>
-        </div>
+        <SignalForgeHeaderBrand variant="default" />
 
         {/* ── Center nav tabs ── */}
         {mounted && (
@@ -367,7 +347,8 @@ export default function Home() {
 
               {/* Theme toggle */}
               <button
-                onClick={() => setIsDark(!isDark)}
+                type="button"
+                onClick={toggleTheme}
                 aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
                 className="cursor-pointer transition-all duration-200"
                 style={{
@@ -908,7 +889,7 @@ export default function Home() {
               <div className="grid grid-cols-3 gap-2 mb-8">
                 {sources.map((src, i) =>
                   src.featured ? (
-                    /* IdeaScope KB — full-width featured card */
+                    /* SignalForge KB — full-width featured card */
                     <div
                       key={src.name}
                       className="col-span-3 flex items-center gap-3 rounded-xl transition-all duration-200 cursor-default"
