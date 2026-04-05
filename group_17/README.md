@@ -2,6 +2,8 @@
 
 **Live app:** https://devops-incidentiq.streamlit.app/
 
+**Live app:** https://drive.google.com/drive/folders/1wlY9Jd-XHBTQKm6VuvYUZ4ofv9ieyJRn?usp=drive_link
+
 A multi-agent AI application that automates DevOps incident review from raw log files. Upload or paste ops logs and a 5-agent pipeline — orchestrated by LangGraph and powered by Claude Sonnet 4.5 — classifies incidents, generates remediation plans, sends Slack alerts, creates incident runbooks, and opens JIRA tickets automatically.
 
 <img width="1905" height="990" alt="image" src="https://github.com/user-attachments/assets/b2714336-3792-4929-9bda-0bfda15646cb" />
