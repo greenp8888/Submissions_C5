@@ -8,7 +8,7 @@
 
 [![Live App](https://img.shields.io/badge/🚀_Live_App-Open_Now-6366f1?style=for-the-badge)](https://ptotic-bernita-unpresciently.ngrok-free.dev/)
 &nbsp;
-[![Demo](https://img.shields.io/badge/🎥_Demo-Watch_Now-61DAFB?style=for-the-badge&logo=loom&logoColor=white)](https://www.loom.com/share/fb1c5a9d85f7496594eb7f1b34910ad2)
+[![Demo](https://img.shields.io/badge/🎥_Demo-Watch_Now-61DAFB?style=for-the-badge&logo=loom&logoColor=white)](https://www.loom.com/share/ac5b66b437e7489083d804dcd6a6ecbd)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
 [![React](https://img.shields.io/badge/React-18-FF0000?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
@@ -18,7 +18,7 @@
 ---
 
 **[Try our hosted app](https://ptotic-bernita-unpresciently.ngrok-free.dev/)** .
-**[Checkout our video demo](https://www.loom.com/share/fb1c5a9d85f7496594eb7f1b34910ad2)** · **[Report Bug](https://github.com/PavithraRajasekar/FinancialAdvisor/issues)** · **[Request Feature](https://github.com/PavithraRajasekar/FinancialAdvisor/issues)**
+**[Checkout our video demo](https://www.loom.com/share/ac5b66b437e7489083d804dcd6a6ecbd)** · **[Report Bug](https://github.com/PavithraRajasekar/FinancialAdvisor/issues)** · **[Request Feature](https://github.com/PavithraRajasekar/FinancialAdvisor/issues)**
 
 </div>
 
