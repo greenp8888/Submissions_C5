@@ -11,50 +11,6 @@ from deep_researcher.config import Settings
 from deep_researcher.graph import build_graph
 
 
-def create_downloadable_report(markdown_text: str) -> str:
-    output_dir = Path(tempfile.mkdtemp(prefix="deep_research_report_"))
-    output_path = output_dir / "research_report.md"
-    output_path.write_text(markdown_text, encoding="utf-8")
-    return str(output_path)
-
-
-def evidence_to_dataframe(evidence: list[dict]) -> pd.DataFrame:
-    if not evidence:
-        return pd.DataFrame(
-            columns=[
-                "source_type",
-                "source_label",
-                "title",
-                "url",
-                "query_used",
-                "relevance_hint",
-            ]
-        )
-
-    rows = []
-    for item in evidence:
-        rows.append(
-            {
-                "source_type": item.get("source_type", ""),
-                "source_label": item.get("source_label", ""),
-                "title": item.get("title", ""),
-                "url": item.get("url", ""),
-                "query_used": item.get("query_used", ""),
-                "relevance_hint": item.get("relevance_hint", ""),
-            }
-        )
-    return pd.DataFrame(rows)
-
-
-DETAILED_ANALYSIS_PLACEHOLDER = (
-    "_Click **Detailed Analysis** after a run to show **Detailed extracts (all retrieved snippets)** below._"
-)
-
-DETAILED_EXTRACTS_COLLAPSED = (
-    "_Detailed extracts are **hidden**. Click **Detailed Analysis** again to show them._"
-)
-
-
 def trace_to_markdown(trace: list[str], retrieval_log: list[str] | None = None) -> str:
     sections: list[str] = []
     if trace:
@@ -67,16 +23,76 @@ def trace_to_markdown(trace: list[str], retrieval_log: list[str] | None = None) 
     return "\n\n".join(sections)
 
 
+def create_downloadable_report(markdown_text: str) -> str:
+    output_dir = Path(tempfile.mkdtemp(prefix="deep_research_report_"))
+    output_path = output_dir / "research_report.md"
+    output_path.write_text(markdown_text, encoding="utf-8")
+    return str(output_path)
+
+
+def evidence_to_dataframe(evidence: list[dict], excerpt_max: int = 320) -> pd.DataFrame:
+    if not evidence:
+        return pd.DataFrame(
+            columns=[
+                "source_type",
+                "source_label",
+                "title",
+                "url",
+                "excerpt",
+                "query_used",
+                "relevance_hint",
+            ]
+        )
+
+    rows = []
+    for item in evidence:
+        ex = (item.get("excerpt") or "").replace("\n", " ").strip()
+        if len(ex) > excerpt_max:
+            ex = ex[: excerpt_max - 1] + "…"
+        rows.append(
+            {
+                "source_type": item.get("source_type", ""),
+                "source_label": item.get("source_label", ""),
+                "title": item.get("title", ""),
+                "url": item.get("url", ""),
+                "excerpt": ex,
+                "query_used": item.get("query_used", ""),
+                "relevance_hint": item.get("relevance_hint", ""),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def format_gaps_markdown(gap_round_log: list[str] | None) -> str:
+    logs = gap_round_log or []
+    if not logs:
+        return (
+            "_No gap-planning output yet. Use **Max analyst passes** = 2 to enable a follow-up "
+            "retrieval wave after the first critical analysis._"
+        )
+    return "\n\n---\n\n".join(logs)
+
+
+def format_objective_markdown(objective: str | None) -> str:
+    o = (objective or "").strip()
+    if not o:
+        return "_The planner did not return a separate objective line (check trace)._"
+    return f"**Planner objective:** {o}"
+
+
 def run_research(
     question: str,
     files,
     enable_web_search: bool,
     top_k: int,
     web_results_per_query: int,
+    max_research_rounds: float,
 ):
     question = (question or "").strip()
     if not question:
         raise gr.Error("Please enter a research question.")
+
+    rounds = int(min(2, max(1, int(max_research_rounds))))
 
     settings = Settings.load()
     graph = build_graph(settings)
@@ -118,8 +134,11 @@ def run_research(
         "enable_web_search": bool(enable_web_search),
         "top_k": int(top_k),
         "web_results_per_query": int(web_results_per_query),
+        "max_research_rounds": rounds,
+        "analyst_pass_count": 0,
         "trace": ["Research request accepted by the orchestrator."],
         "retrieval_log": [],
+        "gap_round_log": [],
     }
 
     result = graph.invoke(initial_state)
@@ -132,20 +151,22 @@ def run_research(
     )
     contradictions = result.get("contradictions", []) or []
     contradictions_md = "\n".join(f"- {item}" for item in contradictions) or "_No explicit contradictions noted._"
+    gaps_md = format_gaps_markdown(result.get("gap_round_log"))
+    objective_md = format_objective_markdown(result.get("research_objective"))
     download_markdown = (
-        f"{report}\n\n---\n\n{detailed_md}" if detailed_md else report
+        f"{report}\n\n---\n\n## Detailed extracts\n\n{detailed_md}" if detailed_md else report
     )
     download_path = create_downloadable_report(download_markdown)
 
     return (
         report,
+        gaps_md,
+        objective_md,
         evidence_df,
         trace_md,
         contradictions_md,
         download_path,
-        detailed_md,
-        DETAILED_ANALYSIS_PLACEHOLDER,
-        False,
+        detailed_md or "_No detailed extracts (nothing retrieved)._",
     )
 
 
@@ -156,12 +177,7 @@ def build_ui() -> gr.Blocks:
 # Local Multi-Agent Deep Researcher
 A local-first, LangGraph-based research assistant derived from your original RAG notebook.
 
-Use it for:
-- uploaded PDFs, images (e.g. PNG/JPG), and audio (transcribed with Whisper)
-- web-assisted research
-- paper/background synthesis
-- contradiction spotting
-- report generation
+**Phase 2:** Up to **2 analyst passes** — pass 2 runs an optional **gap planner**, **follow-up retrieval**, merge, and a second critical analysis (higher latency/cost).
 """
         )
 
@@ -194,6 +210,8 @@ Use it for:
                     ],
                     type="filepath",
                 )
+                planner_objective = gr.Markdown(value="_Run a research job to show the planner objective._")
+
                 enable_web_search = gr.Checkbox(
                     label="Enable web search via Tavily (recommended if key is configured)",
                     value=True,
@@ -215,52 +233,51 @@ Use it for:
                         value=3,
                     )
 
+                max_research_rounds = gr.Slider(
+                    label="Max analyst passes (1 = single pass; 2 = gap planner + follow-up retrieval + 2nd analyst)",
+                    minimum=1,
+                    maximum=2,
+                    step=1,
+                    value=1,
+                )
+
                 run_button = gr.Button("Run deep research", variant="primary")
 
             with gr.Column(scale=4):
-                report = gr.Markdown()
-                contradictions = gr.Markdown()
-                download_report = gr.File(label="Download markdown report")
-                detailed_extracts_md = gr.Markdown(value=DETAILED_ANALYSIS_PLACEHOLDER)
-                detailed_analysis_btn = gr.Button("Detailed Analysis")
-
-        with gr.Accordion("Evidence and execution trace", open=False):
-            evidence_table = gr.Dataframe(label="Evidence catalog", interactive=False)
-            trace_md = gr.Markdown()
-
-        detailed_extracts_store = gr.State("")
-        detailed_extracts_visible = gr.State(False)
-
-        def toggle_detailed_extracts(is_visible: bool, stored: str) -> tuple[str, bool]:
-            text = (stored or "").strip()
-            if not text:
-                return (
-                    "_Run **Run deep research** first, then click **Detailed Analysis**._",
-                    False,
-                )
-            if is_visible:
-                return DETAILED_EXTRACTS_COLLAPSED, False
-            return stored, True
+                with gr.Tabs():
+                    with gr.Tab("Report"):
+                        report = gr.Markdown()
+                        gr.Markdown("**Contradictions**")
+                        contradictions = gr.Markdown()
+                        download_report = gr.File(label="Download markdown report")
+                    with gr.Tab("Sources"):
+                        gr.Markdown("Evidence catalog includes a truncated **excerpt** per row. Full snippets below.")
+                        evidence_table = gr.Dataframe(label="Evidence catalog", interactive=False)
+                        sources_detail_md = gr.Markdown(value="_Detailed extracts appear after a run._")
+                    with gr.Tab("Trace & gaps"):
+                        gaps_panel = gr.Markdown(value="_Gap planner output appears when using 2 analyst passes._")
+                        trace_md = gr.Markdown()
 
         run_button.click(
             fn=run_research,
-            inputs=[question, files, enable_web_search, top_k, web_results_per_query],
+            inputs=[
+                question,
+                files,
+                enable_web_search,
+                top_k,
+                web_results_per_query,
+                max_research_rounds,
+            ],
             outputs=[
                 report,
+                gaps_panel,
+                planner_objective,
                 evidence_table,
                 trace_md,
                 contradictions,
                 download_report,
-                detailed_extracts_store,
-                detailed_extracts_md,
-                detailed_extracts_visible,
+                sources_detail_md,
             ],
-        )
-
-        detailed_analysis_btn.click(
-            fn=toggle_detailed_extracts,
-            inputs=[detailed_extracts_visible, detailed_extracts_store],
-            outputs=[detailed_extracts_md, detailed_extracts_visible],
         )
 
     return demo

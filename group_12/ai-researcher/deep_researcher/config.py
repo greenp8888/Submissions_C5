@@ -33,6 +33,10 @@ class Settings:
     pdf_max_images_per_document: int
     asr_hf_model: str
     asr_max_seconds: float
+    max_research_rounds: int
+    max_followup_queries: int
+    max_evidence_items: int
+    analyst_evidence_limit: int
 
     @staticmethod
     def load() -> "Settings":
@@ -61,4 +65,8 @@ class Settings:
             pdf_max_images_per_document=max(0, int(os.getenv("PDF_MAX_IMAGES_PER_DOCUMENT", "6"))),
             asr_hf_model=os.getenv("ASR_HF_MODEL", "openai/whisper-small").strip(),
             asr_max_seconds=float(os.getenv("ASR_MAX_SECONDS", "180")),
+            max_research_rounds=max(1, min(5, int(os.getenv("MAX_RESEARCH_ROUNDS", "1")))),
+            max_followup_queries=max(1, min(12, int(os.getenv("MAX_FOLLOWUP_QUERIES", "6")))),
+            max_evidence_items=max(20, min(500, int(os.getenv("MAX_EVIDENCE_ITEMS", "120")))),
+            analyst_evidence_limit=max(8, min(64, int(os.getenv("ANALYST_EVIDENCE_LIMIT", "24")))),
         )

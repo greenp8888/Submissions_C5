@@ -69,6 +69,54 @@ def _safe_json_loads(text: str) -> Any:
         return None
 
 
+def _evidence_dedupe_key(item: EvidenceItem) -> tuple[Any, ...]:
+    url = (item.get("url") or "").strip()
+    if url:
+        return ("url", url.lower())
+    title = (item.get("title") or "").strip()[:240]
+    ex = (item.get("excerpt") or "").strip()[:240]
+    label = (item.get("source_label") or "").strip()
+    return ("sig", label, title, ex)
+
+
+def _dedupe_extend(existing: list[EvidenceItem], batch: list[EvidenceItem]) -> list[EvidenceItem]:
+    seen: set[tuple[Any, ...]] = set()
+    out: list[EvidenceItem] = []
+    for item in existing:
+        k = _evidence_dedupe_key(item)
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append(item)
+    for item in batch:
+        k = _evidence_dedupe_key(item)
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append(item)
+    return out
+
+
+def _normalize_followup_tool(token: str) -> str | None:
+    t = (token or "").strip().lower()
+    if t in ("local", "upload", "uploads", "pdf", "local uploads", "files"):
+        return "local"
+    if t in ("wikipedia", "wiki"):
+        return "wikipedia"
+    if t in ("arxiv", "arxiv.org", "papers"):
+        return "arxiv"
+    if t in ("tavily", "tavily web", "web", "internet", "search"):
+        return "tavily"
+    return None
+
+
+def _retrieval_channel_enabled(state: ResearchState, channel: str) -> bool:
+    flt = state.get("retrieval_tool_filter")
+    if not flt:
+        return True
+    return channel in flt
+
+
 _SOURCE_SECTION_INTROS: dict[str, str] = {
     "Tavily Web": "**Tavily (web search)** retrieved the following:",
     "Wikipedia": "**Wikipedia** contributed the following articles and summaries:",
@@ -296,8 +344,7 @@ def markdown_sources_analysis_only(
             "",
             analysis,
             "",
-            "_Row-level **Detailed extracts** (all retrieved snippets) are shown only if you click "
-            "**Detailed Analysis** in the Gradio UI after a run._",
+            "_Row-level **Detailed extracts** also appear in the **Sources** tab in the Gradio UI._",
         ]
     ).strip()
 
@@ -336,19 +383,28 @@ User question:
     if not subquestions:
         subquestions = [state["question"]]
 
-    return {
+    objective = ""
+    if isinstance(payload, dict):
+        objective = str(payload.get("objective", "") or "").strip()
+
+    trace_msg = f"Planner created {len(subquestions)} sub-question(s)."
+    if objective:
+        trace_msg += f" Objective: {objective[:200]}{'…' if len(objective) > 200 else ''}"
+
+    out: dict[str, Any] = {
         "subquestions": subquestions,
-        "trace": _append_trace(
-            state,
-            f"Planner created {len(subquestions)} sub-question(s).",
-        ),
+        "trace": _append_trace(state, trace_msg),
     }
+    if objective:
+        out["research_objective"] = objective
+    return out
 
 
 def prep_retrieval_node(state: ResearchState) -> dict:
     queries = [state["question"], *(state.get("subquestions", []) or [])]
     return {
         "queries": queries,
+        "retrieval_tool_filter": None,
         "trace": _append_trace(
             state,
             f"Prepared {len(queries)} retrieval quer(ies) (question + sub-questions).",
@@ -359,6 +415,12 @@ def prep_retrieval_node(state: ResearchState) -> dict:
 # Parallel retrieval nodes (one per source)
 def local_media_retriever_node(state: ResearchState, settings: Settings) -> dict:
     t0 = _utc_timestamp()
+    if not _retrieval_channel_enabled(state, "local"):
+        return {
+            "local_media_evidence": [],
+            "retrieval_log": ["[local_media] Skipped for this wave (tool filter)."],
+            "retrieval_timing_local_media": _parallel_retrieval_timing(t0),
+        }
     paths = state.get("local_file_paths", []) or []
     queries = state.get("queries", [])
     top_k = int(state.get("top_k", settings.top_k))
@@ -405,6 +467,12 @@ def local_media_retriever_node(state: ResearchState, settings: Settings) -> dict
 
 def wikipedia_retriever_node(state: ResearchState, settings: Settings) -> dict:
     t0 = _utc_timestamp()
+    if not _retrieval_channel_enabled(state, "wikipedia"):
+        return {
+            "wikipedia_evidence": [],
+            "retrieval_log": ["[wikipedia_retriever] Skipped for this wave (tool filter)."],
+            "retrieval_timing_wikipedia": _parallel_retrieval_timing(t0),
+        }
     queries = state.get("queries", [])
     if not queries:
         return {
@@ -435,6 +503,12 @@ def wikipedia_retriever_node(state: ResearchState, settings: Settings) -> dict:
 
 def arxiv_retriever_node(state: ResearchState, settings: Settings) -> dict:
     t0 = _utc_timestamp()
+    if not _retrieval_channel_enabled(state, "arxiv"):
+        return {
+            "arxiv_evidence": [],
+            "retrieval_log": ["[arxiv_retriever] Skipped for this wave (tool filter)."],
+            "retrieval_timing_arxiv": _parallel_retrieval_timing(t0),
+        }
     queries = state.get("queries", [])
     if not queries:
         return {
@@ -465,6 +539,12 @@ def arxiv_retriever_node(state: ResearchState, settings: Settings) -> dict:
 
 def tavily_retriever_node(state: ResearchState, settings: Settings) -> dict:
     t0 = _utc_timestamp()
+    if not _retrieval_channel_enabled(state, "tavily"):
+        return {
+            "tavily_evidence": [],
+            "retrieval_log": ["[tavily_retriever] Skipped for this wave (tool filter)."],
+            "retrieval_timing_tavily": _parallel_retrieval_timing(t0),
+        }
     queries = state.get("queries", [])
     web_results_per_query = int(state.get("web_results_per_query", settings.web_results_per_query))
 
@@ -512,28 +592,84 @@ def tavily_retriever_node(state: ResearchState, settings: Settings) -> dict:
 
 
 def retriever_merge_node(state: ResearchState, settings: Settings) -> dict:
-    """Merge evidence from all parallel retriever nodes"""
-    evidence: list[EvidenceItem] = []
+    """Initial merge: replace corpus with this wave's parallel retriever outputs."""
+    batch: list[EvidenceItem] = []
 
     loc_n = len(state.get("local_media_evidence", []) or [])
     wiki_n = len(state.get("wikipedia_evidence", []) or [])
     arx_n = len(state.get("arxiv_evidence", []) or [])
     tav_n = len(state.get("tavily_evidence", []) or [])
 
-    evidence.extend(state.get("local_media_evidence", []) or [])
-    evidence.extend(state.get("wikipedia_evidence", []) or [])
-    evidence.extend(state.get("arxiv_evidence", []) or [])
-    evidence.extend(state.get("tavily_evidence", []) or [])
+    batch.extend(state.get("local_media_evidence", []) or [])
+    batch.extend(state.get("wikipedia_evidence", []) or [])
+    batch.extend(state.get("arxiv_evidence", []) or [])
+    batch.extend(state.get("tavily_evidence", []) or [])
+
+    evidence = list(batch)
+    cap = int(settings.max_evidence_items)
+    trimmed = 0
+    if len(evidence) > cap:
+        trimmed = len(evidence) - cap
+        evidence = evidence[-cap:]
+
+    log_lines = [
+        "[retriever_merge] Initial wave: "
+        f"Local={loc_n}, Wikipedia={wiki_n}, arXiv={arx_n}, Tavily={tav_n} → total {len(evidence)}."
+    ]
+    if trimmed:
+        log_lines.append(
+            f"[retriever_merge] Trimmed {trimmed} item(s) to respect max_evidence_items={cap}."
+        )
 
     return {
         "evidence": evidence,
-        "retrieval_log": [
-            "[retriever_merge] Combined evidence: "
-            f"Local={loc_n}, Wikipedia={wiki_n}, arXiv={arx_n}, Tavily={tav_n} → total {len(evidence)}."
-        ],
+        "retrieval_log": log_lines,
         "trace": _append_trace(
             state,
-            f"Retriever collected {len(evidence)} evidence item(s) from parallel sources.",
+            f"Retriever merge (initial wave): {len(evidence)} evidence item(s) in corpus.",
+        ),
+    }
+
+
+def retriever_merge_followup_node(state: ResearchState, settings: Settings) -> dict:
+    """Follow-up merge: append deduped batch to existing evidence (separate LangGraph node from initial merge)."""
+    batch: list[EvidenceItem] = []
+
+    loc_n = len(state.get("local_media_evidence", []) or [])
+    wiki_n = len(state.get("wikipedia_evidence", []) or [])
+    arx_n = len(state.get("arxiv_evidence", []) or [])
+    tav_n = len(state.get("tavily_evidence", []) or [])
+
+    batch.extend(state.get("local_media_evidence", []) or [])
+    batch.extend(state.get("wikipedia_evidence", []) or [])
+    batch.extend(state.get("arxiv_evidence", []) or [])
+    batch.extend(state.get("tavily_evidence", []) or [])
+
+    prior = list(state.get("evidence", []) or [])
+    evidence = _dedupe_extend(prior, batch)
+    cap = int(settings.max_evidence_items)
+    trimmed = 0
+    if len(evidence) > cap:
+        trimmed = len(evidence) - cap
+        evidence = evidence[-cap:]
+
+    ap = int(state.get("analyst_pass_count", 0))
+    log_lines = [
+        "[retriever_merge_followup] Follow-up wave after analyst pass "
+        f"{ap}: Local={loc_n}, Wikipedia={wiki_n}, arXiv={arx_n}, Tavily={tav_n} "
+        f"→ +batch {len(batch)} → corpus {len(evidence)}."
+    ]
+    if trimmed:
+        log_lines.append(
+            f"[retriever_merge_followup] Trimmed {trimmed} oldest item(s) to max_evidence_items={cap}."
+        )
+
+    return {
+        "evidence": evidence,
+        "retrieval_log": log_lines,
+        "trace": _append_trace(
+            state,
+            f"Follow-up retriever merge: {len(evidence)} evidence item(s) in corpus.",
         ),
     }
 
@@ -541,6 +677,7 @@ def retriever_merge_node(state: ResearchState, settings: Settings) -> dict:
 def analyst_node(state: ResearchState, settings: Settings) -> dict:
     llm = get_llm(settings, temperature=0.1)
     evidence = state.get("evidence", [])
+    pass_n = int(state.get("analyst_pass_count", 0)) + 1
 
     if not evidence:
         summary = (
@@ -550,8 +687,15 @@ def analyst_node(state: ResearchState, settings: Settings) -> dict:
         return {
             "analysis_summary": summary,
             "contradictions": [],
-            "trace": _append_trace(state, "Critical Analyst found no evidence to assess."),
+            "analyst_pass_count": pass_n,
+            "trace": _append_trace(
+                state,
+                f"Critical Analyst (pass {pass_n}) found no evidence to assess.",
+            ),
         }
+
+    limit = int(settings.analyst_evidence_limit)
+    window = evidence[-limit:] if len(evidence) > limit else evidence
 
     evidence_block = "\n\n".join(
         [
@@ -560,7 +704,7 @@ def analyst_node(state: ResearchState, settings: Settings) -> dict:
                 f"URL: {item['url'] or 'n/a'}\n"
                 f"Excerpt: {item['excerpt']}"
             )
-            for idx, item in enumerate(evidence[:16], start=1)
+            for idx, item in enumerate(window, start=1)
         ]
     )
 
@@ -599,14 +743,190 @@ Evidence:
     if quality_notes:
         analysis_summary += "\n\nEvidence quality notes:\n" + "\n".join(f"- {x}" for x in quality_notes)
 
+    if len(evidence) > len(window):
+        analysis_summary += (
+            f"\n\n_Note: Analyst viewed the last {len(window)} of {len(evidence)} evidence items "
+            "(most recent / end of corpus)._"
+        )
+
     return {
         "analysis_summary": analysis_summary,
         "contradictions": contradictions,
+        "analyst_pass_count": pass_n,
         "trace": _append_trace(
             state,
-            f"Critical Analyst produced {len(contradictions)} contradiction note(s).",
+            f"Critical Analyst (pass {pass_n}) produced {len(contradictions)} contradiction note(s).",
         ),
     }
+
+
+def gap_planner_node(state: ResearchState, settings: Settings) -> dict:
+    llm = get_llm(settings, temperature=0.15)
+    max_r = min(2, max(1, int(state.get("max_research_rounds", settings.max_research_rounds))))
+    passes = int(state.get("analyst_pass_count", 0))
+    if max_r <= 1 or passes >= max_r:
+        return {}
+
+    evidence = state.get("evidence", []) or []
+    by_label = _evidence_by_tool_label(evidence)
+    counts = ", ".join(f"{lb}: {len(items)}" for lb, items in sorted(by_label.items())) or "none"
+
+    titles = "\n".join(
+        f"- {(item.get('title') or '')[:120]}" for item in evidence[:12]
+    ) or "- (none)"
+
+    objective = (state.get("research_objective") or "").strip()
+    obj_line = f"Planner objective:\n{objective}\n" if objective else ""
+
+    prompt = f"""
+You are the Gap Planning agent in a multi-agent deep research system.
+
+The user may run up to {max_r} analyst passes total. The critical analyst has just finished pass {passes}.
+If another retrieval wave is warranted before the final report, propose focused follow-up queries.
+
+Return strict JSON only with this exact shape:
+{{
+  "gaps": ["...", "..."],
+  "followup_queries": ["...", "..."],
+  "tools": ["local", "wikipedia", "arxiv", "tavily"]
+}}
+
+Rules:
+- Propose 2 to {settings.max_followup_queries} followup_queries (short, search-ready). Use [] if evidence is already sufficient.
+- "tools" lists which retrieval channels to use for the follow-up wave. Use any subset of:
+  "local", "wikipedia", "arxiv", "tavily". If unsure, include all relevant channels.
+- Respect that Tavily/web may be disabled in the app: still include "tavily" if web would help; the runtime will no-op if off.
+- "gaps" should name concrete missing angles, conflicts to resolve, or depth needed (3-6 strings).
+
+{obj_line}Research question:
+{state["question"]}
+
+Subquestions:
+{chr(10).join(f"- {x}" for x in state.get("subquestions", []) or [])}
+
+Analyst summary:
+{state.get("analysis_summary", "")}
+
+Contradictions:
+{chr(10).join(state.get("contradictions", []) or ["None noted"])}
+
+Evidence counts by label: {counts}
+
+Sample titles:
+{titles}
+""".strip()
+
+    response = llm.invoke(prompt)
+    content = getattr(response, "content", str(response))
+    payload = _safe_json_loads(content)
+
+    gaps: list[str] = []
+    followup_queries: list[str] = []
+    tools_raw: list[str] = []
+
+    if isinstance(payload, dict):
+        if isinstance(payload.get("gaps"), list):
+            gaps = [str(x).strip() for x in payload["gaps"] if str(x).strip()]
+        if isinstance(payload.get("followup_queries"), list):
+            followup_queries = [
+                str(x).strip() for x in payload["followup_queries"] if str(x).strip()
+            ]
+        if isinstance(payload.get("tools"), list):
+            tools_raw = [str(x).strip() for x in payload["tools"] if str(x).strip()]
+
+    cap = int(settings.max_followup_queries)
+    followup_queries = followup_queries[:cap]
+
+    normalized_tools: list[str] = []
+    for t in tools_raw:
+        n = _normalize_followup_tool(t)
+        if n and n not in normalized_tools:
+            normalized_tools.append(n)
+
+    round_md_parts: list[str] = [
+        f"#### Gap planning after analyst pass {passes}",
+        "",
+        "**Gaps identified:**",
+    ]
+    if gaps:
+        round_md_parts.extend(f"- {g}" for g in gaps)
+    else:
+        round_md_parts.append("- _(none listed)_")
+    round_md_parts.extend(
+        [
+            "",
+            "**Planned follow-up queries:**",
+        ]
+    )
+    if followup_queries:
+        round_md_parts.extend(f"- {q}" for q in followup_queries)
+    else:
+        round_md_parts.append("- _(none — stopping additional retrieval)_")
+    round_md_parts.extend(
+        [
+            "",
+            f"**Tools suggested:** {', '.join(normalized_tools) if normalized_tools else '_(default: all channels)_'}",
+            "",
+        ]
+    )
+
+    return {
+        "gap_findings": gaps,
+        "followup_queries": followup_queries,
+        "followup_tools": normalized_tools,
+        "gap_round_log": ["\n".join(round_md_parts).strip()],
+        "trace": _append_trace(
+            state,
+            f"Gap planner proposed {len(followup_queries)} follow-up quer(ies) after pass {passes}.",
+        ),
+    }
+
+
+def prep_followup_retrieval_node(state: ResearchState, settings: Settings) -> dict:
+    raw = state.get("followup_queries") or []
+    cap = int(settings.max_followup_queries)
+    queries = [str(q).strip() for q in raw if str(q).strip()][:cap]
+
+    tools = list(state.get("followup_tools") or [])
+    allowed: list[str] = []
+    for x in tools:
+        n = _normalize_followup_tool(str(x))
+        if n and n not in allowed:
+            allowed.append(n)
+    if not allowed:
+        allowed = ["local", "wikipedia", "arxiv", "tavily"]
+
+    return {
+        "queries": queries,
+        "retrieval_tool_filter": allowed,
+        "trace": _append_trace(
+            state,
+            f"Follow-up retrieval: {len(queries)} quer(ies); channels={allowed}.",
+        ),
+    }
+
+
+def route_after_analyst(state: ResearchState) -> str:
+    """First analyst only: skip gap when single-pass; else go to gap planner."""
+    max_r = min(2, max(1, int(state.get("max_research_rounds", 1))))
+    passes = int(state.get("analyst_pass_count", 0))
+    if max_r <= 1:
+        return "insight_direct"
+    if passes >= max_r:
+        return "insight_direct"
+    return "gap_planner"
+
+
+def route_after_gap(state: ResearchState) -> str:
+    """After gap planner: stop if no queries; else run one follow-up retrieval wave (max 2 analyst passes)."""
+    passes = int(state.get("analyst_pass_count", 0))
+    max_r = min(2, max(1, int(state.get("max_research_rounds", 1))))
+    if passes >= max_r:
+        return "insight_post_gap_skip"
+    qs = state.get("followup_queries") or []
+    if not qs:
+        return "insight_post_gap_skip"
+    return "prep_followup"
 
 
 def insight_node(state: ResearchState, settings: Settings) -> dict:
@@ -671,6 +991,16 @@ def report_node(state: ResearchState, settings: Settings) -> dict:
         f"- {x}" for x in state.get("contradictions", []) or ["No explicit contradictions identified"]
     )
 
+    analyst_passes = int(state.get("analyst_pass_count", 0))
+    multi_pass_note = ""
+    if analyst_passes > 1:
+        multi_pass_note = (
+            f"\nThe pipeline completed **{analyst_passes} critical-analyst passes** with optional "
+            "follow-up retrieval between passes. Add a concise subsection **Multi-pass research** "
+            "stating that a second evidence wave was merged when applicable and how that changed confidence "
+            "or coverage (or say follow-up added no new material if that fits the evidence).\n"
+        )
+
     prompt = f"""
 You are the Report Builder agent in a multi-agent deep research system.
 
@@ -686,7 +1016,7 @@ Write a polished markdown report (this part sits **between** those blocks) with 
 5. Contradictions / Caveats
 6. Insights / Hypotheses
 7. Conclusion
-
+{multi_pass_note}
 The report must be practical, honest about uncertainty, and easy to demo.
 
 Research question:
@@ -755,13 +1085,28 @@ def build_graph(settings: Settings):
     graph.add_node("arxiv_retriever", lambda state: arxiv_retriever_node(state, settings))
     graph.add_node("tavily_retriever", lambda state: tavily_retriever_node(state, settings))
     
-    # Merge retrieval results
+    # Merge retrieval results (initial vs follow-up are separate LangGraph nodes to avoid fan-in deadlock)
     graph.add_node("retriever_merge", lambda state: retriever_merge_node(state, settings))
+    graph.add_node("retriever_merge_followup", lambda state: retriever_merge_followup_node(state, settings))
+
+    # Follow-up retrievers reuse the same node functions but distinct graph nodes (parallel only to each other)
+    graph.add_node("local_media_retriever_f", lambda state: local_media_retriever_node(state, settings))
+    graph.add_node("wikipedia_retriever_f", lambda state: wikipedia_retriever_node(state, settings))
+    graph.add_node("arxiv_retriever_f", lambda state: arxiv_retriever_node(state, settings))
+    graph.add_node("tavily_retriever_f", lambda state: tavily_retriever_node(state, settings))
     
     # Analysis nodes
     graph.add_node("critical_analyst", lambda state: analyst_node(state, settings))
-    graph.add_node("insight_generator", lambda state: insight_node(state, settings))
-    graph.add_node("report_builder", lambda state: report_node(state, settings))
+    graph.add_node("gap_planner", lambda state: gap_planner_node(state, settings))
+    graph.add_node("prep_followup", lambda state: prep_followup_retrieval_node(state, settings))
+    # Separate insight/report chains avoid LangGraph multi-parent deadlock on shared nodes
+    graph.add_node("insight_direct", lambda state: insight_node(state, settings))
+    graph.add_node("insight_post_gap_skip", lambda state: insight_node(state, settings))
+    graph.add_node("insight_post_followup", lambda state: insight_node(state, settings))
+    graph.add_node("report_direct", lambda state: report_node(state, settings))
+    graph.add_node("report_post_gap_skip", lambda state: report_node(state, settings))
+    graph.add_node("report_post_followup", lambda state: report_node(state, settings))
+    graph.add_node("critical_analyst_followup", lambda state: analyst_node(state, settings))
     
     # Edges
     graph.add_edge(START, "planner")
@@ -772,17 +1117,49 @@ def build_graph(settings: Settings):
     graph.add_edge("prep_retrieval", "wikipedia_retriever")
     graph.add_edge("prep_retrieval", "arxiv_retriever")
     graph.add_edge("prep_retrieval", "tavily_retriever")
+
+    # Follow-up wave: dedicated retriever nodes → dedicated merge (append + dedupe)
+    graph.add_edge("prep_followup", "local_media_retriever_f")
+    graph.add_edge("prep_followup", "wikipedia_retriever_f")
+    graph.add_edge("prep_followup", "arxiv_retriever_f")
+    graph.add_edge("prep_followup", "tavily_retriever_f")
+
+    graph.add_edge("local_media_retriever_f", "retriever_merge_followup")
+    graph.add_edge("wikipedia_retriever_f", "retriever_merge_followup")
+    graph.add_edge("arxiv_retriever_f", "retriever_merge_followup")
+    graph.add_edge("tavily_retriever_f", "retriever_merge_followup")
     
-    # Merge after all parallel tasks complete (fan-in)
+    # Initial merge after first parallel wave
     graph.add_edge("local_media_retriever", "retriever_merge")
     graph.add_edge("wikipedia_retriever", "retriever_merge")
     graph.add_edge("arxiv_retriever", "retriever_merge")
     graph.add_edge("tavily_retriever", "retriever_merge")
     
-    # Continue with analysis
+    # First analyst only from initial merge (follow-up merge feeds a separate analyst node — no dual fan-in)
     graph.add_edge("retriever_merge", "critical_analyst")
-    graph.add_edge("critical_analyst", "insight_generator")
-    graph.add_edge("insight_generator", "report_builder")
-    graph.add_edge("report_builder", END)
+    graph.add_edge("retriever_merge_followup", "critical_analyst_followup")
+    graph.add_conditional_edges(
+        "critical_analyst",
+        route_after_analyst,
+        {
+            "insight_direct": "insight_direct",
+            "gap_planner": "gap_planner",
+        },
+    )
+    graph.add_conditional_edges(
+        "gap_planner",
+        route_after_gap,
+        {
+            "insight_post_gap_skip": "insight_post_gap_skip",
+            "prep_followup": "prep_followup",
+        },
+    )
+    graph.add_edge("critical_analyst_followup", "insight_post_followup")
+    graph.add_edge("insight_direct", "report_direct")
+    graph.add_edge("insight_post_gap_skip", "report_post_gap_skip")
+    graph.add_edge("insight_post_followup", "report_post_followup")
+    graph.add_edge("report_direct", END)
+    graph.add_edge("report_post_gap_skip", END)
+    graph.add_edge("report_post_followup", END)
 
     return graph.compile()
