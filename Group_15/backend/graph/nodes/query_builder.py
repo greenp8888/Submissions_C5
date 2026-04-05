@@ -5,6 +5,10 @@ from utils.llm import call_llm
 
 
 def query_builder(state: GraphState) -> dict:
+    print("\n" + "="*80)
+    print("🔵 QUERY BUILDER - Generating search queries")
+    print("="*80)
+
     prompt = query_builder_prompt(
         state["idea_description"],
         state.get("audience", ""),
@@ -12,6 +16,7 @@ def query_builder(state: GraphState) -> dict:
     )
 
     try:
+        print("📡 Calling GPT-4.1 to generate queries...")
         content = call_llm(prompt, max_tokens=1024)
         query_object = json.loads(content)
 
@@ -19,11 +24,21 @@ def query_builder(state: GraphState) -> dict:
         if not all(k in query_object for k in required_keys):
             raise ValueError("Missing required query keys")
 
+        print("✅ Queries generated successfully:")
+        for source, query in query_object.items():
+            print(f"  • {source:10s}: {query}")
+        print()
+
         return {"query_object": query_object}
 
     except (json.JSONDecodeError, ValueError) as e:
+        print(f"⚠️  LLM response parsing failed: {e}")
+        print("🔄 Using fallback queries...")
+
         idea = state["idea_description"]
         fallback_query = f"{idea[:50]}"
+
+        print(f"  Fallback query: {fallback_query}\n")
 
         return {
             "query_object": {

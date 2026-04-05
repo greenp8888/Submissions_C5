@@ -24,7 +24,8 @@ def build_graph():
 
     g.add_conditional_edges(
         "input",
-        lambda s: "query_builder" if not s.get("error") else END
+        lambda s: "query_builder" if not s.get("error") else END,
+        {"query_builder": "query_builder", END: END}
     )
 
     g.add_edge("query_builder", "retrieval")
