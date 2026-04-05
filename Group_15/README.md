@@ -252,7 +252,7 @@ This project was built as part of the AI Engineering Accelerator Program (Course
 - Gandakumar: ganda70@gmail.com
 - Florian Willert: fw@feropartners.com
 - Sneha Rao: sneharao300@gmail.com
-- Steven Weber:
+- Steven Weber: steven.weber@swebx.de
 - Mahesh
 ---
 
