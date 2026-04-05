@@ -2,6 +2,8 @@
 
 **Live Demo:** [🚀 outskill-c5-g2-attempt1.streamlit.app](https://outskill-c5-g2-attempt1.streamlit.app/)
 
+**Recorded Demo:** [🎥 Watch the Video](https://drive.google.com/file/d/1kRIWI1gYfkmCpJd0hfzkjy29lE_CCpw6/view?usp=sharing)
+
 **LangSmith Agent Trace Dashboard:** [📊 View Live Multi-Agent Trace](https://smith.langchain.com/o/61e19ebd-9d92-4671-9643-91e677fcf228/dashboards/projects/abbe4f82-712c-4a96-a849-09515d63eb98)
 
 An autonomous research system that searches the web, academic papers, and local documents, evaluates sources, and synthesizes long, multi-step answers. It produces comprehensive, cited reports with a professional UI.
