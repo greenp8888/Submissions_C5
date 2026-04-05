@@ -1307,6 +1307,7 @@ with left:
             ("analyst",   analysis_agent,  0.4, "Analyzing and detecting contradictions..."),
             ("insight",   insight_agent,   0.6, "Generating insights..."),
             ("red_team",  red_team_agent,  0.8, "Red-team validation..."),
+            ("gap_fill",  gap_fill_agent,  0.9, "Filling data gaps..."),
             ("reporter",  report_agent,    1.0, "Compiling report..."),
         ]
 
@@ -1321,14 +1322,15 @@ with left:
                 ("🧠", "Analyst",   "Contradiction detection"),
                 ("💡", "Insight",   "Trend & hypothesis"),
                 ("🎯", "Red Team",  "Hallucination check"),
-                ("📋", "Reporter",  "Structured output"),
+                ("�", "Gap Fill",  "Filling data gaps"),
+                ("�📋", "Reporter",  "Structured output"),
             ]
             agent_statuses = {}
             for step in st.session_state.audit_trail:
                 agent_statuses[step["agent"]] = step["kind"]
             
             # Set next agent to running
-            agent_order = ["PLANNER", "RETRIEVER", "ANALYST", "INSIGHT", "RED TEAM", "REPORTER"]
+            agent_order = ["PLANNER", "RETRIEVER", "ANALYST", "INSIGHT", "RED TEAM", "GAP-FILL", "REPORTER"]
             for ag in agent_order:
                 if ag not in agent_statuses or agent_statuses[ag] not in ["success", "error"]:
                     agent_statuses[ag] = "running"
@@ -1778,7 +1780,8 @@ with right:
             ("🧠", "Analyst",   "Contradiction detection"),
             ("💡", "Insight",   "Trend & hypothesis"),
             ("🎯", "Red Team",  "Hallucination check"),
-            ("📋", "Reporter",  "Structured output"),
+            ("�", "Gap Fill",  "Filling data gaps"),
+            ("�📋", "Reporter",  "Structured output"),
         ]
         agent_statuses = {}
         for step in st.session_state.audit_trail:
@@ -1786,7 +1789,7 @@ with right:
 
         # If running, set the next agent to running
         if phase == "running":
-            agent_order = ["PLANNER", "RETRIEVER", "ANALYST", "INSIGHT", "RED TEAM", "REPORTER"]
+            agent_order = ["PLANNER", "RETRIEVER", "ANALYST", "INSIGHT", "RED TEAM", "GAP-FILL", "REPORTER"]
             for ag in agent_order:
                 if ag not in agent_statuses or agent_statuses[ag] not in ["success", "error"]:
                     agent_statuses[ag] = "running"
