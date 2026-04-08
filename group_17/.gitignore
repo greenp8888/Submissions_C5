@@ -1,0 +1,75 @@
+# ─── Credentials & Secrets ────────────────────────────────────────────────────
+.env
+*.pem
+*.key
+*.p12
+*.pfx
+
+# ─── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+agent/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+wheels/
+pip-wheel-metadata/
+*.spec
+
+# ─── Virtual Environments ─────────────────────────────────────────────────────
+# uv creates .venv automatically — do not commit it
+.venv/
+venv/
+env/
+ENV/
+.env.local
+.env.*.local
+
+# ─── uv ───────────────────────────────────────────────────────────────────────
+# uv.lock SHOULD be committed — it pins exact versions for reproducible installs
+# requirements.txt is a generated export artifact, not a source of truth
+requirements.txt
+
+# ─── Streamlit ────────────────────────────────────────────────────────────────
+.streamlit/secrets.toml
+
+# ─── LangGraph / LangChain ────────────────────────────────────────────────────
+.langchain.db
+langchain_cache/
+
+# ─── Testing & Coverage ───────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+nosetests.xml
+
+# ─── Linting ──────────────────────────────────────────────────────────────────
+.ruff_cache/
+.mypy_cache/
+
+# ─── Logs & Output ────────────────────────────────────────────────────────────
+*.log
+!orchestrator/sample_logs/sample.log
+logs/
+output/
+reports/
+
+# ─── Jupyter (if notebooks added later) ──────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ─── IDEs ─────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

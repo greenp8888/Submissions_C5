@@ -1,0 +1,15 @@
+2024-01-15 08:23:11 ERROR [payment-service] Database connection timeout after 30s - host: db-prod-01:5432
+2024-01-15 08:23:12 CRITICAL [payment-service] Failed to process payment for order #45231 - Connection refused
+2024-01-15 08:23:15 ERROR [api-gateway] Upstream service payment-service returning 503
+2024-01-15 08:23:18 WARNING [load-balancer] High response time detected: 8500ms avg
+2024-01-15 08:23:20 ERROR [auth-service] Redis cache miss rate at 98% - cache server unreachable
+2024-01-15 08:23:22 CRITICAL [auth-service] JWT token validation failing - cache unavailable
+2024-01-15 08:23:25 ERROR [notification-service] Email queue backed up - 4521 messages pending
+2024-01-15 08:23:30 CRITICAL [payment-service] Transaction rollback initiated - data integrity at risk
+2024-01-15 08:23:35 ERROR [monitoring] Disk usage at 94% on db-prod-01
+2024-01-15 08:23:40 WARNING [api-gateway] Rate limiting activated - 429 responses increasing
+2024-01-15 08:23:45 CRITICAL [payment-service] Deadlock detected in transaction_logs table
+2024-01-15 08:23:50 ERROR [auth-service] User session data corrupted - forcing re-authentication
+2024-01-15 08:24:00 CRITICAL [database] Replication lag at 45 seconds - replica out of sync
+2024-01-15 08:24:05 ERROR [payment-service] Memory usage at 97% - OOM killer may activate
+2024-01-15 08:24:10 CRITICAL [system] CPU usage at 99% on payment-service pod
