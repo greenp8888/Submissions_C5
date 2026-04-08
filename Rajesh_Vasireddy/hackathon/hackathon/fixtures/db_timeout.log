@@ -1,0 +1,12 @@
+2024-03-15T14:30:00Z app[web.1]: ERROR: could not connect to server: Connection timed out. Is the server running on host "db-primary.internal" (10.0.3.100) and accepting TCP/IP connections on port 5432?
+2024-03-15T14:30:01Z app[web.2]: ERROR: remaining connection slots are reserved for non-replication superuser connections
+2024-03-15T14:30:02Z app[web.3]: FATAL: sorry, too many clients already (max_connections=100, current=100)
+2024-03-15T14:30:03Z postgres[5432]: LOG: connection received: host=10.0.1.20 port=54321
+2024-03-15T14:30:03Z postgres[5432]: FATAL: remaining connection slots are reserved for non-replication superuser connections
+2024-03-15T14:30:05Z pgbouncer[6543]: ERROR: server conn timeout (query_timeout=30s) for client (app, user=appuser, query="SELECT * FROM orders WHERE status='pending'")
+2024-03-15T14:30:06Z pgbouncer[6543]: WARN: pool_size=20 reached, waiting queue=47
+2024-03-15T14:30:10Z app[worker.1]: ERROR: ActiveRecord::ConnectionTimeoutError: could not obtain a database connection within 5.000 seconds (waited 5.001 seconds)
+2024-03-15T14:30:15Z app[worker.2]: ERROR: PG::ConnectionBad: SSL connection has been closed unexpectedly
+2024-03-15T14:30:20Z postgres[5432]: LOG: autovacuum: found 1238 removable, 0 nonremovable row versions in 1 of 1 pages in table "public.events"
+2024-03-15T14:30:25Z postgres[5432]: WARN: checkpoint request taking too long, checkpointing for 30000 ms (>25000 ms threshold)
+2024-03-15T14:31:00Z app[web.1]: ERROR: Sequel::DatabaseConnectionError: PG::ConnectionBad: could not connect to server: Connection refused
