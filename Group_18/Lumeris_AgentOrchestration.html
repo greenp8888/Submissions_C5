@@ -1,0 +1,120 @@
+
+<style>
+#mmd { padding: 1rem 0; }
+#mmd svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+</style>
+<div id="mmd"></div>
+<script type="module">
+import mermaid from 'https://esm.sh/mermaid@11/dist/mermaid.esm.min.mjs';
+const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+await document.fonts.ready;
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'base',
+  fontFamily: '"Anthropic Sans", ui-sans-serif, sans-serif',
+  fontSize: 13,
+  themeVariables: {
+    darkMode: dark,
+    fontSize: '13px',
+    fontFamily: '"Anthropic Sans", ui-sans-serif, sans-serif',
+    primaryColor:       dark ? '#2a2560' : '#EEEDFE',
+    primaryBorderColor: dark ? '#7F77DD' : '#7F77DD',
+    primaryTextColor:   dark ? '#CECBF6' : '#26215C',
+    secondaryColor:     dark ? '#0a3d2b' : '#E1F5EE',
+    tertiaryColor:      dark ? '#1a1008' : '#FAEEDA',
+    lineColor:          dark ? '#888780' : '#5F5E5A',
+    textColor:          dark ? '#c2c0b6' : '#2C2C2A',
+    nodeBorder:         dark ? '#7F77DD' : '#534AB7',
+    clusterBkg:         dark ? '#1a1a2e' : '#F1EFE8',
+    clusterBorder:      dark ? '#444441' : '#B4B2A9',
+    edgeLabelBackground: dark ? '#1e1e1e' : '#ffffff',
+    background:         'transparent',
+  },
+  flowchart: {
+    curve: 'basis',
+    padding: 20,
+    nodeSpacing: 50,
+    rankSpacing: 60,
+    htmlLabels: true,
+    diagramPadding: 20,
+  },
+});
+
+const diagram = `flowchart TD
+    START(["▶  User query"]):::entry
+
+    subgraph PLANNING ["  Planning"]
+      P["<b>Planner agent</b><br/><small>Decomposes query into<br/>sub-questions &amp; paths</small>"]:::planner
+    end
+
+    subgraph RETRIEVAL ["  Retrieval"]
+      R["<b>Retriever agent</b><br/><small>Selects investigation path</small>"]:::retriever
+      subgraph TOOLS ["  Parallel tool calls  ·  ThreadPoolExecutor"]
+        T1["Wikipedia"]:::tool
+        T2["ArXiv"]:::tool
+        T3["Tavily search"]:::tool
+        T4["PDF RAG<br/><small>FAISS index</small>"]:::rag
+      end
+    end
+
+    subgraph ANALYSIS ["  Analysis"]
+      A["<b>Analysis agent</b><br/><small>Synthesis · contradictions<br/>confidence scoring</small>"]:::analyst
+    end
+
+    subgraph INSIGHT_BLOCK ["  Insight generation"]
+      I["<b>Insight agent</b><br/><small>Trends · risks<br/>opportunities · hypotheses</small>"]:::insight
+    end
+
+    subgraph VALIDATION ["  Validation &amp; gap-fill"]
+      RT["<b>Red team agent</b><br/><small>Challenges assumptions<br/>flags hallucinations &amp; bias</small>"]:::redteam
+      GF["<b>Gap-fill agent</b><br/><small>Iterative retrieval<br/>for missing data</small>"]:::gapfill
+    end
+
+    subgraph REPORTING ["  Reporting"]
+      REP["<b>Reporter agent</b><br/><small>Structured report<br/>+ evidence table</small>"]:::reporter
+    end
+
+    END_NODE(["⏹  Final report"]):::entry
+
+    STATE[/"  Shared ResearchState<br/><small>query · sub_questions · retrieval_results<br/>rag_results · analysis · insights<br/>red_team · gap_fill_results · audit_trail</small>"/]:::state
+
+    START --> P
+    P --> R
+    R --> T1 & T2 & T3
+    R -.->|if PDF uploaded| T4
+    T1 & T2 & T3 --> A
+    T4 -.-> A
+    A --> I
+    I --> RT
+    RT --> GF
+    GF --> REP
+    REP --> END_NODE
+
+    STATE -.- P
+    STATE -.- R
+    STATE -.- A
+    STATE -.- I
+    STATE -.- RT
+    STATE -.- GF
+    STATE -.- REP
+
+    classDef entry    fill:#1D9E75,stroke:#0F6E56,color:#E1F5EE,rx:20
+    classDef planner  fill:#EF9F27,stroke:#BA7517,color:#412402
+    classDef retriever fill:#1D9E75,stroke:#0F6E56,color:#04342C
+    classDef tool     fill:#D85A30,stroke:#993C1D,color:#4A1B0C
+    classDef rag      fill:#D4537E,stroke:#993556,color:#4B1528
+    classDef analyst  fill:#378ADD,stroke:#185FA5,color:#042C53
+    classDef insight  fill:#7F77DD,stroke:#534AB7,color:#26215C
+    classDef redteam  fill:#E24B4A,stroke:#A32D2D,color:#501313
+    classDef gapfill  fill:#639922,stroke:#3B6D11,color:#173404
+    classDef reporter fill:#888780,stroke:#5F5E5A,color:#2C2C2A
+    classDef state    fill:#D3D1C7,stroke:#888780,color:#2C2C2A
+`;
+
+try {
+  const { svg } = await mermaid.render('mmd-svg', diagram);
+  document.getElementById('mmd').innerHTML = svg;
+} catch(e) {
+  document.getElementById('mmd').innerHTML = '<p style="color:var(--color-text-danger);font-size:13px">Render error: ' + e.message + '</p>';
+}
+</script>
