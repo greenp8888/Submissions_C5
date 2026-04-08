@@ -1,0 +1,50 @@
+# ── Secrets & environment ────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+backend/.env
+frontend/.env.local
+# .env.example is intentionally tracked — it contains only placeholder values
+
+# ── Python ───────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.Python
+backend/venv/
+backend/.venv/
+.python-version
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Exception: YC RAG cache (pre-computed embeddings - must be tracked)
+!backend/graph/.cache/
+
+# ── Node.js / Next.js ────────────────────────────────────────────────
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.cache/
+frontend/build/
+
+# ── OS / editor ──────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Logs & temp ──────────────────────────────────────────────────────
+*.log
+logs/
+tmp/
+temp/
